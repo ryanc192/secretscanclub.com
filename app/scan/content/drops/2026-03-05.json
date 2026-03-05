@@ -1,0 +1,17 @@
+{
+  "date": "2026-03-05",
+  "number": 1,
+  "title": "Drop #1 — First Scan",
+  "free": {
+    "puzzle": "PUZZLE:\n\nWrite your free puzzle here.\n\nClue: ...",
+    "sharePrompt": "Send this QR to a friend and see who solves it first."
+  },
+  "paid": {
+    "answerKey": "ANSWER KEY:\n\n1) ...\n2) ...\n\nFinal answer: ...",
+    "funFact": "FUN FACT:\n\nPut a fun fact here."
+  },
+  "subscriber": {
+    "emailTeaser": "Tomorrow’s drop is even better.",
+    "bonus": "SUBSCRIBER BONUS:\n\nBonus content goes here."
+  }
+}
