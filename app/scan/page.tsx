@@ -22,12 +22,20 @@ type Drop = {
 };
 
 function todayET(): string {
-  return new Intl.DateTimeFormat("en-CA", {
+  const now = new Date();
+
+  const parts = new Intl.DateTimeFormat("en-US", {
     timeZone: "America/New_York",
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
-  }).format(new Date());
+  }).formatToParts(now);
+
+  const year = parts.find((p) => p.type === "year")?.value;
+  const month = parts.find((p) => p.type === "month")?.value;
+  const day = parts.find((p) => p.type === "day")?.value;
+
+  return `${year}-${month}-${day}`;
 }
 
 function formatDateLabel(dateStr: string) {
@@ -481,7 +489,7 @@ export default function ScanPage() {
 
               <div>
                 <div className="brand-title">Secret Scan Club</div>
-                <div className="brand-subtitle">One scan. A new drop every day.</div>
+                <div className="brand-subtitle">One Scan. Fresh Daily Content.</div>
               </div>
             </div>
 
