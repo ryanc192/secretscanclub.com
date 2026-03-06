@@ -398,8 +398,8 @@ export default function ScanPage() {
           }
 
          .brand-logo {
-          width: 80px;
-          height: 80px;
+          width: 100px;
+          height: 100px;
           }
 
           .hero-title {
