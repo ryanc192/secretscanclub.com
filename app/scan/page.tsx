@@ -90,8 +90,8 @@ export default function ScanPage() {
         }
 
         .brand-logo {
-          width: 110px;
-          height: 110px;
+          width: 150px;
+          height: 150px;
           overflow: hidden;
           flex-shrink: 0;
         }
@@ -472,8 +472,8 @@ export default function ScanPage() {
                 <Image
                     src="/ssc-logo.png"
                     alt="Secret Scan Club logo"
-                    width={110}
-                    height={110}
+                    width={150}
+                    height={150}
                     style={{ width: "100%", height: "100%", objectFit: "contain" }}
                     priority
                   />
