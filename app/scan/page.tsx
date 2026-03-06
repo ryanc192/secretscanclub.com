@@ -511,8 +511,8 @@ export default function ScanPage() {
             </h1>
 
             <p className="hero-text">
-              Every day brings a new drop. You get today’s puzzle for free. Unlock the answer key
-              and fun fact, or subscribe for bonus content, daily emails, and the archive.
+              Every day brings a new puzzle, fact, mystery, treasure hunt, or discovery. You get today’s content for free. It may be a puzzle, clue to a hidden reward, or just a random weird fact you probably didn't know.
+              Unlock the answer key (or a fresh clue) and a fun fact, or subscribe for bonus content, daily emails, and the archives.
             </p>
 
             <div className="meta-row">
