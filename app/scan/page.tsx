@@ -90,13 +90,9 @@ export default function ScanPage() {
         }
 
         .brand-logo {
-          width: 64px;
-          height: 64px;
-          border-radius: 16px;
+          width: 110px;
+          height: 110px;
           overflow: hidden;
-          background: rgba(255,255,255,0.06);
-          border: 1px solid rgba(255,255,255,0.10);
-          box-shadow: 0 10px 30px rgba(0,0,0,0.25);
           flex-shrink: 0;
         }
 
@@ -401,10 +397,9 @@ export default function ScanPage() {
             text-align: center;
           }
 
-          .brand-logo {
-            width: 56px;
-            height: 56px;
-            border-radius: 14px;
+         .brand-logo {
+          width: 80px;
+          height: 80px;
           }
 
           .hero-title {
@@ -475,13 +470,13 @@ export default function ScanPage() {
             <div className="brand">
               <div className="brand-logo">
                 <Image
-                  src="/ssc-logo.png"
-                  alt="Secret Scan Club logo"
-                  width={64}
-                  height={64}
-                  style={{ width: "100%", height: "100%", objectFit: "cover" }}
-                  priority
-                />
+                    src="/ssc-logo.png"
+                    alt="Secret Scan Club logo"
+                    width={110}
+                    height={110}
+                    style={{ width: "100%", height: "100%", objectFit: "contain" }}
+                    priority
+                  />
               </div>
 
               <div>
