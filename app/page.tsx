@@ -76,78 +76,78 @@ export default function ScanPage() {
           color: #ffffff;
         }
 
-.logo-splash {
-  position: relative;
-  min-height: 100svh;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0;
-  overflow: hidden;
-}
+        .logo-splash {
+          position: relative;
+          min-height: 100svh;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 0;
+          overflow: hidden;
+        }
 
-.logo-splash-overlay {
-  position: absolute;
-  inset: 0;
-  background:
-    linear-gradient(
-      to bottom,
-      rgba(5, 8, 22, 0) 0%,
-      rgba(5, 8, 22, 0.08) 45%,
-      rgba(5, 8, 22, 0.32) 75%,
-      rgba(5, 8, 22, 0.88) 100%
-    );
-  pointer-events: none;
-}
+        .logo-splash-overlay {
+          position: absolute;
+          inset: 0;
+          background:
+            linear-gradient(
+              to bottom,
+              rgba(5, 8, 22, 0) 0%,
+              rgba(5, 8, 22, 0.08) 45%,
+              rgba(5, 8, 22, 0.32) 75%,
+              rgba(5, 8, 22, 0.88) 100%
+            );
+          pointer-events: none;
+        }
 
-.logo-splash-inner {
-  position: relative;
-  z-index: 1;
-  width: min(95vw, 900px);
-  aspect-ratio: 1 / 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  opacity: 0.96;
-  transform: scale(1);
-  animation: logoFadeIn 0.9s ease-out both;
-}
+        .logo-splash-inner {
+          position: relative;
+          z-index: 1;
+          width: min(95vw, 900px);
+          aspect-ratio: 1 / 1;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          opacity: 0.96;
+          transform: scale(1);
+          animation: logoFadeIn 0.9s ease-out both;
+        }
 
-.scroll-cue {
-  position: absolute;
-  bottom: 22px;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 1;
-  font-size: 13px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: rgba(255, 255, 255, 0.72);
-  animation: floatCue 1.8s ease-in-out infinite;
-}
+        .scroll-cue {
+          position: absolute;
+          bottom: 22px;
+          left: 50%;
+          transform: translateX(-50%);
+          z-index: 1;
+          font-size: 13px;
+          font-weight: 700;
+          letter-spacing: 0.08em;
+          text-transform: uppercase;
+          color: rgba(255, 255, 255, 0.72);
+          animation: floatCue 1.8s ease-in-out infinite;
+        }
 
-@keyframes logoFadeIn {
-  from {
-    opacity: 0;
-    transform: scale(0.94);
-  }
-  to {
-    opacity: 0.96;
-    transform: scale(1);
-  }
-}
+        @keyframes logoFadeIn {
+          from {
+            opacity: 0;
+            transform: scale(0.94);
+          }
+          to {
+            opacity: 0.96;
+            transform: scale(1);
+          }
+        }
 
-@keyframes floatCue {
-  0%, 100% {
-    transform: translateX(-50%) translateY(0);
-    opacity: 0.62;
-  }
-  50% {
-    transform: translateX(-50%) translateY(6px);
-    opacity: 1;
-  }
-}
+        @keyframes floatCue {
+          0%, 100% {
+            transform: translateX(-50%) translateY(0);
+            opacity: 0.62;
+          }
+          50% {
+            transform: translateX(-50%) translateY(6px);
+            opacity: 1;
+          }
+        }
 
         .scan-wrap {
           max-width: 860px;
@@ -156,12 +156,15 @@ export default function ScanPage() {
         }
 
         .btn-primary,
-        .btn-secondary {
+        .btn-secondary,
+        .btn-dark {
           text-decoration: none;
           padding: 10px 14px;
           border-radius: 12px;
           font-size: 14px;
           display: inline-block;
+          border: none;
+          cursor: pointer;
         }
 
         .btn-primary {
@@ -175,6 +178,12 @@ export default function ScanPage() {
           color: #ffffff;
           background: rgba(255,255,255,0.04);
           font-weight: 700;
+        }
+
+        .btn-dark {
+          background: #0b1020;
+          color: #ffffff;
+          font-weight: 800;
         }
 
         .card {
@@ -192,6 +201,14 @@ export default function ScanPage() {
           border-radius: 22px;
           padding: 24px;
           box-shadow: 0 16px 50px rgba(0,0,0,0.20);
+        }
+
+        .card-gold {
+          border: 1px solid rgba(250, 204, 21, 0.28);
+          background: linear-gradient(135deg, rgba(250, 204, 21, 0.10) 0%, rgba(255,255,255,0.04) 100%);
+          border-radius: 22px;
+          padding: 24px;
+          box-shadow: 0 16px 50px rgba(0,0,0,0.25);
         }
 
         .pill {
@@ -216,6 +233,19 @@ export default function ScanPage() {
           border-radius: 999px;
           background: #eef2ff;
           color: #312e81;
+          margin-bottom: 14px;
+        }
+
+        .pill-gold {
+          display: inline-block;
+          font-size: 12px;
+          font-weight: 800;
+          letter-spacing: 0.5px;
+          text-transform: uppercase;
+          padding: 6px 10px;
+          border-radius: 999px;
+          background: rgba(250, 204, 21, 0.14);
+          color: #fef08a;
           margin-bottom: 14px;
         }
 
@@ -339,6 +369,110 @@ export default function ScanPage() {
           line-height: 1.5;
         }
 
+        .email-grid {
+          display: grid;
+          grid-template-columns: 1.05fr 0.95fr;
+          gap: 18px;
+          align-items: center;
+        }
+
+        .email-form {
+          display: flex;
+          gap: 12px;
+          margin-top: 18px;
+          flex-wrap: wrap;
+        }
+
+        .email-input {
+          flex: 1 1 260px;
+          min-width: 0;
+          border: 1px solid #d1d5db;
+          background: #ffffff;
+          color: #0b1020;
+          border-radius: 14px;
+          padding: 14px 16px;
+          font-size: 15px;
+          outline: none;
+        }
+
+        .email-input:focus {
+          border-color: #1d4ed8;
+          box-shadow: 0 0 0 3px rgba(29, 78, 216, 0.12);
+        }
+
+        .entry-note {
+          margin-top: 12px;
+          font-size: 13px;
+          line-height: 1.5;
+          color: #6b7280;
+        }
+
+        .entry-boxes {
+          display: grid;
+          gap: 12px;
+        }
+
+        .entry-box {
+          border: 1px solid rgba(11,16,32,0.08);
+          background: #f9fafb;
+          border-radius: 16px;
+          padding: 16px;
+        }
+
+        .entry-box-title {
+          font-size: 15px;
+          font-weight: 800;
+          margin-bottom: 6px;
+          color: #111827;
+        }
+
+        .entry-box-text {
+          font-size: 14px;
+          line-height: 1.55;
+          color: #4b5563;
+        }
+
+        .prize-grid {
+          margin-top: 20px;
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 18px;
+        }
+
+        .prize-card {
+          border: 1px solid rgba(255,255,255,0.10);
+          background: rgba(255,255,255,0.05);
+          border-radius: 20px;
+          padding: 22px;
+        }
+
+        .prize-card h3 {
+          margin: 0 0 10px 0;
+          font-size: 24px;
+          font-weight: 900;
+        }
+
+        .prize-highlight {
+          font-size: 16px;
+          font-weight: 800;
+          margin-bottom: 12px;
+        }
+
+        .prize-list {
+          display: grid;
+          gap: 10px;
+          margin-top: 14px;
+        }
+
+        .prize-item {
+          border: 1px solid rgba(255,255,255,0.08);
+          background: rgba(255,255,255,0.04);
+          border-radius: 14px;
+          padding: 12px 14px;
+          line-height: 1.5;
+          font-size: 14px;
+        }
+
         .offer-grid {
           margin-top: 20px;
           display: grid;
@@ -422,7 +556,7 @@ export default function ScanPage() {
           }
 
           .logo-splash-inner {
-            width: 110vw;
+            width: 96vw;
           }
 
           .hero-title {
@@ -435,8 +569,10 @@ export default function ScanPage() {
 
           .card,
           .card-light,
+          .card-gold,
           .offer-main,
-          .offer-side {
+          .offer-side,
+          .prize-card {
             padding: 18px;
             border-radius: 18px;
           }
@@ -445,7 +581,9 @@ export default function ScanPage() {
             font-size: 24px;
           }
 
-          .offer-grid {
+          .offer-grid,
+          .prize-grid,
+          .email-grid {
             grid-template-columns: 1fr;
           }
 
@@ -460,16 +598,28 @@ export default function ScanPage() {
           .footer {
             flex-direction: column;
           }
+
+          .email-form {
+            flex-direction: column;
+          }
+
+          .email-form button,
+          .email-form a {
+            width: 100%;
+            text-align: center;
+          }
         }
 
         @media (max-width: 480px) {
           .logo-splash-inner {
-            width: 110vw;
+            width: 98vw;
           }
-  .scroll-cue {
-    bottom: 18px;
-    font-size: 10px;
-  }
+
+          .scroll-cue {
+            bottom: 18px;
+            font-size: 12px;
+          }
+
           .hero-title {
             font-size: 24px;
           }
@@ -495,21 +645,20 @@ export default function ScanPage() {
       `}</style>
 
       <main className="scan-page">
-<section className="logo-splash">
-  <div className="logo-splash-overlay" />
-  <div className="logo-splash-inner">
-    <Image
-      src="/ssc-logo.png"
-      alt="Secret Scan Club logo"
-      width={420}
-      height={420}
-      style={{ width: "100%", height: "100%", objectFit: "contain" }}
-      priority
-    />
-  </div>
-
-  <div className="scroll-cue">↓ Scroll for today’s drop ↓</div>
-</section>
+        <section className="logo-splash">
+          <div className="logo-splash-overlay" />
+          <div className="logo-splash-inner">
+            <Image
+              src="/ssc-logo.png"
+              alt="Secret Scan Club logo"
+              width={420}
+              height={420}
+              style={{ width: "100%", height: "100%", objectFit: "contain" }}
+              priority
+            />
+          </div>
+          <div className="scroll-cue">↓ Scroll for today’s drop</div>
+        </section>
 
         <div className="scan-wrap">
           <section className="card">
@@ -594,6 +743,122 @@ export default function ScanPage() {
             </div>
           </section>
 
+          <section className="card-light" style={{ marginTop: 20 }}>
+            <div className="pill-light">Free Entry</div>
+
+            <div className="email-grid">
+              <div>
+                <h2 className="section-title">Enter your email for 1 free entry</h2>
+
+                <p className="section-text-light" style={{ marginBottom: 0 }}>
+                  Join the list and get <strong>1 free sweepstakes entry</strong>. You’ll also get
+                  future drops, launch updates, and prize reminders sent to your inbox.
+                </p>
+
+                <form className="email-form">
+                  <input
+                    type="email"
+                    className="email-input"
+                    placeholder="Enter your email address"
+                    aria-label="Email address"
+                  />
+                  <button type="submit" className="btn-dark">
+                    Claim My Free Entry
+                  </button>
+                </form>
+
+                <div className="entry-note">
+                  By signing up, you’re claiming 1 free entry and agreeing to receive emails from
+                  Secret Scan Club. No purchase required for this free email entry.
+                </div>
+              </div>
+
+              <div className="entry-boxes">
+                <div className="entry-box">
+                  <div className="entry-box-title">What you get</div>
+                  <div className="entry-box-text">
+                    1 free entry, email updates, and first access to new drops and prize announcements.
+                  </div>
+                </div>
+
+                <div className="entry-box">
+                  <div className="entry-box-title">Why sign up now</div>
+                  <div className="entry-box-text">
+                    Stay in the loop for weekly drawings, grand prize updates, and future bonus entry offers.
+                  </div>
+                </div>
+
+                <div className="entry-box">
+                  <div className="entry-box-title">Fast and simple</div>
+                  <div className="entry-box-text">
+                    One email. One free entry. Then you can keep browsing today’s drop.
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section className="card-gold" style={{ marginTop: 20 }}>
+            <div className="pill-gold">Prize Details</div>
+
+            <h2 className="section-title">What you could win</h2>
+
+            <p className="section-text-dark">
+              Every scan can lead to something bigger. Enter for the weekly cash prize and work
+              your way toward the grand prize giveaway.
+            </p>
+
+            <div className="prize-grid">
+              <div className="prize-card">
+                <h3>Grand Prize</h3>
+                <div className="prize-highlight">Car Giveaway</div>
+                <div style={{ opacity: 0.9, lineHeight: 1.6 }}>
+                  One winner will receive the featured grand prize vehicle at the end of the main
+                  giveaway period.
+                </div>
+
+                <div className="prize-list">
+                  <div className="prize-item">
+                    <strong>Prize:</strong> Featured car giveaway
+                  </div>
+                  <div className="prize-item">
+                    <strong>How to enter:</strong> Free email entry, paid unlocks, and eligible club actions
+                  </div>
+                  <div className="prize-item">
+                    <strong>Timing:</strong> Awarded at the end of the grand prize campaign period
+                  </div>
+                  <div className="prize-item">
+                    <strong>Best use:</strong> This section builds excitement and gives people a reason to keep coming back
+                  </div>
+                </div>
+              </div>
+
+              <div className="prize-card">
+                <h3>Weekly Prize</h3>
+                <div className="prize-highlight">$100 Cash Giveaway</div>
+                <div style={{ opacity: 0.9, lineHeight: 1.6 }}>
+                  A weekly winner receives a cash prize, giving people a near-term reason to scan,
+                  sign up, and stay engaged.
+                </div>
+
+                <div className="prize-list">
+                  <div className="prize-item">
+                    <strong>Prize:</strong> $100 cash
+                  </div>
+                  <div className="prize-item">
+                    <strong>Frequency:</strong> One winner selected each week once drawings begin
+                  </div>
+                  <div className="prize-item">
+                    <strong>How to enter:</strong> Same entry system as the main campaign
+                  </div>
+                  <div className="prize-item">
+                    <strong>Why it matters:</strong> Smaller weekly wins keep momentum high while the grand prize builds
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+
           <section className="offer-grid">
             <div className="offer-main">
               <div className="pill">Subscribe for More</div>
@@ -631,7 +896,8 @@ export default function ScanPage() {
                 {[
                   ["1", "Scan the code", "Land on today’s drop instantly."],
                   ["2", "Play for free", "Get today’s puzzle at no cost."],
-                  ["3", "Unlock more", "Pay once for the answer or subscribe for ongoing extras."],
+                  ["3", "Enter your email", "Claim 1 free entry and stay updated."],
+                  ["4", "Unlock more", "Pay once for the answer or subscribe for ongoing extras."],
                 ].map(([num, title, text]) => (
                   <div key={num} className="step">
                     <div className="step-num">{num}</div>
@@ -651,7 +917,7 @@ export default function ScanPage() {
             <div className="footer-links">
               <span>Secure checkout coming next</span>
               <span>Daily rotating content</span>
-              <span>One QR, always updated</span>
+              <span>Weekly + grand prize campaign</span>
             </div>
           </footer>
         </div>
