@@ -133,19 +133,23 @@ export default function ScanPage() {
           animation: logoFadeIn 0.9s ease-out both;
         }
 
-        .scroll-cue {
-          position: absolute;
-          bottom: 22px;
-          left: 50%;
-          transform: translateX(-50%);
-          z-index: 1;
-          font-size: 13px;
-          font-weight: 700;
-          letter-spacing: 0.08em;
-          text-transform: uppercase;
-          color: rgba(255, 255, 255, 0.72);
-          animation: floatCue 1.8s ease-in-out infinite;
-        }
+.scroll-cue {
+  position: absolute;
+  bottom: 22px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.72);
+  animation: floatCue 1.8s ease-in-out infinite;
+  white-space: nowrap;
+  text-align: center;
+  width: auto;
+  max-width: 90vw;
+}
 
         @keyframes logoFadeIn {
           from {
@@ -523,33 +527,27 @@ export default function ScanPage() {
           background: #111827;
         }
 
-        .featured-image-overlay {
-          position: absolute;
-          inset: 0;
-          background:
-            linear-gradient(to top, rgba(2,6,23,0.85) 0%, rgba(2,6,23,0.25) 50%, rgba(2,6,23,0.08) 100%);
-          display: flex;
-          align-items: flex-end;
-          padding: 18px;
-        }
+  .featured-badges {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
 
-        .featured-badges {
-          display: flex;
-          gap: 10px;
-          flex-wrap: wrap;
-        }
+.featured-badges-inline {
+  margin-bottom: 14px;
+}
 
-        .featured-badge {
-          border-radius: 999px;
-          padding: 8px 12px;
-          font-size: 12px;
-          font-weight: 800;
-          text-transform: uppercase;
-          letter-spacing: 0.04em;
-          background: rgba(255,255,255,0.12);
-          color: #ffffff;
-          backdrop-filter: blur(8px);
-        }
+.featured-badge {
+  border-radius: 999px;
+  padding: 7px 11px;
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  background: rgba(250, 204, 21, 0.14);
+  color: #fde68a;
+  border: 1px solid rgba(250, 204, 21, 0.18);
+}
 
         .featured-body {
           padding: 22px;
@@ -843,11 +841,13 @@ export default function ScanPage() {
           .logo-splash-inner {
             width: 98vw;
           }
+  .scroll-cue {
+    bottom: 18px;
+    font-size: 11px;
+    letter-spacing: 0.04em;
+    white-space: nowrap;
+  }
 
-          .scroll-cue {
-            bottom: 18px;
-            font-size: 12px;
-          }
 
           .hero-title {
             font-size: 24px;
@@ -896,10 +896,37 @@ export default function ScanPage() {
             padding: 7px 10px;
           }
 
-          .email-input {
-            padding: 13px 14px;
-            font-size: 14px;
-          }
+  .email-input {
+    padding: 10px 12px;
+    font-size: 14px;
+    border-radius: 12px;
+    min-height: 42px;
+  }
+
+  .email-form {
+    gap: 8px;
+  }
+
+  .email-form .btn-dark {
+    padding: 10px 12px;
+    min-height: 42px;
+    border-radius: 12px;
+    font-size: 14px;
+  }
+  .capture-main {
+  padding: 14px;
+}
+
+.capture-title {
+  font-size: 20px;
+  margin-bottom: 6px;
+}
+
+.capture-subtext {
+  font-size: 13px;
+  line-height: 1.45;
+  margin-bottom: 10px;
+}
 
           .countdown-row,
           .mini-countdown {
@@ -923,6 +950,19 @@ export default function ScanPage() {
           .side-prize-title {
             font-size: 22px;
           }
+          .featured-badges-inline {
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.featured-badge {
+  padding: 6px 9px;
+  font-size: 10px;
+}
+
+.featured-image-wrap {
+  aspect-ratio: 16 / 10;
+}
         }
       `}</style>
 
@@ -1108,17 +1148,18 @@ export default function ScanPage() {
                     fill
                     style={{ objectFit: "cover" }}
                   />
-                  <div className="featured-image-overlay">
-                    <div className="featured-badges">
-                      <div className="featured-badge">Grand Prize</div>
-                      <div className="featured-badge">Car Giveaway</div>
-                      <div className="featured-badge">Featured Reward</div>
                     </div>
                   </div>
                 </div>
 
-                <div className="featured-body">
-                  <h3 className="featured-title">Grand Prize Car Giveaway</h3>
+<div className="featured-body">
+  <div className="featured-badges featured-badges-inline">
+    <div className="featured-badge">Grand Prize</div>
+    <div className="featured-badge">Car Giveaway</div>
+    <div className="featured-badge">Featured Reward</div>
+  </div>
+
+  <h3 className="featured-title">Grand Prize Car Giveaway</h3>
 
                   <p className="featured-text">
                     One winner takes home the featured car at the end of the main campaign period.
