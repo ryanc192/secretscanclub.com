@@ -422,7 +422,7 @@ export default function ScanPage() {
           }
 
           .logo-splash-inner {
-            width: 96vw;
+            width: 110vw;
           }
 
           .hero-title {
@@ -464,11 +464,11 @@ export default function ScanPage() {
 
         @media (max-width: 480px) {
           .logo-splash-inner {
-            width: 98vw;
+            width: 110vw;
           }
   .scroll-cue {
     bottom: 18px;
-    font-size: 12px;
+    font-size: 10px;
   }
           .hero-title {
             font-size: 24px;
@@ -508,7 +508,7 @@ export default function ScanPage() {
     />
   </div>
 
-  <div className="scroll-cue">↓ Scroll for today’s drop</div>
+  <div className="scroll-cue">↓ Scroll for today’s drop ↓</div>
 </section>
 
         <div className="scan-wrap">
