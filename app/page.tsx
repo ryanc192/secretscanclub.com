@@ -49,10 +49,30 @@ function loadDrop(dateStr?: string): Drop | null {
   return JSON.parse(fs.readFileSync(filePath, "utf8")) as Drop;
 }
 
+function getCountdownParts(targetDate: string) {
+  const now = new Date();
+  const target = new Date(targetDate);
+  const diff = Math.max(target.getTime() - now.getTime(), 0);
+
+  const totalMinutes = Math.floor(diff / (1000 * 60));
+  const days = Math.floor(totalMinutes / (60 * 24));
+  const hours = Math.floor((totalMinutes % (60 * 24)) / 60);
+  const minutes = totalMinutes % 60;
+
+  return { days, hours, minutes };
+}
+
 export default function ScanPage() {
   const drop = loadDrop();
   const today = todayET();
   const dateLabel = formatDateLabel(drop?.date ?? today);
+
+  // Replace these later with your real launch/drawing dates
+  const grandPrizeDeadline = "2026-06-30T23:59:59-04:00";
+  const weeklyPrizeDeadline = "2026-03-16T23:59:59-04:00";
+
+  const grandCountdown = getCountdownParts(grandPrizeDeadline);
+  const weeklyCountdown = getCountdownParts(weeklyPrizeDeadline);
 
   return (
     <>
@@ -150,40 +170,44 @@ export default function ScanPage() {
         }
 
         .scan-wrap {
-          max-width: 860px;
+          max-width: 980px;
           margin: 0 auto;
           padding: 0 16px 56px;
         }
 
         .btn-primary,
         .btn-secondary,
-        .btn-dark {
+        .btn-dark,
+        .btn-gold {
           text-decoration: none;
-          padding: 10px 14px;
-          border-radius: 12px;
+          padding: 12px 16px;
+          border-radius: 14px;
           font-size: 14px;
           display: inline-block;
           border: none;
           cursor: pointer;
+          font-weight: 800;
         }
 
         .btn-primary {
           background: #ffffff;
           color: #0b1020;
-          font-weight: 800;
         }
 
         .btn-secondary {
           border: 1px solid rgba(255,255,255,0.22);
           color: #ffffff;
           background: rgba(255,255,255,0.04);
-          font-weight: 700;
         }
 
         .btn-dark {
           background: #0b1020;
           color: #ffffff;
-          font-weight: 800;
+        }
+
+        .btn-gold {
+          background: linear-gradient(135deg, #facc15 0%, #f59e0b 100%);
+          color: #111827;
         }
 
         .card {
@@ -204,7 +228,7 @@ export default function ScanPage() {
         }
 
         .card-gold {
-          border: 1px solid rgba(250, 204, 21, 0.28);
+          border: 1px solid rgba(250, 204, 21, 0.24);
           background: linear-gradient(135deg, rgba(250, 204, 21, 0.10) 0%, rgba(255,255,255,0.04) 100%);
           border-radius: 22px;
           padding: 24px;
@@ -244,8 +268,8 @@ export default function ScanPage() {
           text-transform: uppercase;
           padding: 6px 10px;
           border-radius: 999px;
-          background: rgba(250, 204, 21, 0.14);
-          color: #fef08a;
+          background: rgba(250, 204, 21, 0.16);
+          color: #fde68a;
           margin-bottom: 14px;
         }
 
@@ -296,7 +320,7 @@ export default function ScanPage() {
           margin: 0 0 16px 0;
           opacity: 0.88;
           line-height: 1.6;
-          max-width: 700px;
+          max-width: 760px;
         }
 
         .puzzle-box {
@@ -369,17 +393,63 @@ export default function ScanPage() {
           line-height: 1.5;
         }
 
-        .email-grid {
+        .capture-wrap {
           display: grid;
-          grid-template-columns: 1.05fr 0.95fr;
+          grid-template-columns: 1.08fr 0.92fr;
           gap: 18px;
-          align-items: center;
+          align-items: stretch;
+        }
+
+        .capture-main {
+          border: 1px solid rgba(11,16,32,0.08);
+          background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+          border-radius: 20px;
+          padding: 22px;
+        }
+
+        .capture-side {
+          border: 1px solid rgba(11,16,32,0.08);
+          background: #f8fafc;
+          border-radius: 20px;
+          padding: 20px;
+        }
+
+        .capture-title {
+          margin: 0 0 8px 0;
+          font-size: 30px;
+          line-height: 1.08;
+          font-weight: 900;
+          color: #0b1020;
+        }
+
+        .capture-subtext {
+          margin: 0 0 14px 0;
+          color: #4b5563;
+          line-height: 1.6;
+          font-size: 15px;
+        }
+
+        .entry-badge-row {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 10px;
+          margin: 0 0 16px 0;
+        }
+
+        .entry-badge {
+          border: 1px solid rgba(29, 78, 216, 0.14);
+          background: #eff6ff;
+          color: #1d4ed8;
+          border-radius: 999px;
+          padding: 8px 12px;
+          font-size: 13px;
+          font-weight: 800;
         }
 
         .email-form {
           display: flex;
-          gap: 12px;
-          margin-top: 18px;
+          gap: 10px;
+          margin-top: 6px;
           flex-wrap: wrap;
         }
 
@@ -400,71 +470,204 @@ export default function ScanPage() {
           box-shadow: 0 0 0 3px rgba(29, 78, 216, 0.12);
         }
 
-        .entry-note {
-          margin-top: 12px;
-          font-size: 13px;
+        .capture-note {
+          margin-top: 10px;
+          font-size: 12px;
           line-height: 1.5;
           color: #6b7280;
         }
 
-        .entry-boxes {
+        .capture-points {
           display: grid;
-          gap: 12px;
+          gap: 10px;
         }
 
-        .entry-box {
-          border: 1px solid rgba(11,16,32,0.08);
-          background: #f9fafb;
-          border-radius: 16px;
-          padding: 16px;
+        .capture-point {
+          border: 1px solid rgba(11,16,32,0.06);
+          background: #ffffff;
+          border-radius: 14px;
+          padding: 12px 14px;
         }
 
-        .entry-box-title {
-          font-size: 15px;
-          font-weight: 800;
-          margin-bottom: 6px;
-          color: #111827;
-        }
-
-        .entry-box-text {
+        .capture-point-title {
           font-size: 14px;
-          line-height: 1.55;
+          font-weight: 800;
+          color: #111827;
+          margin-bottom: 4px;
+        }
+
+        .capture-point-text {
+          font-size: 13px;
+          line-height: 1.5;
           color: #4b5563;
         }
 
-        .prize-grid {
+        .prize-showcase {
           margin-top: 20px;
           display: grid;
-          grid-template-columns: 1fr 1fr;
+          grid-template-columns: 1.18fr 0.82fr;
           gap: 18px;
         }
 
-        .prize-card {
+        .featured-prize {
           border: 1px solid rgba(255,255,255,0.10);
           background: rgba(255,255,255,0.05);
-          border-radius: 20px;
+          border-radius: 22px;
+          overflow: hidden;
+          box-shadow: 0 16px 50px rgba(0,0,0,0.25);
+        }
+
+        .featured-image-wrap {
+          position: relative;
+          aspect-ratio: 16 / 9;
+          background: #111827;
+        }
+
+        .featured-image-overlay {
+          position: absolute;
+          inset: 0;
+          background:
+            linear-gradient(to top, rgba(2,6,23,0.85) 0%, rgba(2,6,23,0.25) 50%, rgba(2,6,23,0.08) 100%);
+          display: flex;
+          align-items: flex-end;
+          padding: 18px;
+        }
+
+        .featured-badges {
+          display: flex;
+          gap: 10px;
+          flex-wrap: wrap;
+        }
+
+        .featured-badge {
+          border-radius: 999px;
+          padding: 8px 12px;
+          font-size: 12px;
+          font-weight: 800;
+          text-transform: uppercase;
+          letter-spacing: 0.04em;
+          background: rgba(255,255,255,0.12);
+          color: #ffffff;
+          backdrop-filter: blur(8px);
+        }
+
+        .featured-body {
           padding: 22px;
         }
 
-        .prize-card h3 {
-          margin: 0 0 10px 0;
+        .featured-title {
+          margin: 0 0 8px 0;
+          font-size: 30px;
+          line-height: 1.08;
+          font-weight: 900;
+        }
+
+        .featured-text {
+          margin: 0 0 16px 0;
+          line-height: 1.6;
+          opacity: 0.88;
+        }
+
+        .countdown-row {
+          display: grid;
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+          gap: 10px;
+          margin: 16px 0 18px;
+        }
+
+        .countdown-box {
+          border: 1px solid rgba(255,255,255,0.10);
+          background: rgba(255,255,255,0.06);
+          border-radius: 16px;
+          padding: 14px 10px;
+          text-align: center;
+        }
+
+        .countdown-num {
+          display: block;
+          font-size: 28px;
+          line-height: 1;
+          font-weight: 900;
+          margin-bottom: 6px;
+        }
+
+        .countdown-label {
+          display: block;
+          font-size: 11px;
+          letter-spacing: 0.08em;
+          text-transform: uppercase;
+          opacity: 0.72;
+        }
+
+        .featured-actions {
+          display: flex;
+          gap: 10px;
+          flex-wrap: wrap;
+        }
+
+        .side-prizes {
+          display: grid;
+          gap: 18px;
+        }
+
+        .side-prize-card {
+          border: 1px solid rgba(255,255,255,0.10);
+          background: rgba(255,255,255,0.05);
+          border-radius: 22px;
+          padding: 20px;
+        }
+
+        .side-prize-title {
+          margin: 0 0 6px 0;
           font-size: 24px;
           font-weight: 900;
         }
 
-        .prize-highlight {
-          font-size: 16px;
+        .side-prize-highlight {
+          font-size: 15px;
           font-weight: 800;
-          margin-bottom: 12px;
+          margin-bottom: 10px;
+          color: #fde68a;
         }
 
-        .prize-list {
+        .mini-countdown {
+          display: grid;
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+          gap: 8px;
+          margin: 14px 0;
+        }
+
+        .mini-box {
+          border: 1px solid rgba(255,255,255,0.08);
+          background: rgba(255,255,255,0.04);
+          border-radius: 14px;
+          padding: 10px 8px;
+          text-align: center;
+        }
+
+        .mini-num {
+          display: block;
+          font-size: 22px;
+          line-height: 1;
+          font-weight: 900;
+          margin-bottom: 4px;
+        }
+
+        .mini-label {
+          display: block;
+          font-size: 10px;
+          letter-spacing: 0.08em;
+          text-transform: uppercase;
+          opacity: 0.7;
+        }
+
+        .side-list {
           display: grid;
           gap: 10px;
-          margin-top: 14px;
+          margin-top: 12px;
         }
 
-        .prize-item {
+        .side-list-item {
           border: 1px solid rgba(255,255,255,0.08);
           background: rgba(255,255,255,0.04);
           border-radius: 14px;
@@ -572,18 +775,20 @@ export default function ScanPage() {
           .card-gold,
           .offer-main,
           .offer-side,
-          .prize-card {
+          .featured-prize,
+          .side-prize-card {
             padding: 18px;
             border-radius: 18px;
           }
 
-          .section-title {
+          .section-title,
+          .capture-title {
             font-size: 24px;
           }
 
-          .offer-grid,
-          .prize-grid,
-          .email-grid {
+          .capture-wrap,
+          .prize-showcase,
+          .offer-grid {
             grid-template-columns: 1fr;
           }
 
@@ -608,6 +813,30 @@ export default function ScanPage() {
             width: 100%;
             text-align: center;
           }
+
+          .capture-main {
+            padding: 18px;
+          }
+
+          .capture-side {
+            padding: 14px;
+          }
+
+          .capture-points {
+            gap: 8px;
+          }
+
+          .capture-point {
+            padding: 10px 12px;
+          }
+
+          .featured-body {
+            padding: 18px;
+          }
+
+          .featured-title {
+            font-size: 25px;
+          }
         }
 
         @media (max-width: 480px) {
@@ -624,7 +853,8 @@ export default function ScanPage() {
             font-size: 24px;
           }
 
-          .section-title {
+          .section-title,
+          .capture-title {
             font-size: 21px;
           }
 
@@ -640,6 +870,58 @@ export default function ScanPage() {
 
           .locked-title {
             font-size: 18px;
+          }
+
+          .capture-main {
+            padding: 16px;
+          }
+
+          .capture-side {
+            padding: 12px;
+          }
+
+          .capture-subtext {
+            font-size: 14px;
+            line-height: 1.5;
+            margin-bottom: 12px;
+          }
+
+          .entry-badge-row {
+            gap: 8px;
+            margin-bottom: 12px;
+          }
+
+          .entry-badge {
+            font-size: 12px;
+            padding: 7px 10px;
+          }
+
+          .email-input {
+            padding: 13px 14px;
+            font-size: 14px;
+          }
+
+          .countdown-row,
+          .mini-countdown {
+            gap: 8px;
+          }
+
+          .countdown-box,
+          .mini-box {
+            padding: 10px 6px;
+          }
+
+          .countdown-num {
+            font-size: 22px;
+          }
+
+          .mini-num {
+            font-size: 18px;
+          }
+
+          .featured-title,
+          .side-prize-title {
+            font-size: 22px;
           }
         }
       `}</style>
@@ -746,14 +1028,20 @@ export default function ScanPage() {
           <section className="card-light" style={{ marginTop: 20 }}>
             <div className="pill-light">Free Entry</div>
 
-            <div className="email-grid">
-              <div>
-                <h2 className="section-title">Enter your email for 1 free entry</h2>
+            <div className="capture-wrap">
+              <div className="capture-main">
+                <h2 className="capture-title">Enter your email for 1 free entry</h2>
 
-                <p className="section-text-light" style={{ marginBottom: 0 }}>
-                  Join the list and get <strong>1 free sweepstakes entry</strong>. You’ll also get
-                  future drops, launch updates, and prize reminders sent to your inbox.
+                <p className="capture-subtext">
+                  Join Secret Scan Club and instantly claim <strong>1 free sweepstakes entry</strong>.
+                  You’ll also get prize reminders, future drops, and first access to special offers.
                 </p>
+
+                <div className="entry-badge-row">
+                  <div className="entry-badge">1 Free Entry</div>
+                  <div className="entry-badge">No Purchase Required</div>
+                  <div className="entry-badge">Prize Updates by Email</div>
+                </div>
 
                 <form className="email-form">
                   <input
@@ -763,35 +1051,38 @@ export default function ScanPage() {
                     aria-label="Email address"
                   />
                   <button type="submit" className="btn-dark">
-                    Claim My Free Entry
+                    Enter Now
                   </button>
                 </form>
 
-                <div className="entry-note">
-                  By signing up, you’re claiming 1 free entry and agreeing to receive emails from
-                  Secret Scan Club. No purchase required for this free email entry.
+                <div className="capture-note">
+                  By signing up, you are claiming 1 free entry and agreeing to receive Secret Scan
+                  Club emails. Official rules, eligibility, and drawing timing should be linked here
+                  once finalized.
                 </div>
               </div>
 
-              <div className="entry-boxes">
-                <div className="entry-box">
-                  <div className="entry-box-title">What you get</div>
-                  <div className="entry-box-text">
-                    1 free entry, email updates, and first access to new drops and prize announcements.
+              <div className="capture-side">
+                <div className="capture-points">
+                  <div className="capture-point">
+                    <div className="capture-point-title">Fastest way to enter</div>
+                    <div className="capture-point-text">
+                      Just enter your email and you’re in for one free entry.
+                    </div>
                   </div>
-                </div>
 
-                <div className="entry-box">
-                  <div className="entry-box-title">Why sign up now</div>
-                  <div className="entry-box-text">
-                    Stay in the loop for weekly drawings, grand prize updates, and future bonus entry offers.
+                  <div className="capture-point">
+                    <div className="capture-point-title">Come back for more</div>
+                    <div className="capture-point-text">
+                      Daily scans, unlocks, and future club actions can stack into more chances.
+                    </div>
                   </div>
-                </div>
 
-                <div className="entry-box">
-                  <div className="entry-box-title">Fast and simple</div>
-                  <div className="entry-box-text">
-                    One email. One free entry. Then you can keep browsing today’s drop.
+                  <div className="capture-point">
+                    <div className="capture-point-title">Built for repeat traffic</div>
+                    <div className="capture-point-text">
+                      Weekly cash plus a grand prize reason to keep scanning.
+                    </div>
                   </div>
                 </div>
               </div>
@@ -799,60 +1090,124 @@ export default function ScanPage() {
           </section>
 
           <section className="card-gold" style={{ marginTop: 20 }}>
-            <div className="pill-gold">Prize Details</div>
+            <div className="pill-gold">Featured Prizes</div>
 
-            <h2 className="section-title">What you could win</h2>
+            <h2 className="section-title">Enter now for this week’s cash and the grand prize car</h2>
 
             <p className="section-text-dark">
-              Every scan can lead to something bigger. Enter for the weekly cash prize and work
-              your way toward the grand prize giveaway.
+              Start with your free email entry, then keep scanning and unlocking for more chances
+              as the campaign builds.
             </p>
 
-            <div className="prize-grid">
-              <div className="prize-card">
-                <h3>Grand Prize</h3>
-                <div className="prize-highlight">Car Giveaway</div>
-                <div style={{ opacity: 0.9, lineHeight: 1.6 }}>
-                  One winner will receive the featured grand prize vehicle at the end of the main
-                  giveaway period.
+            <div className="prize-showcase">
+              <div className="featured-prize">
+                <div className="featured-image-wrap">
+                  <Image
+                    src="/grand-prize-car.jpg"
+                    alt="Grand prize car"
+                    fill
+                    style={{ objectFit: "cover" }}
+                  />
+                  <div className="featured-image-overlay">
+                    <div className="featured-badges">
+                      <div className="featured-badge">Grand Prize</div>
+                      <div className="featured-badge">Car Giveaway</div>
+                      <div className="featured-badge">Featured Reward</div>
+                    </div>
+                  </div>
                 </div>
 
-                <div className="prize-list">
-                  <div className="prize-item">
-                    <strong>Prize:</strong> Featured car giveaway
+                <div className="featured-body">
+                  <h3 className="featured-title">Grand Prize Car Giveaway</h3>
+
+                  <p className="featured-text">
+                    One winner takes home the featured car at the end of the main campaign period.
+                    Use this block to spotlight the exact vehicle once you lock it in.
+                  </p>
+
+                  <div className="countdown-row">
+                    <div className="countdown-box">
+                      <span className="countdown-num">{grandCountdown.days}</span>
+                      <span className="countdown-label">Days</span>
+                    </div>
+                    <div className="countdown-box">
+                      <span className="countdown-num">{grandCountdown.hours}</span>
+                      <span className="countdown-label">Hours</span>
+                    </div>
+                    <div className="countdown-box">
+                      <span className="countdown-num">{grandCountdown.minutes}</span>
+                      <span className="countdown-label">Minutes</span>
+                    </div>
                   </div>
-                  <div className="prize-item">
-                    <strong>How to enter:</strong> Free email entry, paid unlocks, and eligible club actions
-                  </div>
-                  <div className="prize-item">
-                    <strong>Timing:</strong> Awarded at the end of the grand prize campaign period
-                  </div>
-                  <div className="prize-item">
-                    <strong>Best use:</strong> This section builds excitement and gives people a reason to keep coming back
+
+                  <div className="featured-actions">
+                    <button className="btn-gold">Claim Free Entry</button>
+                    <Link href="/subscribe" className="btn-secondary">
+                      Get More Entries
+                    </Link>
                   </div>
                 </div>
               </div>
 
-              <div className="prize-card">
-                <h3>Weekly Prize</h3>
-                <div className="prize-highlight">$100 Cash Giveaway</div>
-                <div style={{ opacity: 0.9, lineHeight: 1.6 }}>
-                  A weekly winner receives a cash prize, giving people a near-term reason to scan,
-                  sign up, and stay engaged.
+              <div className="side-prizes">
+                <div className="side-prize-card">
+                  <div className="pill">Weekly Prize</div>
+                  <h3 className="side-prize-title">$100 Cash Giveaway</h3>
+                  <div className="side-prize-highlight">A weekly winner keeps the momentum high</div>
+
+                  <p className="section-text-dark" style={{ marginBottom: 0 }}>
+                    Give people a reason to act now instead of “sometime later.” This prize creates
+                    urgency every single week.
+                  </p>
+
+                  <div className="mini-countdown">
+                    <div className="mini-box">
+                      <span className="mini-num">{weeklyCountdown.days}</span>
+                      <span className="mini-label">Days</span>
+                    </div>
+                    <div className="mini-box">
+                      <span className="mini-num">{weeklyCountdown.hours}</span>
+                      <span className="mini-label">Hours</span>
+                    </div>
+                    <div className="mini-box">
+                      <span className="mini-num">{weeklyCountdown.minutes}</span>
+                      <span className="mini-label">Minutes</span>
+                    </div>
+                  </div>
+
+                  <div className="side-list">
+                    <div className="side-list-item">
+                      <strong>Prize:</strong> $100 cash
+                    </div>
+                    <div className="side-list-item">
+                      <strong>Why it converts:</strong> Short-term reward plus instant urgency
+                    </div>
+                    <div className="side-list-item">
+                      <strong>How to enter:</strong> Free email entry and additional eligible actions
+                    </div>
+                  </div>
                 </div>
 
-                <div className="prize-list">
-                  <div className="prize-item">
-                    <strong>Prize:</strong> $100 cash
+                <div className="side-prize-card">
+                  <div className="pill">Why Enter Now</div>
+                  <h3 className="side-prize-title">Two reasons to scan today</h3>
+
+                  <div className="side-list">
+                    <div className="side-list-item">
+                      <strong>Today:</strong> Get the free puzzle and claim your free entry
+                    </div>
+                    <div className="side-list-item">
+                      <strong>This week:</strong> Stay live for the $100 weekly cash drawing
+                    </div>
+                    <div className="side-list-item">
+                      <strong>Big picture:</strong> Keep building toward the grand prize car giveaway
+                    </div>
                   </div>
-                  <div className="prize-item">
-                    <strong>Frequency:</strong> One winner selected each week once drawings begin
-                  </div>
-                  <div className="prize-item">
-                    <strong>How to enter:</strong> Same entry system as the main campaign
-                  </div>
-                  <div className="prize-item">
-                    <strong>Why it matters:</strong> Smaller weekly wins keep momentum high while the grand prize builds
+
+                  <div style={{ marginTop: 16 }}>
+                    <button className="btn-primary" style={{ width: "100%" }}>
+                      Enter With Email
+                    </button>
                   </div>
                 </div>
               </div>
@@ -896,8 +1251,8 @@ export default function ScanPage() {
                 {[
                   ["1", "Scan the code", "Land on today’s drop instantly."],
                   ["2", "Play for free", "Get today’s puzzle at no cost."],
-                  ["3", "Enter your email", "Claim 1 free entry and stay updated."],
-                  ["4", "Unlock more", "Pay once for the answer or subscribe for ongoing extras."],
+                  ["3", "Enter with email", "Claim 1 free entry and stay updated."],
+                  ["4", "Unlock more", "Pay once for today or subscribe for ongoing extras."],
                 ].map(([num, title, text]) => (
                   <div key={num} className="step">
                     <div className="step-num">{num}</div>
@@ -915,9 +1270,9 @@ export default function ScanPage() {
             <div>© {new Date().getFullYear()} Secret Scan Club</div>
 
             <div className="footer-links">
-              <span>Secure checkout coming next</span>
               <span>Daily rotating content</span>
-              <span>Weekly + grand prize campaign</span>
+              <span>Weekly cash giveaway</span>
+              <span>Grand prize campaign</span>
             </div>
           </footer>
         </div>
