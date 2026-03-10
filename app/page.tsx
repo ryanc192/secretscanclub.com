@@ -76,21 +76,78 @@ export default function ScanPage() {
           color: #ffffff;
         }
 
-        .logo-splash {
-          min-height: 100svh;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          padding: 24px;
-        }
+.logo-splash {
+  position: relative;
+  min-height: 100svh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  overflow: hidden;
+}
 
-        .logo-splash-inner {
-          width: min(72vw, 420px);
-          aspect-ratio: 1 / 1;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-        }
+.logo-splash-overlay {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(
+      to bottom,
+      rgba(5, 8, 22, 0) 0%,
+      rgba(5, 8, 22, 0.08) 45%,
+      rgba(5, 8, 22, 0.32) 75%,
+      rgba(5, 8, 22, 0.88) 100%
+    );
+  pointer-events: none;
+}
+
+.logo-splash-inner {
+  position: relative;
+  z-index: 1;
+  width: min(95vw, 900px);
+  aspect-ratio: 1 / 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.96;
+  transform: scale(1);
+  animation: logoFadeIn 0.9s ease-out both;
+}
+
+.scroll-cue {
+  position: absolute;
+  bottom: 22px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.72);
+  animation: floatCue 1.8s ease-in-out infinite;
+}
+
+@keyframes logoFadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.94);
+  }
+  to {
+    opacity: 0.96;
+    transform: scale(1);
+  }
+}
+
+@keyframes floatCue {
+  0%, 100% {
+    transform: translateX(-50%) translateY(0);
+    opacity: 0.62;
+  }
+  50% {
+    transform: translateX(-50%) translateY(6px);
+    opacity: 1;
+  }
+}
 
         .scan-wrap {
           max-width: 860px;
@@ -365,7 +422,7 @@ export default function ScanPage() {
           }
 
           .logo-splash-inner {
-            width: min(78vw, 320px);
+            width: 96vw;
           }
 
           .hero-title {
@@ -407,9 +464,12 @@ export default function ScanPage() {
 
         @media (max-width: 480px) {
           .logo-splash-inner {
-            width: min(82vw, 260px);
+            width: 98vw;
           }
-
+  .scroll-cue {
+    bottom: 18px;
+    font-size: 12px;
+  }
           .hero-title {
             font-size: 24px;
           }
@@ -435,18 +495,21 @@ export default function ScanPage() {
       `}</style>
 
       <main className="scan-page">
-        <section className="logo-splash">
-          <div className="logo-splash-inner">
-            <Image
-              src="/ssc-logo.png"
-              alt="Secret Scan Club logo"
-              width={420}
-              height={420}
-              style={{ width: "100%", height: "100%", objectFit: "contain" }}
-              priority
-            />
-          </div>
-        </section>
+<section className="logo-splash">
+  <div className="logo-splash-overlay" />
+  <div className="logo-splash-inner">
+    <Image
+      src="/ssc-logo.png"
+      alt="Secret Scan Club logo"
+      width={420}
+      height={420}
+      style={{ width: "100%", height: "100%", objectFit: "contain" }}
+      priority
+    />
+  </div>
+
+  <div className="scroll-cue">↓ Scroll for today’s drop</div>
+</section>
 
         <div className="scan-wrap">
           <section className="card">
