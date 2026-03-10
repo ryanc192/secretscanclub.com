@@ -979,7 +979,7 @@ export default function ScanPage() {
               priority
             />
           </div>
-          <div className="scroll-cue">↓ Scroll for today’s drop</div>
+          <div className="scroll-cue">↓ Scroll for today’s drop ↓</div>
         </section>
 
         <div className="scan-wrap">
