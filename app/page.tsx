@@ -61,57 +61,41 @@ export default function ScanPage() {
           box-sizing: border-box;
         }
 
+        html {
+          scroll-behavior: smooth;
+        }
+
+        body {
+          margin: 0;
+        }
+
         .scan-page {
           min-height: 100vh;
           background:
             radial-gradient(circle at top left, #1f2937 0%, #0b1020 35%, #050816 100%);
           color: #ffffff;
-          padding: 24px 16px 56px;
+        }
+
+        .logo-splash {
+          min-height: 100svh;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 24px;
+        }
+
+        .logo-splash-inner {
+          width: min(72vw, 420px);
+          aspect-ratio: 1 / 1;
+          display: flex;
+          align-items: center;
+          justify-content: center;
         }
 
         .scan-wrap {
           max-width: 860px;
           margin: 0 auto;
-        }
-
-        .topbar {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          gap: 16px;
-          margin-bottom: 24px;
-          flex-wrap: wrap;
-        }
-
-        .brand {
-          display: flex;
-          align-items: center;
-          gap: 14px;
-        }
-
-        .brand-logo {
-          width: 110px;
-          height: 110px;
-          overflow: hidden;
-          flex-shrink: 0;
-        }
-
-        .brand-title {
-          font-size: 20px;
-          font-weight: 800;
-          line-height: 1.1;
-        }
-
-        .brand-subtitle {
-          font-size: 13px;
-          opacity: 0.8;
-          margin-top: 4px;
-        }
-
-        .top-actions {
-          display: flex;
-          gap: 10px;
-          flex-wrap: wrap;
+          padding: 0 16px 56px;
         }
 
         .btn-primary,
@@ -376,30 +360,12 @@ export default function ScanPage() {
         }
 
         @media (max-width: 768px) {
-          .scan-page {
-            padding: 18px 12px 40px;
+          .scan-wrap {
+            padding: 0 12px 40px;
           }
 
-          .topbar {
-            align-items: flex-start;
-          }
-
-          .brand {
-            width: 100%;
-          }
-
-          .top-actions {
-            width: 100%;
-          }
-
-          .top-actions a {
-            flex: 1 1 auto;
-            text-align: center;
-          }
-
-         .brand-logo {
-          width: 80px;
-          height: 80px;
+          .logo-splash-inner {
+            width: min(78vw, 320px);
           }
 
           .hero-title {
@@ -440,6 +406,10 @@ export default function ScanPage() {
         }
 
         @media (max-width: 480px) {
+          .logo-splash-inner {
+            width: min(82vw, 260px);
+          }
+
           .hero-title {
             font-size: 24px;
           }
@@ -465,36 +435,20 @@ export default function ScanPage() {
       `}</style>
 
       <main className="scan-page">
+        <section className="logo-splash">
+          <div className="logo-splash-inner">
+            <Image
+              src="/ssc-logo.png"
+              alt="Secret Scan Club logo"
+              width={420}
+              height={420}
+              style={{ width: "100%", height: "100%", objectFit: "contain" }}
+              priority
+            />
+          </div>
+        </section>
+
         <div className="scan-wrap">
-          <header className="topbar">
-            <div className="brand">
-              <div className="brand-logo">
-                <Image
-                    src="/ssc-logo.png"
-                    alt="Secret Scan Club logo"
-                    width={110}
-                    height={110}
-                    style={{ width: "100%", height: "100%", objectFit: "contain" }}
-                    priority
-                  />
-              </div>
-
-              <div>
-                <div className="brand-title">Secret Scan Club</div>
-                <div className="brand-subtitle">One scan. A new drop every day.</div>
-              </div>
-            </div>
-
-            <div className="top-actions">
-              <Link href="/subscribe" className="btn-primary">
-                Subscribe
-              </Link>
-              <Link href="/unlock" className="btn-secondary">
-                Unlock Today
-              </Link>
-            </div>
-          </header>
-
           <section className="card">
             <div className="pill">Today’s Daily Drop</div>
 
