@@ -22,20 +22,12 @@ type Drop = {
 };
 
 function todayET(): string {
-  const now = new Date();
-
-  const parts = new Intl.DateTimeFormat("en-US", {
+  return new Intl.DateTimeFormat("en-CA", {
     timeZone: "America/New_York",
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
-  }).formatToParts(now);
-
-  const year = parts.find((p) => p.type === "year")?.value;
-  const month = parts.find((p) => p.type === "month")?.value;
-  const day = parts.find((p) => p.type === "day")?.value;
-
-  return `${year}-${month}-${day}`;
+  }).format(new Date());
 }
 
 function formatDateLabel(dateStr: string) {
@@ -69,57 +61,98 @@ export default function ScanPage() {
           box-sizing: border-box;
         }
 
+        html {
+          scroll-behavior: smooth;
+        }
+
+        body {
+          margin: 0;
+        }
+
         .scan-page {
           min-height: 100vh;
           background:
             radial-gradient(circle at top left, #1f2937 0%, #0b1020 35%, #050816 100%);
           color: #ffffff;
-          padding: 24px 16px 56px;
         }
+
+.logo-splash {
+  position: relative;
+  min-height: 100svh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  overflow: hidden;
+}
+
+.logo-splash-overlay {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(
+      to bottom,
+      rgba(5, 8, 22, 0) 0%,
+      rgba(5, 8, 22, 0.08) 45%,
+      rgba(5, 8, 22, 0.32) 75%,
+      rgba(5, 8, 22, 0.88) 100%
+    );
+  pointer-events: none;
+}
+
+.logo-splash-inner {
+  position: relative;
+  z-index: 1;
+  width: min(95vw, 900px);
+  aspect-ratio: 1 / 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.96;
+  transform: scale(1);
+  animation: logoFadeIn 0.9s ease-out both;
+}
+
+.scroll-cue {
+  position: absolute;
+  bottom: 22px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.72);
+  animation: floatCue 1.8s ease-in-out infinite;
+}
+
+@keyframes logoFadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.94);
+  }
+  to {
+    opacity: 0.96;
+    transform: scale(1);
+  }
+}
+
+@keyframes floatCue {
+  0%, 100% {
+    transform: translateX(-50%) translateY(0);
+    opacity: 0.62;
+  }
+  50% {
+    transform: translateX(-50%) translateY(6px);
+    opacity: 1;
+  }
+}
 
         .scan-wrap {
           max-width: 860px;
           margin: 0 auto;
-        }
-
-        .topbar {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          gap: 16px;
-          margin-bottom: 24px;
-          flex-wrap: wrap;
-        }
-
-        .brand {
-          display: flex;
-          align-items: center;
-          gap: 14px;
-        }
-
-        .brand-logo {
-          width: 150px;
-          height: 150px;
-          overflow: hidden;
-          flex-shrink: 0;
-        }
-
-        .brand-title {
-          font-size: 20px;
-          font-weight: 800;
-          line-height: 1.1;
-        }
-
-        .brand-subtitle {
-          font-size: 13px;
-          opacity: 0.8;
-          margin-top: 4px;
-        }
-
-        .top-actions {
-          display: flex;
-          gap: 10px;
-          flex-wrap: wrap;
+          padding: 0 16px 56px;
         }
 
         .btn-primary,
@@ -384,30 +417,12 @@ export default function ScanPage() {
         }
 
         @media (max-width: 768px) {
-          .scan-page {
-            padding: 18px 12px 40px;
+          .scan-wrap {
+            padding: 0 12px 40px;
           }
 
-          .topbar {
-            align-items: flex-start;
-          }
-
-          .brand {
-            width: 100%;
-          }
-
-          .top-actions {
-            width: 100%;
-          }
-
-          .top-actions a {
-            flex: 1 1 auto;
-            text-align: center;
-          }
-
-         .brand-logo {
-          width: 100px;
-          height: 100px;
+          .logo-splash-inner {
+            width: 110vw;
           }
 
           .hero-title {
@@ -448,6 +463,13 @@ export default function ScanPage() {
         }
 
         @media (max-width: 480px) {
+          .logo-splash-inner {
+            width: 110vw;
+          }
+  .scroll-cue {
+    bottom: 18px;
+    font-size: 10px;
+  }
           .hero-title {
             font-size: 24px;
           }
@@ -473,36 +495,23 @@ export default function ScanPage() {
       `}</style>
 
       <main className="scan-page">
+<section className="logo-splash">
+  <div className="logo-splash-overlay" />
+  <div className="logo-splash-inner">
+    <Image
+      src="/ssc-logo.png"
+      alt="Secret Scan Club logo"
+      width={420}
+      height={420}
+      style={{ width: "100%", height: "100%", objectFit: "contain" }}
+      priority
+    />
+  </div>
+
+  <div className="scroll-cue">↓ Scroll for today’s drop ↓</div>
+</section>
+
         <div className="scan-wrap">
-          <header className="topbar">
-            <div className="brand">
-              <div className="brand-logo">
-                <Image
-                    src="/ssc-logo.png"
-                    alt="Secret Scan Club logo"
-                    width={150}
-                    height={150}
-                    style={{ width: "100%", height: "100%", objectFit: "contain" }}
-                    priority
-                  />
-              </div>
-
-              <div>
-                <div className="brand-title">Secret Scan Club</div>
-                <div className="brand-subtitle">One Scan. Fresh Daily Content.</div>
-              </div>
-            </div>
-
-            <div className="top-actions">
-              <Link href="/subscribe" className="btn-primary">
-                Subscribe
-              </Link>
-              <Link href="/unlock" className="btn-secondary">
-                Unlock Today
-              </Link>
-            </div>
-          </header>
-
           <section className="card">
             <div className="pill">Today’s Daily Drop</div>
 
@@ -511,8 +520,8 @@ export default function ScanPage() {
             </h1>
 
             <p className="hero-text">
-              Every day brings a new puzzle, fact, mystery, treasure hunt, or discovery. You get today’s content for free. It may be a puzzle, clue to a hidden reward, or just a random weird fact you probably didn't know.
-              Unlock the answer key (or a fresh clue) and a fun fact, or subscribe for bonus content, daily emails, and the archives.
+              Every day brings a new drop. You get today’s puzzle for free. Unlock the answer key
+              and fun fact, or subscribe for bonus content, daily emails, and the archive.
             </p>
 
             <div className="meta-row">
