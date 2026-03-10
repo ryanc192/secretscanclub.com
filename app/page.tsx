@@ -67,7 +67,6 @@ export default function ScanPage() {
   const today = todayET();
   const dateLabel = formatDateLabel(drop?.date ?? today);
 
-  // Replace these later with your real launch/drawing dates
   const grandPrizeDeadline = "2026-06-30T23:59:59-04:00";
   const weeklyPrizeDeadline = "2026-03-16T23:59:59-04:00";
 
@@ -133,23 +132,23 @@ export default function ScanPage() {
           animation: logoFadeIn 0.9s ease-out both;
         }
 
-.scroll-cue {
-  position: absolute;
-  bottom: 22px;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 1;
-  font-size: 13px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: rgba(255, 255, 255, 0.72);
-  animation: floatCue 1.8s ease-in-out infinite;
-  white-space: nowrap;
-  text-align: center;
-  width: auto;
-  max-width: 90vw;
-}
+        .scroll-cue {
+          position: absolute;
+          bottom: 22px;
+          left: 50%;
+          transform: translateX(-50%);
+          z-index: 1;
+          font-size: 13px;
+          font-weight: 700;
+          letter-spacing: 0.08em;
+          text-transform: uppercase;
+          color: rgba(255, 255, 255, 0.72);
+          animation: floatCue 1.8s ease-in-out infinite;
+          white-space: nowrap;
+          text-align: center;
+          width: auto;
+          max-width: 90vw;
+        }
 
         @keyframes logoFadeIn {
           from {
@@ -191,6 +190,7 @@ export default function ScanPage() {
           border: none;
           cursor: pointer;
           font-weight: 800;
+          text-align: center;
         }
 
         .btn-primary {
@@ -511,6 +511,7 @@ export default function ScanPage() {
           display: grid;
           grid-template-columns: 1.18fr 0.82fr;
           gap: 18px;
+          align-items: start;
         }
 
         .featured-prize {
@@ -527,27 +528,27 @@ export default function ScanPage() {
           background: #111827;
         }
 
-  .featured-badges {
-  display: flex;
-  gap: 10px;
-  flex-wrap: wrap;
-}
+        .featured-badges {
+          display: flex;
+          gap: 10px;
+          flex-wrap: wrap;
+        }
 
-.featured-badges-inline {
-  margin-bottom: 14px;
-}
+        .featured-badges-inline {
+          margin-bottom: 14px;
+        }
 
-.featured-badge {
-  border-radius: 999px;
-  padding: 7px 11px;
-  font-size: 11px;
-  font-weight: 800;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  background: rgba(250, 204, 21, 0.14);
-  color: #fde68a;
-  border: 1px solid rgba(250, 204, 21, 0.18);
-}
+        .featured-badge {
+          border-radius: 999px;
+          padding: 7px 11px;
+          font-size: 11px;
+          font-weight: 800;
+          text-transform: uppercase;
+          letter-spacing: 0.04em;
+          background: rgba(250, 204, 21, 0.14);
+          color: #fde68a;
+          border: 1px solid rgba(250, 204, 21, 0.18);
+        }
 
         .featured-body {
           padding: 22px;
@@ -772,9 +773,7 @@ export default function ScanPage() {
           .card-light,
           .card-gold,
           .offer-main,
-          .offer-side,
-          .featured-prize,
-          .side-prize-card {
+          .offer-side {
             padding: 18px;
             border-radius: 18px;
           }
@@ -841,21 +840,25 @@ export default function ScanPage() {
           .logo-splash-inner {
             width: 98vw;
           }
-  .scroll-cue {
-    bottom: 18px;
-    font-size: 11px;
-    letter-spacing: 0.04em;
-    white-space: nowrap;
-  }
 
+          .scroll-cue {
+            bottom: 18px;
+            font-size: 11px;
+            letter-spacing: 0.04em;
+            white-space: nowrap;
+          }
 
           .hero-title {
             font-size: 24px;
           }
 
-          .section-title,
-          .capture-title {
+          .section-title {
             font-size: 21px;
+          }
+
+          .capture-title {
+            font-size: 20px;
+            margin-bottom: 6px;
           }
 
           .puzzle-box {
@@ -873,7 +876,7 @@ export default function ScanPage() {
           }
 
           .capture-main {
-            padding: 16px;
+            padding: 14px;
           }
 
           .capture-side {
@@ -881,9 +884,9 @@ export default function ScanPage() {
           }
 
           .capture-subtext {
-            font-size: 14px;
-            line-height: 1.5;
-            margin-bottom: 12px;
+            font-size: 13px;
+            line-height: 1.45;
+            margin-bottom: 10px;
           }
 
           .entry-badge-row {
@@ -896,37 +899,23 @@ export default function ScanPage() {
             padding: 7px 10px;
           }
 
-  .email-input {
-    padding: 10px 12px;
-    font-size: 14px;
-    border-radius: 12px;
-    min-height: 42px;
-  }
+          .email-input {
+            padding: 10px 12px;
+            font-size: 14px;
+            border-radius: 12px;
+            min-height: 42px;
+          }
 
-  .email-form {
-    gap: 8px;
-  }
+          .email-form {
+            gap: 8px;
+          }
 
-  .email-form .btn-dark {
-    padding: 10px 12px;
-    min-height: 42px;
-    border-radius: 12px;
-    font-size: 14px;
-  }
-  .capture-main {
-  padding: 14px;
-}
-
-.capture-title {
-  font-size: 20px;
-  margin-bottom: 6px;
-}
-
-.capture-subtext {
-  font-size: 13px;
-  line-height: 1.45;
-  margin-bottom: 10px;
-}
+          .email-form .btn-dark {
+            padding: 10px 12px;
+            min-height: 42px;
+            border-radius: 12px;
+            font-size: 14px;
+          }
 
           .countdown-row,
           .mini-countdown {
@@ -950,19 +939,20 @@ export default function ScanPage() {
           .side-prize-title {
             font-size: 22px;
           }
+
           .featured-badges-inline {
-  gap: 6px;
-  margin-bottom: 10px;
-}
+            gap: 6px;
+            margin-bottom: 10px;
+          }
 
-.featured-badge {
-  padding: 6px 9px;
-  font-size: 10px;
-}
+          .featured-badge {
+            padding: 6px 9px;
+            font-size: 10px;
+          }
 
-.featured-image-wrap {
-  aspect-ratio: 16 / 10;
-}
+          .featured-image-wrap {
+            aspect-ratio: 16 / 10;
+          }
         }
       `}</style>
 
@@ -1148,18 +1138,16 @@ export default function ScanPage() {
                     fill
                     style={{ objectFit: "cover" }}
                   />
-                    </div>
-                  </div>
                 </div>
 
-<div className="featured-body">
-  <div className="featured-badges featured-badges-inline">
-    <div className="featured-badge">Grand Prize</div>
-    <div className="featured-badge">Car Giveaway</div>
-    <div className="featured-badge">Featured Reward</div>
-  </div>
+                <div className="featured-body">
+                  <div className="featured-badges featured-badges-inline">
+                    <div className="featured-badge">Grand Prize</div>
+                    <div className="featured-badge">Car Giveaway</div>
+                    <div className="featured-badge">Featured Reward</div>
+                  </div>
 
-  <h3 className="featured-title">Grand Prize Car Giveaway</h3>
+                  <h3 className="featured-title">Grand Prize Car Giveaway</h3>
 
                   <p className="featured-text">
                     One winner takes home the featured car at the end of the main campaign period.
