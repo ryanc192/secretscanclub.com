@@ -1,3 +1,4 @@
+import "./styles/scan.css";
 export const metadata = {
   title: "Secret Scan Club",
   description: "Daily drops, one QR, always new."
