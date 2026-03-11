@@ -457,17 +457,21 @@ export default function ScanPage() {
           flex-wrap: wrap;
         }
 
-        .email-input {
-          flex: 1 1 260px;
-          min-width: 0;
-          border: 1px solid #d1d5db;
-          background: #ffffff;
-          color: #0b1020;
-          border-radius: 14px;
-          padding: 14px 16px;
-          font-size: 15px;
-          outline: none;
-        }
+.email-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  border: 1px solid #d1d5db;
+  background: #ffffff;
+  color: #0b1020;
+  border-radius: 14px;
+  padding: 14px 16px;
+  font-size: 15px;
+  line-height: 1.2;
+  height: 48px;
+  outline: none;
+  -webkit-appearance: none;
+  appearance: none;
+}
 
         .email-input:focus {
           border-color: #1d4ed8;
@@ -838,120 +842,130 @@ export default function ScanPage() {
 
         @media (max-width: 480px) {
           .logo-splash-inner {
-            width: 98vw;
-          }
+    width: 98vw;
+  }
 
-          .scroll-cue {
-            bottom: 18px;
-            font-size: 11px;
-            letter-spacing: 0.04em;
-            white-space: nowrap;
-          }
+  .scroll-cue {
+    bottom: 18px;
+    font-size: 11px;
+    letter-spacing: 0.04em;
+    white-space: nowrap;
+  }
 
-          .hero-title {
-            font-size: 24px;
-          }
+  .hero-title {
+    font-size: 24px;
+  }
 
-          .section-title {
-            font-size: 21px;
-          }
+  .section-title {
+    font-size: 21px;
+  }
 
-          .capture-title {
-            font-size: 20px;
-            margin-bottom: 6px;
-          }
+  .capture-title {
+    font-size: 20px;
+    margin-bottom: 6px;
+  }
 
-          .puzzle-box {
-            font-size: 15px;
-            padding: 14px;
-            min-height: 150px;
-          }
+  .puzzle-box {
+    font-size: 15px;
+    padding: 14px;
+    min-height: 150px;
+  }
 
-          .locked-overlay-inner {
-            padding: 16px;
-          }
+  .locked-overlay-inner {
+    padding: 16px;
+  }
 
-          .locked-title {
-            font-size: 18px;
-          }
+  .locked-title {
+    font-size: 18px;
+  }
 
-          .capture-main {
-            padding: 14px;
-          }
+  .capture-main {
+    padding: 14px;
+  }
 
-          .capture-side {
-            padding: 12px;
-          }
+  .capture-side {
+    padding: 12px;
+  }
 
-          .capture-subtext {
-            font-size: 13px;
-            line-height: 1.45;
-            margin-bottom: 10px;
-          }
+  .capture-subtext {
+    font-size: 13px;
+    line-height: 1.45;
+    margin-bottom: 10px;
+  }
 
-          .entry-badge-row {
-            gap: 8px;
-            margin-bottom: 12px;
-          }
+  .entry-badge-row {
+    gap: 8px;
+    margin-bottom: 12px;
+  }
 
-          .entry-badge {
-            font-size: 12px;
-            padding: 7px 10px;
-          }
+  .entry-badge {
+    font-size: 12px;
+    padding: 7px 10px;
+  }
 
-          .email-input {
-            padding: 10px 12px;
-            font-size: 14px;
-            border-radius: 12px;
-            min-height: 42px;
-          }
+  .email-form {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
 
-          .email-form {
-            gap: 8px;
-          }
+  .email-input {
+    flex: none;
+    width: 100%;
+    height: 44px;
+    min-height: 44px;
+    padding: 10px 12px;
+    font-size: 14px;
+    line-height: 1.2;
+    border-radius: 12px;
+    -webkit-appearance: none;
+    appearance: none;
+  }
 
-          .email-form .btn-dark {
-            padding: 10px 12px;
-            min-height: 42px;
-            border-radius: 12px;
-            font-size: 14px;
-          }
+  .email-form .btn-dark {
+    width: 100%;
+    padding: 10px 12px;
+    min-height: 44px;
+    border-radius: 12px;
+    font-size: 14px;
+  }
 
-          .countdown-row,
-          .mini-countdown {
-            gap: 8px;
-          }
+  .countdown-row,
+  .mini-countdown {
+    gap: 8px;
+  }
 
-          .countdown-box,
-          .mini-box {
-            padding: 10px 6px;
-          }
+  .countdown-box,
+  .mini-box {
+    padding: 10px 6px;
+  }
 
-          .countdown-num {
-            font-size: 22px;
-          }
+  .countdown-num {
+    font-size: 22px;
+  }
 
-          .mini-num {
-            font-size: 18px;
-          }
+  .mini-num {
+    font-size: 18px;
+  }
 
-          .featured-title,
-          .side-prize-title {
-            font-size: 22px;
-          }
+  .featured-title,
+  .side-prize-title {
+    font-size: 22px;
+  }
 
-          .featured-badges-inline {
-            gap: 6px;
-            margin-bottom: 10px;
-          }
+  .featured-badges-inline {
+    gap: 6px;
+    margin-bottom: 10px;
+  }
 
-          .featured-badge {
-            padding: 6px 9px;
-            font-size: 10px;
-          }
+  .featured-badge {
+    padding: 6px 9px;
+    font-size: 10px;
+  }
 
-          .featured-image-wrap {
-            aspect-ratio: 16 / 10;
+  .featured-image-wrap {
+    aspect-ratio: 16 / 10;
+  };
           }
         }
       `}</style>
