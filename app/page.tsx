@@ -2,7 +2,7 @@ import fs from "fs";
 import path from "path";
 import Link from "next/link";
 import Image from "next/image";
-import "app/styles/scan.css"
+import "app/styles/scan.css";
 
 type Drop = {
   date: string;
