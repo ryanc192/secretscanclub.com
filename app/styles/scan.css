@@ -1,4 +1,6 @@
-
+input[type="email"] {
+  resize: none;
+}
 
         * {
           box-sizing: border-box;
@@ -369,24 +371,40 @@
           font-weight: 800;
         }
 
-        .email-form {
-          display: flex;
-          gap: 10px;
-          margin-top: 6px;
-          flex-wrap: wrap;
-        }
+.email-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  margin-top: 6px;
+  align-items: center;
+}
 
-        .email-input {
-          flex: 1 1 260px;
-          min-width: 0;
-          border: 1px solid #d1d5db;
-          background: #ffffff;
-          color: #0b1020;
-          border-radius: 14px;
-          padding: 14px 16px;
-          font-size: 15px;
-          outline: none;
-        }
+.email-input {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  height: 48px;
+  min-height: 48px;
+  max-height: 48px;
+  border: 1px solid #d1d5db;
+  background: #ffffff;
+  color: #0b1020;
+  border-radius: 14px;
+  padding: 0 16px;
+  font-size: 15px;
+  line-height: 48px;
+  outline: none;
+  box-sizing: border-box;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.email-form .btn-dark {
+  height: 48px;
+  min-height: 48px;
+  padding: 0 16px;
+  border-radius: 14px;
+}
 
         .email-input:focus {
           border-color: #1d4ed8;
@@ -727,15 +745,31 @@
             flex-direction: column;
           }
 
-          .email-form {
-            flex-direction: column;
-          }
+.email-form {
+  grid-template-columns: 1fr;
+  gap: 8px;
+}
 
-          .email-form button,
-          .email-form a {
-            width: 100%;
-            text-align: center;
-          }
+.email-input {
+  width: 100%;
+  height: 44px;
+  min-height: 44px;
+  max-height: 44px;
+  padding: 0 12px;
+  line-height: 44px;
+  font-size: 14px;
+  border-radius: 12px;
+  flex: unset;
+}
+
+.email-form .btn-dark {
+  width: 100%;
+  height: 44px;
+  min-height: 44px;
+  padding: 0 12px;
+  border-radius: 12px;
+  font-size: 14px;
+}
 
           .capture-main {
             padding: 18px;
