@@ -1,13 +1,16 @@
 import "./styles/scan.css";
-export const metadata = {
+import type { Metadata } from "next";
+import type { ReactNode } from "react";
+
+export const metadata: Metadata = {
   title: "Secret Scan Club",
-  description: "Daily drops, one QR, always new."
+  description: "Daily drops, one QR, always new.",
 };
 
 export default function RootLayout({
   children,
 }: {
-  children: React.ReactNode;
+  children: ReactNode;
 }) {
   return (
     <html lang="en">
