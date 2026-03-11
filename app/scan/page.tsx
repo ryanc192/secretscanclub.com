@@ -2,6 +2,7 @@ import fs from "fs";
 import path from "path";
 import Link from "next/link";
 import Image from "next/image";
+import "app/styles/scan.css";
 
 type Drop = {
   date: string;
@@ -75,7 +76,7 @@ export default function ScanPage() {
   const weeklyCountdown = getCountdownParts(weeklyPrizeDeadline);
 
   return (
-
+<>
       <main className="scan-page">
         <section className="logo-splash">
           <div className="logo-splash-overlay" />
