@@ -70,7 +70,7 @@ export default function ScanPage() {
               priority
             />
           </div>
-          <div className="scroll-cue">↓ Scroll for today’s puzzle</div>
+          <div className="scroll-cue">↓ Scroll for today’s puzzle ↓</div>
         </section>
 
         <div className="scan-wrap">
