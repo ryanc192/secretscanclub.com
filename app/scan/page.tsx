@@ -138,26 +138,18 @@ export default function ScanPage() {
               your streak.
             </p>
 
-            <form className="email-form" style={{ marginTop: 20 }}>
-              <input
-                type="text"
-                className="email-input"
-                placeholder="Type your answer here"
-                aria-label="Puzzle answer"
-              />
-              <button type="submit" className="btn-dark">
-                Check Answer
-              </button>
-            </form>
+  <section className="card" style={{ marginTop: 20 }}>
+  <div className="pill">Answer Check</div>
 
-            <div
-              className="share-box"
-              style={{ marginTop: 20, background: "rgba(255,255,255,0.08)" }}
-            >
-              <strong>Answer reveal area:</strong> show correct / incorrect feedback and the
-              explanation here once you wire up submission logic.
-            </div>
-          </section>
+  <h2 className="section-title">Submit your answer</h2>
+
+  <p className="section-text-dark">
+    Enter your answer, check how you did, and then create an account to start tracking
+    your streak.
+  </p>
+
+  <AnswerCheckForm />
+</section>
 
           <section className="card-light" style={{ marginTop: 20 }}>
             <div className="pill-light">Stay in the Loop</div>
