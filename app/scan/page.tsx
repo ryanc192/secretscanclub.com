@@ -134,7 +134,17 @@ export default function ScanPage() {
               your streak.
             </p>
 
-
+<form className="email-form" style={{ marginTop: 20 }}>
+  <input
+    type="text"
+    className="email-input"
+    placeholder="Type your answer here"
+    aria-label="Puzzle answer"
+  />
+  <button type="submit" className="btn-dark">
+    Check Answer
+  </button>
+</form>
 
             <div
               className="share-box"
