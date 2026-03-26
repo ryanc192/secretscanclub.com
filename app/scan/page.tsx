@@ -182,26 +182,45 @@ export default function ScanPage() {
               </div>
 
               <div className="capture-side">
-                <div className="capture-points">
-                  <div className="capture-point">
-                    <div className="capture-point-title">Come back daily</div>
-                    <div className="capture-point-text">
-                      Use your inbox as a simple reminder to return for the next challenge.
-                    </div>
-                  </div>
+  <div className="capture-points">
 
-                  <div className="capture-point">
-                    <div className="capture-point-title">Build the habit</div>
-                    <div className="capture-point-text">
-                      Daily traffic becomes more valuable when people come back consistently.
-                    </div>
-                  </div>
+    <div className="capture-point">
+      <div className="capture-point-title">Come back daily</div>
+      <div className="capture-point-text">
+        Get a quick reminder each day so you never miss a challenge and keep your streak alive.
+      </div>
+    </div>
 
-                  <div className="capture-point">
-                    <div className="capture-point-title">Keep attention warm</div>
-                    <div className="capture-point-text">
-                      Emails bring users back to the puzzle page and your call to action.
-                    </div>
+    <div className="capture-point">
+      <div className="capture-point-title">Build your streak</div>
+      <div className="capture-point-text">
+        Turn solving puzzles into a daily habit and watch your streak grow over time.
+      </div>
+    </div>
+
+    <div className="capture-point">
+      <div className="capture-point-title">Stay mentally sharp</div>
+      <div className="capture-point-text">
+        Short daily challenges help you stay focused, think faster, and keep your brain active.
+      </div>
+    </div>
+
+    <div className="capture-point">
+      <div className="capture-point-title">Get tomorrow’s challenge first</div>
+      <div className="capture-point-text">
+        Be the first to see each new puzzle and get a head start on the next brain challenge.
+      </div>
+    </div>
+
+    <div className="capture-point">
+      <div className="capture-point-title">No spam, just value</div>
+      <div className="capture-point-text">
+        Simple daily emails with your puzzle, your progress, and occasional helpful extras.
+      </div>
+    </div>
+
+  </div>
+</div>
                   </div>
                 </div>
               </div>
