@@ -138,18 +138,8 @@ export default function ScanPage() {
               your streak.
             </p>
 
-  <section className="card" style={{ marginTop: 20 }}>
-  <div className="pill">Answer Check</div>
-
-  <h2 className="section-title">Submit your answer</h2>
-
-  <p className="section-text-dark">
-    Enter your answer, check how you did, and then create an account to start tracking
-    your streak.
-  </p>
-
-  <AnswerCheckForm />
-</section>
+            <AnswerCheckForm />
+          </section>
 
           <section className="card-light" style={{ marginTop: 20 }}>
             <div className="pill-light">Stay in the Loop</div>
