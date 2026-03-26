@@ -134,17 +134,17 @@ export default function ScanPage() {
               your streak.
             </p>
 
-<form className="email-form" style={{ marginTop: 20 }}>
-  <input
-    type="text"
-    className="email-input"
-    placeholder="Type your answer here"
-    aria-label="Puzzle answer"
-  />
-  <button type="submit" className="btn-dark">
-    Check Answer
-  </button>
-</form>
+            <form className="email-form" style={{ marginTop: 20 }}>
+              <input
+                type="text"
+                className="email-input"
+                placeholder="Type your answer here"
+                aria-label="Puzzle answer"
+              />
+              <button type="submit" className="btn-dark">
+                Check Answer
+              </button>
+            </form>
 
             <div
               className="share-box"
@@ -173,7 +173,7 @@ export default function ScanPage() {
                   <div className="entry-badge">Free to Join</div>
                 </div>
 
- <EmailSignupForm />
+                <EmailSignupForm />
 
                 <div className="capture-note">
                   By signing up, you agree to receive Secret Scan Club emails including daily puzzle
@@ -182,45 +182,44 @@ export default function ScanPage() {
               </div>
 
               <div className="capture-side">
-  <div className="capture-points">
+                <div className="capture-points">
+                  <div className="capture-point">
+                    <div className="capture-point-title">Come back daily</div>
+                    <div className="capture-point-text">
+                      Get a quick reminder each day so you never miss a challenge and keep your
+                      streak alive.
+                    </div>
+                  </div>
 
-    <div className="capture-point">
-      <div className="capture-point-title">Come back daily</div>
-      <div className="capture-point-text">
-        Get a quick reminder each day so you never miss a challenge and keep your streak alive.
-      </div>
-    </div>
+                  <div className="capture-point">
+                    <div className="capture-point-title">Build your streak</div>
+                    <div className="capture-point-text">
+                      Turn solving puzzles into a daily habit and watch your streak grow over time.
+                    </div>
+                  </div>
 
-    <div className="capture-point">
-      <div className="capture-point-title">Build your streak</div>
-      <div className="capture-point-text">
-        Turn solving puzzles into a daily habit and watch your streak grow over time.
-      </div>
-    </div>
+                  <div className="capture-point">
+                    <div className="capture-point-title">Stay mentally sharp</div>
+                    <div className="capture-point-text">
+                      Short daily challenges help you stay focused, think faster, and keep your
+                      brain active.
+                    </div>
+                  </div>
 
-    <div className="capture-point">
-      <div className="capture-point-title">Stay mentally sharp</div>
-      <div className="capture-point-text">
-        Short daily challenges help you stay focused, think faster, and keep your brain active.
-      </div>
-    </div>
+                  <div className="capture-point">
+                    <div className="capture-point-title">Get tomorrow’s challenge first</div>
+                    <div className="capture-point-text">
+                      Be the first to see each new puzzle and get a head start on the next brain
+                      challenge.
+                    </div>
+                  </div>
 
-    <div className="capture-point">
-      <div className="capture-point-title">Get tomorrow’s challenge first</div>
-      <div className="capture-point-text">
-        Be the first to see each new puzzle and get a head start on the next brain challenge.
-      </div>
-    </div>
-
-    <div className="capture-point">
-      <div className="capture-point-title">No spam, just value</div>
-      <div className="capture-point-text">
-        Simple daily emails with your puzzle, your progress, and occasional helpful extras.
-      </div>
-    </div>
-
-  </div>
-</div>
+                  <div className="capture-point">
+                    <div className="capture-point-title">No spam, just value</div>
+                    <div className="capture-point-text">
+                      Simple daily emails with your puzzle, your progress, and occasional helpful
+                      extras.
+                    </div>
                   </div>
                 </div>
               </div>
