@@ -134,7 +134,7 @@ export default function ScanPage() {
               your streak.
             </p>
 
-<EmailSignupForm />
+
 
             <div
               className="share-box"
@@ -163,17 +163,7 @@ export default function ScanPage() {
                   <div className="entry-badge">Free to Join</div>
                 </div>
 
-                <form className="email-form">
-                  <input
-                    type="email"
-                    className="email-input"
-                    placeholder="Enter your email address"
-                    aria-label="Email address"
-                  />
-                  <button type="submit" className="btn-dark">
-                    Join the List
-                  </button>
-                </form>
+ <EmailSignupForm />
 
                 <div className="capture-note">
                   By signing up, you agree to receive Secret Scan Club emails including daily puzzle
