@@ -11,6 +11,9 @@ type Drop = {
   free: {
     puzzle: string;
     sharePrompt?: string;
+    answer: string;
+    acceptedAnswers?: string[];
+    explanation?: string;
   };
   paid?: {
     answerKey?: string;
