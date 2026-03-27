@@ -224,7 +224,7 @@ export default function AnswerCheckForm({ dropDate }: AnswerCheckFormProps) {
           }}
         >
           <div style={{ fontWeight: 800, marginBottom: 10 }}>
-            Today&apos;s answer is locked
+            Today&apos;s answer has been locked in
           </div>
 
           <div style={{ marginBottom: 8 }}>
