@@ -120,7 +120,7 @@ export default function ScanPage() {
 <div className="puzzle-box">
   <div>
     <div style={{ fontSize: 14, fontWeight: 800, textTransform: "uppercase", opacity: 0.6, marginBottom: 10 }}>
-      Today’s riddle
+      Today’s Brain Tester
     </div>
     <div>{drop?.free?.puzzle ?? "Come back soon for today’s puzzle."}</div>
   </div>
