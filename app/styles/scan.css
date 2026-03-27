@@ -233,6 +233,19 @@ body {
   line-height: 1.6;
   opacity: 0.9;
 }
+.result {
+  padding: 14px 18px;
+  border-radius: 14px;
+  font-weight: 600;
+  margin-top: 16px;
+}
+.result.correct {
+  background: linear-gradient(135deg, #dcfce7, #bbf7d0);
+}
+
+.result.incorrect {
+  background: linear-gradient(135deg, #fee2e2, #fecaca);
+}
 
 .meta-row {
   display: flex;
