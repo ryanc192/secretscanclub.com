@@ -13,6 +13,7 @@ type SimpleUser = {
 
 function getDisplayName(user: any): string {
   const metaName =
+    user?.user_metadata?.first_name ||
     user?.user_metadata?.name ||
     user?.user_metadata?.full_name ||
     user?.user_metadata?.display_name;
@@ -33,25 +34,43 @@ export default function AuthStatus() {
   const router = useRouter();
   const [user, setUser] = useState<SimpleUser>(null);
   const [loading, setLoading] = useState(true);
+  const [hasError, setHasError] = useState(false);
 
   useEffect(() => {
     const supabase = createBrowserSupabaseClient();
 
     async function loadUser() {
-      const { data } = await supabase.auth.getUser();
-      const currentUser = data.user;
+      try {
+        const { data, error } = await supabase.auth.getUser();
 
-      if (currentUser) {
-        setUser({
-          id: currentUser.id,
-          email: currentUser.email,
-          name: getDisplayName(currentUser),
-        });
-      } else {
+        if (error) {
+          console.error("AuthStatus getUser error:", error.message);
+          setUser(null);
+          setHasError(true);
+          setLoading(false);
+          return;
+        }
+
+        const currentUser = data.user;
+
+        if (currentUser) {
+          setUser({
+            id: currentUser.id,
+            email: currentUser.email,
+            name: getDisplayName(currentUser),
+          });
+        } else {
+          setUser(null);
+        }
+
+        setHasError(false);
+        setLoading(false);
+      } catch (err) {
+        console.error("AuthStatus unexpected error:", err);
         setUser(null);
+        setHasError(true);
+        setLoading(false);
       }
-
-      setLoading(false);
     }
 
     loadUser();
@@ -68,34 +87,45 @@ export default function AuthStatus() {
   }, []);
 
   async function handleLogout() {
-    const supabase = createBrowserSupabaseClient();
-    await supabase.auth.signOut();
-    router.push("/scan");
-    router.refresh();
+    try {
+      const supabase = createBrowserSupabaseClient();
+      await supabase.auth.signOut();
+      router.push("/scan");
+      router.refresh();
+    } catch (err) {
+      console.error("Logout error:", err);
+    }
   }
 
-  if (loading) {
-    return null;
-  }
-
-return (
-  <div
-    style={{
-      display: "flex",
-      alignItems: "center",
-      gap: 10,
-      flexWrap: "wrap",
-      justifyContent: "flex-end",
-      padding: "10px 12px",
-      borderRadius: 999,
-      background: "rgba(15, 23, 42, 0.82)",
-      border: "1px solid rgba(255,255,255,0.14)",
-      backdropFilter: "blur(12px)",
-      WebkitBackdropFilter: "blur(12px)",
-      boxShadow: "0 12px 30px rgba(0,0,0,0.22)",
-    }}
-  >
-      {user ? (
+  return (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 10,
+        flexWrap: "wrap",
+        justifyContent: "flex-end",
+        padding: "10px 12px",
+        borderRadius: 999,
+        background: "rgba(15, 23, 42, 0.82)",
+        border: "1px solid rgba(255,255,255,0.14)",
+        backdropFilter: "blur(12px)",
+        WebkitBackdropFilter: "blur(12px)",
+        boxShadow: "0 12px 30px rgba(0,0,0,0.22)",
+        minHeight: 52,
+      }}
+    >
+      {loading ? (
+        <div
+          style={{
+            color: "#ffffff",
+            fontWeight: 700,
+            whiteSpace: "nowrap",
+          }}
+        >
+          Loading...
+        </div>
+      ) : user ? (
         <>
           <div
             style={{
@@ -139,6 +169,18 @@ return (
         </>
       ) : (
         <>
+          {hasError ? (
+            <div
+              style={{
+                color: "#ffffff",
+                fontWeight: 600,
+                marginRight: 4,
+              }}
+            >
+              Guest
+            </div>
+          ) : null}
+
           <Link
             href="/login"
             style={{
