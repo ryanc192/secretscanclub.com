@@ -50,6 +50,10 @@ export default function AnswerCheckForm() {
     }
   }
 
+  // determine state styling
+  const isCorrect = result?.ok && result?.isCorrect;
+  const isIncorrect = result?.ok && !result?.isCorrect;
+
   return (
     <>
       <form className="email-form" style={{ marginTop: 20 }} onSubmit={handleSubmit}>
@@ -66,14 +70,21 @@ export default function AnswerCheckForm() {
         </button>
       </form>
 
-      {result ? (
+      {result && (
         <div
           className="share-box"
           style={{
             marginTop: 20,
-            background: result.ok && result.isCorrect
-              ? "rgba(34,197,94,0.16)"
+            background: isCorrect
+              ? "rgba(34,197,94,0.18)" // green
+              : isIncorrect
+              ? "rgba(255,0,0,0.18)" // bright red
               : "rgba(255,255,255,0.08)",
+            border: isCorrect
+              ? "1px solid #22c55e"
+              : isIncorrect
+              ? "1px solid #ff0000"
+              : "1px solid rgba(255,255,255,0.2)",
             color: "#ffffff",
           }}
         >
@@ -81,19 +92,23 @@ export default function AnswerCheckForm() {
             <>
               <strong>Problem:</strong> {result.error}
             </>
-          ) : result.isCorrect ? (
+          ) : isCorrect ? (
             <>
-              <strong>Correct.</strong> {result.explanation}
+              <strong style={{ color: "#22c55e" }}>Correct.</strong>{" "}
+              {result.explanation}
             </>
           ) : (
             <>
-              <strong>Not quite.</strong>{" "}
-              The correct answer is <strong>{result.correctAnswer}</strong>.{" "}
+              <strong style={{ color: "#ff0000" }}>Not quite.</strong>{" "}
+              The correct answer is{" "}
+              <span style={{ fontWeight: 800 }}>
+                {result.correctAnswer}
+              </span>.{" "}
               {result.explanation}
             </>
           )}
         </div>
-      ) : null}
+      )}
     </>
   );
 }
