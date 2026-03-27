@@ -246,7 +246,23 @@ body {
 .result.incorrect {
   background: linear-gradient(135deg, #fee2e2, #fecaca);
 }
+.answer-result-box {
+  margin-top: 18px;
+  border-radius: 20px;
+  padding: 18px 20px;
+  border: 1px solid #d1d5db;
+  background: #f8fafc;
+}
 
+.answer-result-box.correct {
+  background: #ecfdf5;
+  border-color: #86efac;
+}
+
+.answer-result-box.incorrect {
+  background: #fff7ed;
+  border-color: #fdba74;
+}
 .meta-row {
   display: flex;
   gap: 12px;
