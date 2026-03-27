@@ -21,6 +21,8 @@ function getGuestToken(): string {
 
 export default function SignupPage() {
   const router = useRouter();
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -29,6 +31,11 @@ export default function SignupPage() {
 
   async function handleSignup(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
+
+    if (!firstName.trim() || !lastName.trim()) {
+      setMessage("Please enter your first and last name.");
+      return;
+    }
 
     if (!email.trim() || !password.trim()) {
       setMessage("Please enter your email and password.");
@@ -51,9 +58,17 @@ export default function SignupPage() {
     try {
       const supabase = createBrowserSupabaseClient();
 
-      const { data, error } = await supabase.auth.signUp({
+      const { error } = await supabase.auth.signUp({
         email,
         password,
+        options: {
+          data: {
+            first_name: firstName.trim(),
+            last_name: lastName.trim(),
+            full_name: `${firstName.trim()} ${lastName.trim()}`,
+            name: firstName.trim(),
+          },
+        },
       });
 
       if (error) {
@@ -72,7 +87,11 @@ export default function SignupPage() {
             "Content-Type": "application/json",
             Authorization: `Bearer ${session.access_token}`,
           },
-          body: JSON.stringify({ guestToken }),
+          body: JSON.stringify({
+            guestToken,
+            firstName: firstName.trim(),
+            lastName: lastName.trim(),
+          }),
         });
       }
 
@@ -86,16 +105,62 @@ export default function SignupPage() {
   }
 
   return (
-    <main className="scan-page">
-      <div className="scan-wrap">
-        <section className="card-light" style={{ maxWidth: 680, margin: "40px auto" }}>
+    <main
+      className="scan-page"
+      style={{
+        minHeight: "100vh",
+        paddingTop: 0,
+        marginTop: 0,
+      }}
+    >
+      <div
+        className="scan-wrap"
+        style={{
+          paddingTop: 24,
+        }}
+      >
+        <section
+          className="card-light"
+          style={{
+            maxWidth: 680,
+            margin: "0 auto 40px auto",
+          }}
+        >
           <div className="pill-light">Create Account</div>
+
           <h1 className="section-title">Create your Secret Scan Club account</h1>
+
           <p className="section-text-light">
             Save your progress, keep your streak, and make your daily puzzle history official.
           </p>
 
-          <form onSubmit={handleSignup} className="email-form" style={{ marginTop: 20, flexDirection: "column", alignItems: "stretch" }}>
+          <form
+            onSubmit={handleSignup}
+            className="email-form"
+            style={{
+              marginTop: 20,
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "stretch",
+              gap: 12,
+            }}
+          >
+            <input
+              type="text"
+              className="email-input"
+              placeholder="First name"
+              value={firstName}
+              onChange={(e) => setFirstName(e.target.value)}
+            />
+
+            <input
+              type="text"
+              className="email-input"
+              placeholder="Last name"
+              value={lastName}
+              onChange={(e) => setLastName(e.target.value)}
+            />
+
             <input
               type="email"
               className="email-input"
