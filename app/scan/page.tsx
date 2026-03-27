@@ -117,9 +117,14 @@ export default function ScanPage() {
               Solve today’s puzzle for free and check your answer below.
             </p>
 
-            <div className="puzzle-box">
-              {drop?.free.puzzle ?? "Come back soon for today’s puzzle."}
-            </div>
+<div className="puzzle-box">
+  <div>
+    <div style={{ fontSize: 14, fontWeight: 800, textTransform: "uppercase", opacity: 0.6, marginBottom: 10 }}>
+      Today’s riddle
+    </div>
+    <div>{drop?.free?.puzzle ?? "Come back soon for today’s puzzle."}</div>
+  </div>
+</div>
 
             {drop?.free.sharePrompt ? (
               <div className="share-box">
