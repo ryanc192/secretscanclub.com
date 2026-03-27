@@ -128,7 +128,7 @@ export default function ScanPage() {
 
             {drop?.free.sharePrompt ? (
               <div className="share-box">
-                <strong>Think about this:</strong> {drop.free.sharePrompt}
+                <strong>Need a hint?:</strong> {drop.free.sharePrompt}
               </div>
             ) : null}
           </section>
