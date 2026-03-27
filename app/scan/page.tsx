@@ -221,6 +221,7 @@ export default function ScanPage() {
 
           <section className="card" style={{ marginTop: 20 }}>
             <div className="pill">Create Account</div>
+             
 
             <h2 className="section-title">Track your streak and save your progress</h2>
 
