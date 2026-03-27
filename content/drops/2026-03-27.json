@@ -5,9 +5,9 @@
   "title": "Riddle of the Day",
   "free": {
     "puzzle": "What has keys but can’t open locks?",
-    "sharePrompt": "Think before you guess.",
+    "sharePrompt": "I have keys but they aren't on a ring",
     "answer": "keyboard",
-    "acceptedAnswers": ["keyboard", "a keyboard"],
+    "acceptedAnswers": ["keyboard", "a keyboard", "keyboards"],
     "explanation": "A keyboard has keys, but they are typing keys, not lock keys."
   }
 }
