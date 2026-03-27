@@ -2,9 +2,9 @@ import fs from "fs";
 import path from "path";
 import Link from "next/link";
 import Image from "next/image";
-import EmailSignupForm from "./components/EmailSignupForm";
-import AnswerCheckForm from "./components/AnswerCheckForm";
-import AuthStatus from "./components/AuthStatus";
+import EmailSignupForm from "../components/EmailSignupForm";
+import AnswerCheckForm from "../components/AnswerCheckForm";
+import AuthStatus from "../components/AuthStatus";
 
 type Drop = {
   date: string;
