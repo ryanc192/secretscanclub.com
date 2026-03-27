@@ -63,9 +63,22 @@ export default function ScanPage() {
 
   return (
     <main className="scan-page">
-  <div style={{ background: "red", color: "white", padding: "12px 16px", borderRadius: 12 }}>
-    TEST
-  </div>
+<div
+      style={{
+        position: "fixed",
+        top: "20px",
+        right: "20px",
+        zIndex: 999999,
+        background: "red",
+        color: "white",
+        padding: "16px 20px",
+        borderRadius: "12px",
+        fontSize: "20px",
+        fontWeight: 800,
+      }}
+    >
+      TEST BOX
+    </div>
 
       <section className="logo-splash">
         <div className="logo-splash-overlay" />
@@ -78,6 +91,7 @@ export default function ScanPage() {
             style={{ width: "100%", height: "100%", objectFit: "contain" }}
             priority
           />
+          
         </div>
         <div className="scroll-cue">↓ Scroll for today’s puzzle ↓</div>
       </section>
