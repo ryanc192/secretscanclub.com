@@ -2,8 +2,8 @@ import fs from "fs";
 import path from "path";
 import Link from "next/link";
 import Image from "next/image";
-import EmailSignupForm from "./components/EmailSignupForm";
-import AnswerCheckForm from "./components/AnswerCheckForm";
+import EmailSignupForm from "../components/EmailSignupForm";
+import AnswerCheckForm from "../components/AnswerCheckForm";
 
 type Drop = {
   date: string;
@@ -117,13 +117,18 @@ export default function ScanPage() {
               Solve today’s puzzle for free and check your answer below.
             </p>
 
-            <div className="puzzle-box">
-              {drop?.free.puzzle ?? "Come back soon for today’s puzzle."}
-            </div>
+<div className="puzzle-box">
+  <div>
+    <div style={{ fontSize: 14, fontWeight: 800, textTransform: "uppercase", opacity: 0.6, marginBottom: 10 }}>
+      Today’s Brain Tester
+    </div>
+    <div>{drop?.free?.puzzle ?? "Come back soon for today’s puzzle."}</div>
+  </div>
+</div>
 
             {drop?.free.sharePrompt ? (
               <div className="share-box">
-                <strong>Think about this:</strong> {drop.free.sharePrompt}
+                <strong>Need a hint?:</strong> {drop.free.sharePrompt}
               </div>
             ) : null}
           </section>
@@ -138,7 +143,7 @@ export default function ScanPage() {
               your streak.
             </p>
 
-            <AnswerCheckForm />
+            <AnswerCheckForm dropDate={drop?.date ?? today} />
           </section>
 
           <section className="card-light" style={{ marginTop: 20 }}>
