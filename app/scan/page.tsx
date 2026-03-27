@@ -63,21 +63,15 @@ export default function ScanPage() {
 
   return (
     <main className="scan-page">
-<div
+    <div
       style={{
         position: "fixed",
         top: "20px",
         right: "20px",
         zIndex: 999999,
-        background: "red",
-        color: "white",
-        padding: "16px 20px",
-        borderRadius: "12px",
-        fontSize: "20px",
-        fontWeight: 800,
       }}
     >
-      TEST BOX
+      <AuthStatus />
     </div>
 
       <section className="logo-splash">
