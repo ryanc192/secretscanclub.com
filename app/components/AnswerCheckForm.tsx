@@ -228,8 +228,10 @@ export default function AnswerCheckForm({ dropDate }: AnswerCheckFormProps) {
           </div>
 
           <div style={{ marginBottom: 8 }}>
-            <strong>Your submitted answer:</strong>{" "}
-            <span style={{ fontWeight: 800 }}>{submittedAnswer}</span>
+<span style={{ color: "inherit", fontWeight: 400 }}>
+  Your submitted answer:
+</span>{" "}
+<span style={{ fontWeight: 800 }}>{submittedAnswer}</span>
           </div>
 
           {isCorrect ? (
