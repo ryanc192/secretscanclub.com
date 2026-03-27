@@ -4,6 +4,7 @@ import Link from "next/link";
 import Image from "next/image";
 import EmailSignupForm from "../components/EmailSignupForm";
 import AnswerCheckForm from "../components/AnswerCheckForm";
+import LogoutButton from "../components/LogoutButton";
 
 type Drop = {
   date: string;
