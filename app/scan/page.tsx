@@ -147,7 +147,7 @@ export default function ScanPage() {
 
             <AnswerCheckForm dropDate={drop?.date ?? today} />
           </section>
- <AuthActions />
+ 
           <section className="card-light" style={{ marginTop: 20 }}>
             <div className="pill-light">Stay in the Loop</div>
 
