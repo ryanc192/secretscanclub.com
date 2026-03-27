@@ -78,23 +78,23 @@ export default function AuthStatus() {
     return null;
   }
 
-  return (
-    <div
-      style={{
-        display: "flex",
-        alignItems: "center",
-        gap: 10,
-        flexWrap: "wrap",
-        justifyContent: "flex-end",
-        padding: "10px 12px",
-        borderRadius: 999,
-        background: "rgba(15, 23, 42, 0.72)",
-        border: "1px solid rgba(255,255,255,0.14)",
-        backdropFilter: "blur(12px)",
-        WebkitBackdropFilter: "blur(12px)",
-        boxShadow: "0 12px 30px rgba(0,0,0,0.18)",
-      }}
-    >
+return (
+  <div
+    style={{
+      display: "flex",
+      alignItems: "center",
+      gap: 10,
+      flexWrap: "wrap",
+      justifyContent: "flex-end",
+      padding: "10px 12px",
+      borderRadius: 999,
+      background: "rgba(15, 23, 42, 0.82)",
+      border: "1px solid rgba(255,255,255,0.14)",
+      backdropFilter: "blur(12px)",
+      WebkitBackdropFilter: "blur(12px)",
+      boxShadow: "0 12px 30px rgba(0,0,0,0.22)",
+    }}
+  >
       {user ? (
         <>
           <div
