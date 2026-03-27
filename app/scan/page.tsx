@@ -5,6 +5,7 @@ import Image from "next/image";
 import EmailSignupForm from "../components/EmailSignupForm";
 import AnswerCheckForm from "../components/AnswerCheckForm";
 import LogoutButton from "../components/LogoutButton";
+import AuthActions from "../components/AuthActions";
 
 type Drop = {
   date: string;
@@ -146,7 +147,7 @@ export default function ScanPage() {
 
             <AnswerCheckForm dropDate={drop?.date ?? today} />
           </section>
-
+ <AuthActions />
           <section className="card-light" style={{ marginTop: 20 }}>
             <div className="pill-light">Stay in the Loop</div>
 
