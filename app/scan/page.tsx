@@ -63,9 +63,9 @@ export default function ScanPage() {
 
   return (
     <main className="scan-page">
-      <div className="fixed-auth-bar">
-        <AuthStatus />
-      </div>
+  <div style={{ background: "red", color: "white", padding: "12px 16px", borderRadius: 12 }}>
+    TEST
+  </div>
 
       <section className="logo-splash">
         <div className="logo-splash-overlay" />
