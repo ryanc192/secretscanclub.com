@@ -20,7 +20,19 @@ body {
     radial-gradient(circle at top left, #1f2937 0%, #0b1020 35%, #050816 100%);
   color: #ffffff;
 }
+.fixed-auth-bar {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  z-index: 9999;
+  display: flex;
+  justify-content: flex-end;
+  pointer-events: none;
+}
 
+.fixed-auth-bar > * {
+  pointer-events: auto;
+}
 .logo-splash {
   position: relative;
   min-height: 100svh;
@@ -671,3 +683,4 @@ body {
     font-size: 14px;
   }
 }
+
