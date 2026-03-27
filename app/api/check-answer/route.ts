@@ -1,8 +1,8 @@
 import fs from "fs";
 import path from "path";
 import { NextResponse } from "next/server";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
-import { normalizeAnswer } from "@/lib/answers";
+import { createServerSupabaseClient } from "../../../lib/supabase/server";
+import { normalizeAnswer } from "../../../lib/answers";
 
 type Drop = {
   date: string;
