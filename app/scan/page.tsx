@@ -76,9 +76,9 @@ export default function ScanPage() {
             pointerEvents: "none",
           }}
         >
-          <div style={{ pointerEvents: "auto" }}>
-            <AuthStatus />
-          </div>
+  <div className="fixed-auth-bar">
+    <AuthStatus />
+  </div>
         </div>
 
         <section className="logo-splash">
