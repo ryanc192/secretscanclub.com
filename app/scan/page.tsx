@@ -6,6 +6,7 @@ import EmailSignupForm from "../components/EmailSignupForm";
 import AnswerCheckForm from "../components/AnswerCheckForm";
 import LogoutButton from "../components/LogoutButton";
 import AuthActions from "../components/AuthActions";
+import AuthStatus from "../components/AuthStatus";
 
 type Drop = {
   date: string;
