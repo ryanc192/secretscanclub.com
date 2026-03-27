@@ -143,7 +143,7 @@ export default function ScanPage() {
               your streak.
             </p>
 
-            <AnswerCheckForm />
+            <AnswerCheckForm dropDate={drop?.date ?? today} />
           </section>
 
           <section className="card-light" style={{ marginTop: 20 }}>
