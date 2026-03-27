@@ -4,8 +4,6 @@ import Link from "next/link";
 import Image from "next/image";
 import EmailSignupForm from "../components/EmailSignupForm";
 import AnswerCheckForm from "../components/AnswerCheckForm";
-import LogoutButton from "../components/LogoutButton";
-import AuthActions from "../components/AuthActions";
 import AuthStatus from "../components/AuthStatus";
 
 type Drop = {
@@ -66,6 +64,23 @@ export default function ScanPage() {
   return (
     <>
       <main className="scan-page">
+        <div
+          style={{
+            position: "fixed",
+            top: 16,
+            right: 16,
+            zIndex: 1000,
+            display: "flex",
+            justifyContent: "flex-end",
+            width: "calc(100% - 32px)",
+            pointerEvents: "none",
+          }}
+        >
+          <div style={{ pointerEvents: "auto" }}>
+            <AuthStatus />
+          </div>
+        </div>
+
         <section className="logo-splash">
           <div className="logo-splash-overlay" />
           <div className="logo-splash-inner">
@@ -120,14 +135,22 @@ export default function ScanPage() {
               Solve today’s puzzle for free and check your answer below.
             </p>
 
-<div className="puzzle-box">
-  <div>
-    <div style={{ fontSize: 14, fontWeight: 800, textTransform: "uppercase", opacity: 0.6, marginBottom: 10 }}>
-      Today’s Brain Tester
-    </div>
-    <div>{drop?.free?.puzzle ?? "Come back soon for today’s puzzle."}</div>
-  </div>
-</div>
+            <div className="puzzle-box">
+              <div>
+                <div
+                  style={{
+                    fontSize: 14,
+                    fontWeight: 800,
+                    textTransform: "uppercase",
+                    opacity: 0.6,
+                    marginBottom: 10,
+                  }}
+                >
+                  Today’s Brain Tester
+                </div>
+                <div>{drop?.free?.puzzle ?? "Come back soon for today’s puzzle."}</div>
+              </div>
+            </div>
 
             {drop?.free.sharePrompt ? (
               <div className="share-box">
@@ -148,7 +171,7 @@ export default function ScanPage() {
 
             <AnswerCheckForm dropDate={drop?.date ?? today} />
           </section>
- 
+
           <section className="card-light" style={{ marginTop: 20 }}>
             <div className="pill-light">Stay in the Loop</div>
 
@@ -222,7 +245,6 @@ export default function ScanPage() {
 
           <section className="card" style={{ marginTop: 20 }}>
             <div className="pill">Create Account</div>
-             
 
             <h2 className="section-title">Track your streak and save your progress</h2>
 
@@ -246,7 +268,7 @@ export default function ScanPage() {
             </div>
 
             <div style={{ marginTop: 20 }}>
-              <Link href="/login" className="btn-primary">
+              <Link href="/signup" className="btn-primary">
                 Create Free Account
               </Link>
             </div>
