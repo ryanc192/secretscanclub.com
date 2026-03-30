@@ -174,7 +174,10 @@ export default function MemberScanPage() {
             profile.
           </p>
 
-          <DailyPuzzle puzzleDate={drop.date} />
+          <DailyPuzzle
+  puzzleDate={drop.date}
+  acceptedAnswers={drop.free.acceptedAnswers ?? [drop.free.answer]}
+/>
         </section>
 
         <section className="card-light" style={{ marginTop: 20 }}>
