@@ -1,357 +1,409 @@
-import fs from "fs";
-import path from "path";
-import Link from "next/link";
-import Image from "next/image";
-import EmailSignupForm from "../components/EmailSignupForm";
-import AnswerCheckForm from "../components/AnswerCheckForm";
-import AuthStatus from "../components/AuthStatus";
+"use client";
 
-type Drop = {
-  date: string;
-  number?: number;
-  title: string;
-  free: {
-    puzzle: string;
-    sharePrompt?: string;
-    answer: string;
-    acceptedAnswers?: string[];
-    explanation?: string;
-  };
-  paid?: {
-    answerKey?: string;
-    funFact?: string;
-  };
-  subscriber?: {
-    bonus?: string;
-    emailTeaser?: string;
-  };
+import { useEffect, useMemo, useState } from "react";
+import { createBrowserSupabaseClient } from "../../lib/supabase/client";
+
+type AnswerResponse = {
+  success?: boolean;
+  ok?: boolean;
+  locked?: boolean;
+  alreadySubmitted?: boolean;
+  isCorrect?: boolean;
+  answer?: string;
+  submittedAt?: string;
+  correctAnswer?: string;
+  explanation?: string;
+  message?: string;
+  error?: string;
 };
 
-function todayET(): string {
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone: "America/New_York",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(new Date());
+type StoredSubmission = {
+  dropDate: string;
+  answer: string;
+  isCorrect: boolean;
+  submittedAt: string;
+  message?: string;
+  explanation?: string;
+};
+
+type AnswerCheckFormProps = {
+  dropDate: string;
+  correctAnswer: string;
+  acceptedAnswers?: string[];
+  explanation?: string;
+};
+
+function getGuestToken(): string {
+  if (typeof window === "undefined") return "";
+
+  const key = "ssc_guest_token";
+  let token = localStorage.getItem(key);
+
+  if (!token) {
+    token = crypto.randomUUID();
+    localStorage.setItem(key, token);
+  }
+
+  return token;
 }
 
-function formatDateLabel(dateStr: string) {
-  const [year, month, day] = dateStr.split("-").map(Number);
-  const date = new Date(year, month - 1, day);
-
-  return new Intl.DateTimeFormat("en-US", {
-    month: "long",
-    day: "numeric",
-    year: "numeric",
-  }).format(date);
+function getSubmissionStorageKey(dropDate: string) {
+  return `ssc_submission_${dropDate}`;
 }
 
-function loadDrop(dateStr?: string): Drop | null {
-  const date = dateStr ?? todayET();
-  const filePath = path.join(process.cwd(), "content", "drops", `${date}.json`);
-
-  if (!fs.existsSync(filePath)) return null;
-
-  return JSON.parse(fs.readFileSync(filePath, "utf8")) as Drop;
+function saveLocalSubmission(data: StoredSubmission) {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(getSubmissionStorageKey(data.dropDate), JSON.stringify(data));
 }
 
-export default function ScanPage() {
-  const drop = loadDrop();
-  const today = todayET();
-  const activeDate = drop?.date ?? today;
-  const dateLabel = formatDateLabel(activeDate);
+function getLocalSubmission(dropDate: string): StoredSubmission | null {
+  if (typeof window === "undefined") return null;
+
+  const raw = localStorage.getItem(getSubmissionStorageKey(dropDate));
+  if (!raw) return null;
+
+  try {
+    return JSON.parse(raw) as StoredSubmission;
+  } catch {
+    return null;
+  }
+}
+
+function normalizeAnswer(value: string) {
+  return value.trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+export default function AnswerCheckForm({
+  dropDate,
+  correctAnswer,
+  acceptedAnswers = [],
+  explanation = "",
+}: AnswerCheckFormProps) {
+  const supabase = useMemo(() => createBrowserSupabaseClient(), []);
+
+  const [answer, setAnswer] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [locked, setLocked] = useState(false);
+  const [submittedAnswer, setSubmittedAnswer] = useState("");
+  const [result, setResult] = useState<AnswerResponse | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadExistingSubmission() {
+      const local = getLocalSubmission(dropDate);
+
+      if (local && !cancelled) {
+        setLocked(true);
+        setSubmittedAnswer(local.answer);
+        setAnswer(local.answer);
+        setResult({
+          ok: true,
+          success: true,
+          locked: true,
+          alreadySubmitted: true,
+          isCorrect: local.isCorrect,
+          answer: local.answer,
+          submittedAt: local.submittedAt,
+          correctAnswer: local.isCorrect ? undefined : correctAnswer,
+          message: local.message ?? "You already answered today.",
+          explanation: local.explanation ?? explanation,
+        });
+      }
+
+      try {
+        getGuestToken();
+
+        const {
+          data: { user },
+          error: userError,
+        } = await supabase.auth.getUser();
+
+        if (cancelled || userError || !user) {
+          return;
+        }
+
+        const { data, error } = await supabase
+          .from("puzzle_attempts")
+          .select("user_answer, is_correct, created_at")
+          .eq("user_id", user.id)
+          .eq("puzzle_date", dropDate)
+          .maybeSingle();
+
+        if (cancelled || error || !data) {
+          return;
+        }
+
+        const storedAnswer = data.user_answer ?? "";
+
+        setLocked(true);
+        setSubmittedAnswer(storedAnswer);
+        setAnswer(storedAnswer);
+        setResult({
+          ok: true,
+          success: true,
+          locked: true,
+          alreadySubmitted: true,
+          isCorrect: !!data.is_correct,
+          answer: storedAnswer,
+          submittedAt: data.created_at ?? new Date().toISOString(),
+          correctAnswer: data.is_correct ? undefined : correctAnswer,
+          message: "You already answered today.",
+          explanation,
+        });
+
+        saveLocalSubmission({
+          dropDate,
+          answer: storedAnswer,
+          isCorrect: !!data.is_correct,
+          submittedAt: data.created_at ?? new Date().toISOString(),
+          message: "You already answered today.",
+          explanation,
+        });
+      } catch {
+        // fail silently
+      }
+    }
+
+    loadExistingSubmission();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [dropDate, correctAnswer, explanation, supabase]);
+
+  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+
+    if (locked) {
+      setResult({
+        ok: false,
+        error: "You already answered today.",
+      });
+      return;
+    }
+
+    if (!answer.trim()) {
+      setResult({
+        ok: false,
+        error: "Please enter an answer before submitting.",
+      });
+      return;
+    }
+
+    setLoading(true);
+    setResult(null);
+
+    try {
+      const submitted = answer.trim();
+      const normalizedUserAnswer = normalizeAnswer(submitted);
+      const normalizedCorrectAnswer = normalizeAnswer(correctAnswer);
+      const normalizedAcceptedAnswers = acceptedAnswers.map(normalizeAnswer);
+
+      const isCorrect =
+        normalizedUserAnswer === normalizedCorrectAnswer ||
+        normalizedAcceptedAnswers.includes(normalizedUserAnswer);
+
+      const submittedAt = new Date().toISOString();
+
+      const responseData: AnswerResponse = {
+        ok: true,
+        success: true,
+        locked: true,
+        alreadySubmitted: false,
+        isCorrect,
+        answer: submitted,
+        submittedAt,
+        correctAnswer: isCorrect ? undefined : correctAnswer,
+        explanation,
+        message: isCorrect
+          ? "Correct! Your answer has been locked for today."
+          : "Your answer has been locked for today.",
+      };
+
+      const {
+        data: { user },
+        error: userError,
+      } = await supabase.auth.getUser();
+
+      if (!userError && user) {
+        const { error: upsertError } = await supabase
+          .from("puzzle_attempts")
+          .upsert(
+            {
+              user_id: user.id,
+              puzzle_date: dropDate,
+              user_answer: submitted,
+              is_correct: isCorrect,
+            },
+            {
+              onConflict: "user_id,puzzle_date",
+            }
+          );
+
+        if (upsertError) {
+          throw upsertError;
+        }
+
+        const { error: streakError } = await supabase.rpc(
+          "recalculate_user_streaks",
+          {
+            p_user_id: user.id,
+          }
+        );
+
+        if (streakError) {
+          throw streakError;
+        }
+
+        responseData.message = isCorrect
+          ? "Correct! Your answer has been saved and your stats were updated."
+          : "Answer submitted. Your stats were updated.";
+      } else {
+        responseData.message = isCorrect
+          ? "Correct! Your answer has been locked for today."
+          : "Your answer has been locked for today.";
+      }
+
+      setLocked(true);
+      setSubmittedAnswer(submitted);
+      setAnswer(submitted);
+      setResult(responseData);
+
+      saveLocalSubmission({
+        dropDate,
+        answer: submitted,
+        isCorrect,
+        submittedAt,
+        message: responseData.message,
+        explanation,
+      });
+    } catch (error) {
+      console.error(error);
+      setResult({
+        ok: false,
+        error: "Could not save your answer right now.",
+      });
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  const isCorrect = !!result?.isCorrect;
+  const isIncorrect =
+    !!result &&
+    (result.ok || result.success || result.locked) &&
+    result.isCorrect === false;
 
   return (
-    <main className="scan-page">
-      <div
-        style={{
-          position: "fixed",
-          top: "20px",
-          right: "20px",
-          zIndex: 999999,
-        }}
-      >
-        <AuthStatus />
-      </div>
-
-      <section className="logo-splash">
-        <div className="logo-splash-overlay" />
-        <div className="logo-splash-inner">
-          <Image
-            src="/ssc-logo.png"
-            alt="Secret Scan Club logo"
-            width={420}
-            height={420}
-            style={{ width: "100%", height: "100%", objectFit: "contain" }}
-            priority
-          />
-        </div>
-        <div className="scroll-cue">↓ Scroll for today’s puzzle ↓</div>
-      </section>
-
-      <div className="scan-wrap">
-        <section className="card">
-          <div className="pill">Today’s Brain Challenge</div>
-
-          <h1 className="hero-title">
-            Scan today’s puzzle, test your brain, and come back tomorrow to keep
-            your streak alive.
-          </h1>
-
-          <p className="hero-text">
-            Every day brings a new challenge. Play for free, check your answer,
-            and create an account to track your progress and build your streak
-            over time.
-          </p>
-
-          <div className="meta-row">
-            <div className="meta-box">
-              <strong>Date:</strong> {dateLabel}
-            </div>
-
-            <div className="meta-box">
-              <strong>Drop:</strong> #{drop?.number ?? "—"}
-            </div>
-
-            <div className="meta-box">
-              <strong>Status:</strong> Free daily puzzle
-            </div>
+    <>
+      {locked ? (
+        <div
+          className="share-box"
+          style={{
+            marginTop: 20,
+            background: isCorrect
+              ? "rgba(34,197,94,0.18)"
+              : "rgba(255,0,0,0.18)",
+            border: isCorrect
+              ? "1px solid #22c55e"
+              : "1px solid #ff0000",
+            color: "#ffffff",
+          }}
+        >
+          <div style={{ fontWeight: 800, marginBottom: 10 }}>
+            Today&apos;s answer has been locked in
           </div>
-        </section>
 
-        <section className="card-light" style={{ marginTop: 20 }}>
-          <div className="pill-light">Today’s Puzzle</div>
+          <div style={{ marginBottom: 8 }}>
+            <span style={{ color: "inherit", fontWeight: 400 }}>
+              Your submitted answer:
+            </span>{" "}
+            <span style={{ fontWeight: 800 }}>{submittedAnswer}</span>
+          </div>
 
-          <h2 className="section-title">
-            {drop?.title ?? "Today’s puzzle is not live yet"}
-          </h2>
-
-          <p className="section-text-light">
-            Solve today’s puzzle for free and check your answer below.
-          </p>
-
-          <div className="puzzle-box">
+          {isCorrect ? (
             <div>
-              <div
-                style={{
-                  fontSize: 14,
-                  fontWeight: 800,
-                  textTransform: "uppercase",
-                  opacity: 0.6,
-                  marginBottom: 10,
-                }}
-              >
-                Today’s Brain Tester
-              </div>
-              <div>{drop?.free?.puzzle ?? "Come back soon for today’s puzzle."}</div>
+              <strong style={{ color: "#22c55e" }}>Correct.</strong>{" "}
+              {result?.explanation || "Nice work. Come back tomorrow for the next puzzle."}
             </div>
-          </div>
+          ) : (
+            <div>
+              <strong style={{ color: "#ff0000" }}>Not quite.</strong>{" "}
+              {result?.correctAnswer ? (
+                <>
+                  The correct answer is{" "}
+                  <span style={{ fontWeight: 800 }}>{result.correctAnswer}</span>.{" "}
+                </>
+              ) : null}
+              {result?.explanation || "Come back tomorrow for the next puzzle."}
+            </div>
+          )}
 
-          {drop?.free?.sharePrompt ? (
-            <div className="share-box">
-              <strong>Need a hint?</strong> {drop.free.sharePrompt}
-            </div>
+          {result?.message ? (
+            <div style={{ marginTop: 10, opacity: 0.9 }}>{result.message}</div>
           ) : null}
-        </section>
+        </div>
+      ) : (
+        <>
+          <form className="email-form" style={{ marginTop: 20 }} onSubmit={handleSubmit}>
+            <input
+              type="text"
+              className="email-input"
+              placeholder="Type your answer here"
+              aria-label="Puzzle answer"
+              value={answer}
+              onChange={(e) => setAnswer(e.target.value)}
+              disabled={loading || locked}
+            />
+            <button type="submit" className="btn-dark" disabled={loading || locked}>
+              {loading ? "Checking..." : "Check Answer"}
+            </button>
+          </form>
 
-        <section className="card" style={{ marginTop: 20 }}>
-          <div className="pill">Answer Check</div>
-
-          <h2 className="section-title">Submit your answer</h2>
-
-          <p className="section-text-dark">
-            Enter your answer, check how you did, and then create an account to
-            start tracking your streak.
-          </p>
-
-          <AnswerCheckForm
-            dropDate={activeDate}
-            correctAnswer={drop?.free?.answer ?? ""}
-            acceptedAnswers={drop?.free?.acceptedAnswers ?? []}
-            explanation={drop?.free?.explanation ?? ""}
-          />
-        </section>
-
-        <section className="card-light" style={{ marginTop: 20 }}>
-          <div className="pill-light">Stay in the Loop</div>
-
-          <div className="capture-wrap">
-            <div className="capture-main">
-              <h2 className="capture-title">
-                Enter your email for daily puzzle reminders
-              </h2>
-
-              <p className="capture-subtext">
-                Get tomorrow’s challenge in your inbox, stay connected to Secret
-                Scan Club, and never miss a day.
-              </p>
-
-              <div className="entry-badge-row">
-                <div className="entry-badge">Daily Reminders</div>
-                <div className="entry-badge">New Puzzle Alerts</div>
-                <div className="entry-badge">Free to Join</div>
-              </div>
-
-              <EmailSignupForm />
-
-              <div className="capture-note">
-                By signing up, you agree to receive Secret Scan Club emails
-                including daily puzzle reminders and occasional updates.
-              </div>
-            </div>
-
-            <div className="capture-side">
-              <div className="capture-points">
-                <div className="capture-point">
-                  <div className="capture-point-title">Come back daily</div>
-                  <div className="capture-point-text">
-                    Get a quick reminder each day so you never miss a challenge
-                    and keep your streak alive.
-                  </div>
-                </div>
-
-                <div className="capture-point">
-                  <div className="capture-point-title">Build your streak</div>
-                  <div className="capture-point-text">
-                    Turn solving puzzles into a daily habit and watch your streak
-                    grow over time.
-                  </div>
-                </div>
-
-                <div className="capture-point">
-                  <div className="capture-point-title">Stay mentally sharp</div>
-                  <div className="capture-point-text">
-                    Short daily challenges help you stay focused, think faster,
-                    and keep your brain active.
-                  </div>
-                </div>
-
-                <div className="capture-point">
-                  <div className="capture-point-title">
-                    Get tomorrow’s challenge first
-                  </div>
-                  <div className="capture-point-text">
-                    Be the first to see each new puzzle and get a head start on
-                    the next brain challenge.
-                  </div>
-                </div>
-
-                <div className="capture-point">
-                  <div className="capture-point-title">No spam, just value</div>
-                  <div className="capture-point-text">
-                    Simple daily emails with your puzzle, your progress, and
-                    occasional helpful extras.
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <section className="card" style={{ marginTop: 20 }}>
-          <div className="pill">Create Account</div>
-
-          <h2 className="section-title">Track your streak and save your progress</h2>
-
-          <p className="section-text-dark">
-            Want more than just today’s puzzle? Create a free account to save
-            your streak, track your history, and build consistency over time.
-          </p>
-
-          <div className="benefit-list">
-            {[
-              "Track your current streak",
-              "See your best streak",
-              "Save daily puzzle progress",
-              "Build a reason to come back tomorrow",
-            ].map((item) => (
-              <div key={item} className="benefit-item">
-                <span style={{ fontSize: 18 }}>✓</span>
-                <span>{item}</span>
-              </div>
-            ))}
-          </div>
-
-          <div style={{ marginTop: 20 }}>
-            <Link href="/signup" className="btn-primary">
-              Create Free Account
-            </Link>
-          </div>
-        </section>
-
-        <section className="offer-grid">
-          <div className="offer-main">
-            <div className="pill">Brain Boost</div>
-
-            <h2 className="section-title">Did today’s puzzle kick your butt?</h2>
-
-            <p
-              className="section-text-dark"
-              style={{ maxWidth: "none", opacity: 0.95 }}
+          {result && (
+            <div
+              className="share-box"
+              style={{
+                marginTop: 20,
+                background: isCorrect
+                  ? "rgba(34,197,94,0.18)"
+                  : isIncorrect
+                  ? "rgba(255,0,0,0.18)"
+                  : "rgba(255,255,255,0.08)",
+                border: isCorrect
+                  ? "1px solid #22c55e"
+                  : isIncorrect
+                  ? "1px solid #ff0000"
+                  : "1px solid rgba(255,255,255,0.2)",
+                color: "#ffffff",
+              }}
             >
-              Need a little extra focus for tomorrow’s challenge? Check out the
-              brain-boost option below.
-            </p>
-
-            <div className="benefit-list">
-              {[
-                "Fits naturally with the daily puzzle habit",
-                "Easy soft CTA at the bottom of the page",
-                "Can also be used inside daily emails",
-                "Built for repeated exposure over time",
-              ].map((item) => (
-                <div key={item} className="benefit-item">
-                  <span style={{ fontSize: 18 }}>✓</span>
-                  <span>{item}</span>
-                </div>
-              ))}
+              {!(result.ok || result.success || result.locked) ? (
+                <>
+                  <strong>Problem:</strong> {result.error || result.message}
+                </>
+              ) : isCorrect ? (
+                <>
+                  <strong style={{ color: "#22c55e" }}>Correct.</strong>{" "}
+                  {result.explanation || "Nice work. Come back tomorrow for the next puzzle."}
+                </>
+              ) : (
+                <>
+                  <strong style={{ color: "#ff0000" }}>Not quite.</strong>{" "}
+                  {result.correctAnswer ? (
+                    <>
+                      The correct answer is{" "}
+                      <span style={{ fontWeight: 800 }}>{result.correctAnswer}</span>.{" "}
+                    </>
+                  ) : null}
+                  {result.explanation || "Come back tomorrow for the next puzzle."}
+                </>
+              )}
             </div>
-
-            <a
-              href="YOUR-AMWAY-LINK-HERE"
-              target="_blank"
-              rel="noreferrer"
-              className="btn-primary"
-            >
-              See the Brain Boost
-            </a>
-          </div>
-
-          <div className="offer-side">
-            <h3 style={{ marginTop: 0, fontSize: 22, fontWeight: 900 }}>
-              How it works
-            </h3>
-
-            <div className="steps">
-              {[
-                ["1", "Scan the code", "Land on today’s puzzle instantly."],
-                ["2", "Play for free", "Read the puzzle and submit your answer."],
-                ["3", "Save your streak", "Create a free account to track progress."],
-                ["4", "Come back tomorrow", "Emails bring people back to the next challenge."],
-              ].map(([num, title, text]) => (
-                <div key={num} className="step">
-                  <div className="step-num">{num}</div>
-                  <div>
-                    <div style={{ fontWeight: 800, marginBottom: 4 }}>{title}</div>
-                    <div style={{ opacity: 0.85, lineHeight: 1.5 }}>{text}</div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        <footer className="footer">
-          <div>© {new Date().getFullYear()} Secret Scan Club</div>
-
-          <div className="footer-links">
-            <span>Daily rotating content</span>
-            <span>Free puzzle experience</span>
-            <span>Account-based streak tracking</span>
-          </div>
-        </footer>
-      </div>
-    </main>
+          )}
+        </>
+      )}
+    </>
   );
 }
