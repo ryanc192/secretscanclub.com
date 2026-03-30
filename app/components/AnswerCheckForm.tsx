@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { createBrowserSupabaseClient } from "../../lib/supabase/client";
 
 type AnswerResponse = {
   success?: boolean;
@@ -27,6 +28,9 @@ type StoredSubmission = {
 
 type AnswerCheckFormProps = {
   dropDate: string;
+  correctAnswer: string;
+  acceptedAnswers?: string[];
+  explanation?: string;
 };
 
 function getGuestToken(): string {
@@ -65,7 +69,18 @@ function getLocalSubmission(dropDate: string): StoredSubmission | null {
   }
 }
 
-export default function AnswerCheckForm({ dropDate }: AnswerCheckFormProps) {
+function normalizeAnswer(value: string) {
+  return value.trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+export default function AnswerCheckForm({
+  dropDate,
+  correctAnswer,
+  acceptedAnswers = [],
+  explanation = "",
+}: AnswerCheckFormProps) {
+  const supabase = useMemo(() => createBrowserSupabaseClient(), []);
+
   const [answer, setAnswer] = useState("");
   const [loading, setLoading] = useState(false);
   const [locked, setLocked] = useState(false);
@@ -73,63 +88,89 @@ export default function AnswerCheckForm({ dropDate }: AnswerCheckFormProps) {
   const [result, setResult] = useState<AnswerResponse | null>(null);
 
   useEffect(() => {
-    const local = getLocalSubmission(dropDate);
+    let cancelled = false;
 
-    if (local) {
-      setLocked(true);
-      setSubmittedAnswer(local.answer);
-      setResult({
-        ok: true,
-        success: true,
-        locked: true,
-        alreadySubmitted: true,
-        isCorrect: local.isCorrect,
-        answer: local.answer,
-        submittedAt: local.submittedAt,
-        message: local.message ?? "You already answered today.",
-        explanation: local.explanation ?? "",
-      });
-    }
+    async function loadExistingSubmission() {
+      const local = getLocalSubmission(dropDate);
 
-    const guestToken = getGuestToken();
+      if (local && !cancelled) {
+        setLocked(true);
+        setSubmittedAnswer(local.answer);
+        setAnswer(local.answer);
+        setResult({
+          ok: true,
+          success: true,
+          locked: true,
+          alreadySubmitted: true,
+          isCorrect: local.isCorrect,
+          answer: local.answer,
+          submittedAt: local.submittedAt,
+          correctAnswer: local.isCorrect ? undefined : correctAnswer,
+          message: local.message ?? "You already answered today.",
+          explanation: local.explanation ?? explanation,
+        });
+      }
 
-    async function checkStatus() {
       try {
-        const res = await fetch("/api/check-answer/status", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ dropDate, guestToken }),
+        getGuestToken();
+
+        const {
+          data: { user },
+          error: userError,
+        } = await supabase.auth.getUser();
+
+        if (cancelled || userError || !user) {
+          return;
+        }
+
+        const { data, error } = await supabase
+          .from("puzzle_attempts")
+          .select("user_answer, is_correct, created_at")
+          .eq("user_id", user.id)
+          .eq("puzzle_date", dropDate)
+          .maybeSingle();
+
+        if (cancelled || error || !data) {
+          return;
+        }
+
+        const storedAnswer = data.user_answer ?? "";
+
+        setLocked(true);
+        setSubmittedAnswer(storedAnswer);
+        setAnswer(storedAnswer);
+        setResult({
+          ok: true,
+          success: true,
+          locked: true,
+          alreadySubmitted: true,
+          isCorrect: !!data.is_correct,
+          answer: storedAnswer,
+          submittedAt: data.created_at ?? new Date().toISOString(),
+          correctAnswer: data.is_correct ? undefined : correctAnswer,
+          message: "You already answered today.",
+          explanation,
         });
 
-        const data: AnswerResponse = await res.json();
-
-        if (data.locked) {
-          setLocked(true);
-          setSubmittedAnswer(data.answer ?? "");
-          setResult({
-            ...data,
-            ok: true,
-            success: true,
-          });
-
-          saveLocalSubmission({
-            dropDate,
-            answer: data.answer ?? "",
-            isCorrect: !!data.isCorrect,
-            submittedAt: data.submittedAt ?? new Date().toISOString(),
-            message: data.message ?? "You already answered today.",
-            explanation: data.explanation ?? "",
-          });
-        }
+        saveLocalSubmission({
+          dropDate,
+          answer: storedAnswer,
+          isCorrect: !!data.is_correct,
+          submittedAt: data.created_at ?? new Date().toISOString(),
+          message: "You already answered today.",
+          explanation,
+        });
       } catch {
-        // fail silently so the form still works off local state
+        // fail silently so the form still works with local state
       }
     }
 
-    checkStatus();
-  }, [dropDate]);
+    loadExistingSubmission();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [dropDate, correctAnswer, explanation, supabase]);
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -154,47 +195,94 @@ export default function AnswerCheckForm({ dropDate }: AnswerCheckFormProps) {
     setResult(null);
 
     try {
-      const guestToken = getGuestToken();
+      const submitted = answer.trim();
+      const normalizedUserAnswer = normalizeAnswer(submitted);
+      const normalizedCorrectAnswer = normalizeAnswer(correctAnswer);
+      const normalizedAcceptedAnswers = acceptedAnswers.map(normalizeAnswer);
 
-      const res = await fetch("/api/check-answer", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          dropDate,
-          answer,
-          guestToken,
-        }),
-      });
+      const isCorrect =
+        normalizedUserAnswer === normalizedCorrectAnswer ||
+        normalizedAcceptedAnswers.includes(normalizedUserAnswer);
 
-      const data: AnswerResponse = await res.json();
-      setResult(data);
+      const submittedAt = new Date().toISOString();
 
-      if (data.locked) {
-        const finalAnswer = data.answer ?? answer;
+      const responseData: AnswerResponse = {
+        ok: true,
+        success: true,
+        locked: true,
+        alreadySubmitted: false,
+        isCorrect,
+        answer: submitted,
+        submittedAt,
+        correctAnswer: isCorrect ? undefined : correctAnswer,
+        explanation,
+        message: isCorrect
+          ? "Correct! Your answer has been locked for today."
+          : "Your answer has been locked for today.",
+      };
 
-        setLocked(true);
-        setSubmittedAnswer(finalAnswer);
-        setAnswer(finalAnswer);
+      const {
+        data: { user },
+        error: userError,
+      } = await supabase.auth.getUser();
 
-        saveLocalSubmission({
-          dropDate,
-          answer: finalAnswer,
-          isCorrect: !!data.isCorrect,
-          submittedAt: data.submittedAt ?? new Date().toISOString(),
-          message:
-            data.message ??
-            (data.isCorrect
-              ? "Correct! Your answer has been locked for today."
-              : "Your answer has been locked for today."),
-          explanation: data.explanation ?? "",
-        });
+      if (!userError && user) {
+        const { error: upsertError } = await supabase
+          .from("puzzle_attempts")
+          .upsert(
+            {
+              user_id: user.id,
+              puzzle_date: dropDate,
+              user_answer: submitted,
+              is_correct: isCorrect,
+            },
+            {
+              onConflict: "user_id,puzzle_date",
+            }
+          );
+
+        if (upsertError) {
+          throw upsertError;
+        }
+
+        const { error: streakError } = await supabase.rpc(
+          "recalculate_user_streaks",
+          {
+            p_user_id: user.id,
+          }
+        );
+
+        if (streakError) {
+          throw streakError;
+        }
+
+        responseData.message = isCorrect
+          ? "Correct! Your answer has been saved and your stats were updated."
+          : "Answer submitted. Your stats were updated.";
+      } else {
+        responseData.message = isCorrect
+          ? "Correct! Your answer has been locked for today."
+          : "Your answer has been locked for today.";
       }
-    } catch {
+
+      setLocked(true);
+      setSubmittedAnswer(submitted);
+      setAnswer(submitted);
+      setResult(responseData);
+
+      saveLocalSubmission({
+        dropDate,
+        answer: submitted,
+        isCorrect,
+        submittedAt,
+        message: responseData.message,
+        explanation,
+      });
+    } catch (error) {
+      console.error(error);
       setResult({
         ok: false,
-        error: "Could not check your answer right now.",
+        error: "Could not save your answer right now.",
       });
     } finally {
       setLoading(false);
@@ -228,10 +316,10 @@ export default function AnswerCheckForm({ dropDate }: AnswerCheckFormProps) {
           </div>
 
           <div style={{ marginBottom: 8 }}>
-<span style={{ color: "inherit", fontWeight: 400 }}>
-  Your submitted answer:
-</span>{" "}
-<span style={{ fontWeight: 800 }}>{submittedAnswer}</span>
+            <span style={{ color: "inherit", fontWeight: 400 }}>
+              Your submitted answer:
+            </span>{" "}
+            <span style={{ fontWeight: 800 }}>{submittedAnswer}</span>
           </div>
 
           {isCorrect ? (
@@ -298,7 +386,7 @@ export default function AnswerCheckForm({ dropDate }: AnswerCheckFormProps) {
               ) : isCorrect ? (
                 <>
                   <strong style={{ color: "#22c55e" }}>Correct.</strong>{" "}
-                  {result.explanation}
+                  {result.explanation || "Nice work. Come back tomorrow for the next puzzle."}
                 </>
               ) : (
                 <>
@@ -309,7 +397,7 @@ export default function AnswerCheckForm({ dropDate }: AnswerCheckFormProps) {
                       <span style={{ fontWeight: 800 }}>{result.correctAnswer}</span>.{" "}
                     </>
                   ) : null}
-                  {result.explanation}
+                  {result.explanation || "Come back tomorrow for the next puzzle."}
                 </>
               )}
             </div>
