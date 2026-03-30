@@ -24,10 +24,18 @@ export default function DailyPuzzle({ puzzleDate }: { puzzleDate: string }) {
 
     async function boot() {
       try {
-        await startPuzzleSession(puzzleDate);
-        if (!cancelled) setStarted(true);
+        console.log("Starting puzzle session for date:", puzzleDate);
+        const session = await startPuzzleSession(puzzleDate);
+        console.log("Puzzle session response:", session);
+
+        if (!cancelled) {
+          setStarted(true);
+        }
       } catch (err: any) {
-        if (!cancelled) setError(err.message || "Failed to start puzzle session.");
+        console.error("Failed to start puzzle session:", err);
+        if (!cancelled) {
+          setError(err.message || "Failed to start puzzle session.");
+        }
       }
     }
 
@@ -44,9 +52,12 @@ export default function DailyPuzzle({ puzzleDate }: { puzzleDate: string }) {
     setError("");
 
     try {
+      console.log("Submitting answer:", answer, "for date:", puzzleDate);
       const data = await submitPuzzleAnswer(puzzleDate, answer);
+      console.log("Submit answer response:", data);
       setResult(data);
     } catch (err: any) {
+      console.error("Failed to submit answer:", err);
       setError(err.message || "Failed to submit answer.");
     } finally {
       setLoading(false);
@@ -56,6 +67,7 @@ export default function DailyPuzzle({ puzzleDate }: { puzzleDate: string }) {
   return (
     <div>
       {!started && <p>Loading puzzle session...</p>}
+      {error && <p>{error}</p>}
 
       <form onSubmit={handleSubmit}>
         <input
@@ -68,8 +80,6 @@ export default function DailyPuzzle({ puzzleDate }: { puzzleDate: string }) {
           {loading ? "Submitting..." : "Submit Answer"}
         </button>
       </form>
-
-      {error && <p>{error}</p>}
 
       {result && (
         <div>
