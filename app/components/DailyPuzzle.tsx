@@ -6,16 +6,14 @@ import { submitPuzzleAnswer } from "../../lib/puzzles/submitPuzzleAnswer";
 
 type SubmitResult = {
   is_correct: boolean;
-  first_correct_response_time_ms: number | null;
-  attempt_count: number;
-  avg_correct_response_time_ms_month: number | null;
-  avg_correct_response_time_ms_all_time: number | null;
+  already_submitted: boolean;
 };
 
 export default function DailyPuzzle({ puzzleDate }: { puzzleDate: string }) {
   const [answer, setAnswer] = useState("");
   const [loading, setLoading] = useState(false);
   const [started, setStarted] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
   const [result, setResult] = useState<SubmitResult | null>(null);
   const [error, setError] = useState("");
 
@@ -30,7 +28,7 @@ export default function DailyPuzzle({ puzzleDate }: { puzzleDate: string }) {
         if (!cancelled) {
           setStarted(true);
         }
-      } catch (err: any) {
+      } catch (err) {
         console.error("startPuzzleSession failed:", err);
 
         if (!cancelled) {
@@ -49,7 +47,7 @@ export default function DailyPuzzle({ puzzleDate }: { puzzleDate: string }) {
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
 
-    if (!answer.trim() || !started) return;
+    if (!answer.trim() || !started || submitted) return;
 
     setLoading(true);
     setError("");
@@ -57,13 +55,20 @@ export default function DailyPuzzle({ puzzleDate }: { puzzleDate: string }) {
     try {
       const data = await submitPuzzleAnswer(puzzleDate, answer.trim());
       setResult(data);
-    } catch (err: any) {
+      setSubmitted(true);
+
+      if (data?.already_submitted) {
+        setError("You have already submitted today's answer.");
+      }
+    } catch (err) {
       console.error("submitPuzzleAnswer failed:", err);
       setError("Could not submit answer. Please try again.");
     } finally {
       setLoading(false);
     }
   }
+
+  const formDisabled = loading || !started || submitted;
 
   return (
     <div style={{ marginTop: 18 }}>
@@ -110,7 +115,7 @@ export default function DailyPuzzle({ puzzleDate }: { puzzleDate: string }) {
             value={answer}
             onChange={(e) => setAnswer(e.target.value)}
             placeholder="Type your answer"
-            disabled={!started || loading}
+            disabled={formDisabled}
             style={{
               flex: "1 1 280px",
               minWidth: 220,
@@ -129,34 +134,34 @@ export default function DailyPuzzle({ puzzleDate }: { puzzleDate: string }) {
 
           <button
             type="submit"
-            disabled={loading || !started || !answer.trim()}
+            disabled={formDisabled || !answer.trim()}
             style={{
               height: 48,
               padding: "0 20px",
               borderRadius: 14,
               border: "1px solid rgba(255,255,255,0.08)",
               background:
-                loading || !started || !answer.trim()
+                formDisabled || !answer.trim()
                   ? "rgba(255,255,255,0.14)"
                   : "linear-gradient(135deg, #f59e0b 0%, #d97706 100%)",
               color: "#ffffff",
               fontSize: 15,
               fontWeight: 800,
               cursor:
-                loading || !started || !answer.trim() ? "not-allowed" : "pointer",
+                formDisabled || !answer.trim() ? "not-allowed" : "pointer",
               transition: "all 0.2s ease",
               boxShadow:
-                loading || !started || !answer.trim()
+                formDisabled || !answer.trim()
                   ? "none"
                   : "0 10px 24px rgba(217,119,6,0.28)",
             }}
           >
-            {loading ? "Submitting..." : "Submit Answer"}
+            {loading ? "Submitting..." : submitted ? "Answer Submitted" : "Submit Answer"}
           </button>
         </div>
       </form>
 
-      {result && (
+      {result && !result.already_submitted && (
         <div
           style={{
             marginTop: 18,
@@ -171,45 +176,11 @@ export default function DailyPuzzle({ puzzleDate }: { puzzleDate: string }) {
               fontSize: 16,
               fontWeight: 800,
               color: result.is_correct ? "#86efac" : "#fca5a5",
-              marginBottom: 10,
             }}
           >
-            {result.is_correct ? "Correct!" : "Not correct yet."}
-          </div>
-
-          <div
-            style={{
-              display: "grid",
-              gap: 8,
-              color: "rgba(255,255,255,0.88)",
-              fontSize: 14,
-            }}
-          >
-            <div>
-              <strong>Attempts:</strong> {result.attempt_count}
-            </div>
-            <div>
-              <strong>First correct time:</strong>{" "}
-              {result.first_correct_response_time_ms != null
-                ? `${(result.first_correct_response_time_ms / 1000).toFixed(2)}s`
-                : "Not recorded yet"}
-            </div>
-            <div>
-              <strong>Monthly average:</strong>{" "}
-              {result.avg_correct_response_time_ms_month != null
-                ? `${(
-                    Number(result.avg_correct_response_time_ms_month) / 1000
-                  ).toFixed(2)}s`
-                : "N/A"}
-            </div>
-            <div>
-              <strong>All-time average:</strong>{" "}
-              {result.avg_correct_response_time_ms_all_time != null
-                ? `${(
-                    Number(result.avg_correct_response_time_ms_all_time) / 1000
-                  ).toFixed(2)}s`
-                : "N/A"}
-            </div>
+            {result.is_correct
+              ? "Correct! Your answer has been locked in."
+              : "Incorrect. Your answer has been submitted."}
           </div>
         </div>
       )}
