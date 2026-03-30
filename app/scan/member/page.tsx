@@ -108,16 +108,16 @@ export default function MemberScanPage() {
 
           <h1 className="hero-title">Keep your streak moving.</h1>
 
-          <p className="hero-text">
-Let’s be real — consistency breaks most people.
-<p></p>Not because it’s hard… but because they stop showing up.
-
-<p></p>So here’s the test:
-<p></p>Solve today’s puzzle. Keep your streak alive. Then take another shot —
-bonus challenge, locked content, whatever’s below.
-
-<p></p>Or prove you’re no different from the rest of them.
-          </p>
+          <div className="hero-text">
+            <p>Let’s be real — consistency breaks most people.</p>
+            <p>Not because it’s hard… but because they stop showing up.</p>
+            <p>So here’s the test:</p>
+            <p>
+              Solve today’s puzzle. Keep your streak alive. Then take another
+              shot — bonus challenge, locked content, whatever’s below.
+            </p>
+            <p>Or prove you’re no different from the rest of them.</p>
+          </div>
 
           <div className="meta-row">
             <div className="meta-box">
@@ -184,11 +184,14 @@ bonus challenge, locked content, whatever’s below.
 
           <h2 className="section-title">One click doesn’t prove anything</h2>
 
-          <p className="section-text-light">
-Anyone can do that.
-
-<p></p>Try it again. Hit another puzzle. See where you stack up on the leaderboard.
-<p></p>That’s where it starts to count. 
+          <div className="section-text-light">
+            <p>Anyone can do that.</p>
+            <p>
+              Try it again. Hit another puzzle. See where you stack up on the
+              leaderboard.
+            </p>
+            <p>That’s where it starts to count.</p>
+          </div>
 
           <div
             style={{
@@ -215,17 +218,16 @@ Anyone can do that.
         <section className="card" style={{ marginTop: 20 }}>
           <div className="pill">Your Progress</div>
 
-          <h2 className="section-title" style={{ color: "#ffffff !important" }}>
-  Your Streak is Your Leverage
-</h2>
+          <h2 className="section-title" style={{ color: "#ffffff" }}>
+            Your Streak is Your Leverage
+          </h2>
 
-          <p className="section-text-dark">
-This is where consistency shows.
-<p></p>Every correct answer adds up. Your streak grows. Progress compounds.
-
-<p></p>Miss a day, and the chain breaks.
-<p></p>It’s that simple.
-          </p>
+          <div className="section-text-dark">
+            <p>This is where consistency shows.</p>
+            <p>Every correct answer adds up. Your streak grows. Progress compounds.</p>
+            <p>Miss a day, and the chain breaks.</p>
+            <p>It’s that simple.</p>
+          </div>
 
           <div className="benefit-list">
             {[
@@ -247,51 +249,56 @@ This is where consistency shows.
 
           <h2 className="section-title">You’re building something now</h2>
 
-          <p className="section-text-light">
-<p>
-  This isn’t a one-time puzzle visit. Every time you show up, your progress stacks,
-  your streak grows, and the system tightens around your consistency. Each return
-  matters more than the last.
+          <div className="section-text-light">
+            <p>
+              This isn’t a one-time puzzle visit. Every time you show up, your
+              progress stacks, your streak grows, and the system tightens around
+              your consistency. Each return matters more than the last.
+            </p>
+            <p>Most people don’t stick with it. That’s why nothing changes for them.</p>
+          </div>
 
-  Most people don’t stick with it. That’s why nothing changes for them.
-</p>
+          <div className="capture-points" style={{ marginTop: 20 }}>
+            <div className="capture-point">
+              <div className="capture-point-title">Your progress is tracked</div>
+              <div className="capture-point-text">
+                Every answer adds up. Your stats build over time, so each day
+                connects — or exposes when you fall off.
+              </div>
+            </div>
 
-<div className="capture-points" style={{ marginTop: 20 }}>
-  <div className="capture-point">
-    <div className="capture-point-title">Your progress is tracked</div>
-    <div className="capture-point-text">
-      Every answer adds up. Your stats build over time, so each day connects — or exposes when you fall off.
-    </div>
-  </div>
+            <div className="capture-point">
+              <div className="capture-point-title">Streaks create pressure</div>
+              <div className="capture-point-text">
+                The longer your streak runs, the harder it is to lose. Miss a
+                day, and it’s gone.
+              </div>
+            </div>
 
-  <div className="capture-point">
-    <div className="capture-point-title">Streaks create pressure</div>
-    <div className="capture-point-text">
-      The longer your streak runs, the harder it is to lose. Miss a day, and it’s gone.
-    </div>
-  </div>
+            <div className="capture-point">
+              <div className="capture-point-title">More ways to stay in it</div>
+              <div className="capture-point-text">
+                Bonus challenges and past puzzles are always there — if you’re
+                willing to keep going.
+              </div>
+            </div>
 
-  <div className="capture-point">
-    <div className="capture-point-title">More ways to stay in it</div>
-    <div className="capture-point-text">
-      Bonus challenges and past puzzles are always there — if you’re willing to keep going.
-    </div>
-  </div>
-
-  <div className="capture-point">
-    <div className="capture-point-title">Each visit raises the stakes</div>
-    <div className="capture-point-text">
-      The more you show up, the more it builds. Momentum compounds — or disappears if you stop.
-    </div>
-  </div>
-</div>
+            <div className="capture-point">
+              <div className="capture-point-title">Each visit raises the stakes</div>
+              <div className="capture-point-text">
+                The more you show up, the more it builds. Momentum compounds —
+                or disappears if you stop.
+              </div>
+            </div>
+          </div>
+        </section>
 
         <section className="card" style={{ marginTop: 20 }}>
           <div className="pill">Brain Boost</div>
 
-          <h2 className="section-title" style={{ color: "#ffffff !important" }}>
-  Struggling to stay sharp?
-</h2>
+          <h2 className="section-title" style={{ color: "#ffffff" }}>
+            Struggling to stay sharp?
+          </h2>
 
           <p
             className="section-text-dark"
