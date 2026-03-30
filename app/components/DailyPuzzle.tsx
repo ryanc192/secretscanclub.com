@@ -9,7 +9,15 @@ type SubmitResult = {
   already_submitted: boolean;
 };
 
-export default function DailyPuzzle({ puzzleDate }: { puzzleDate: string }) {
+type DailyPuzzleProps = {
+  puzzleDate: string;
+  acceptedAnswers: string[];
+};
+
+export default function DailyPuzzle({
+  puzzleDate,
+  acceptedAnswers,
+}: DailyPuzzleProps) {
   const [answer, setAnswer] = useState("");
   const [loading, setLoading] = useState(false);
   const [started, setStarted] = useState(false);
@@ -53,7 +61,12 @@ export default function DailyPuzzle({ puzzleDate }: { puzzleDate: string }) {
     setError("");
 
     try {
-      const data = await submitPuzzleAnswer(puzzleDate, answer.trim());
+      const data = await submitPuzzleAnswer(
+        puzzleDate,
+        answer.trim(),
+        acceptedAnswers
+      );
+
       setResult(data);
       setSubmitted(true);
 
@@ -156,7 +169,11 @@ export default function DailyPuzzle({ puzzleDate }: { puzzleDate: string }) {
                   : "0 10px 24px rgba(217,119,6,0.28)",
             }}
           >
-            {loading ? "Submitting..." : submitted ? "Answer Submitted" : "Submit Answer"}
+            {loading
+              ? "Submitting..."
+              : submitted
+              ? "Answer Submitted"
+              : "Submit Answer"}
           </button>
         </div>
       </form>
