@@ -110,7 +110,8 @@ export default function MemberScanPage() {
 
           <p className="hero-text">
             You’re in. Show up today, solve the puzzle, and keep stacking
-            progress. Every completed day builds momentum.
+            progress. Every completed day builds momentum, strengthens the habit,
+            and gives you another reason to come back tomorrow.
           </p>
 
           <div className="meta-row">
@@ -132,7 +133,8 @@ export default function MemberScanPage() {
           <h2 className="section-title">{drop.title}</h2>
 
           <p className="section-text-light">
-            You know the drill. Solve today’s puzzle and protect your streak.
+            Today’s challenge is live. Solve it, protect your streak, and keep
+            your momentum going before tomorrow’s drop resets the pressure.
           </p>
 
           <div className="puzzle-box">
@@ -159,8 +161,9 @@ export default function MemberScanPage() {
           <h2 className="section-title">Submit your answer</h2>
 
           <p className="section-text-dark">
-            Lock in today’s answer and keep your stats moving in the right
-            direction.
+            Lock in your answer now. Every correct play strengthens your stats,
+            extends your streak, and keeps you moving toward a stronger member
+            profile.
           </p>
 
           <AnswerCheckForm
@@ -174,11 +177,12 @@ export default function MemberScanPage() {
         <section className="card-light" style={{ marginTop: 20 }}>
           <div className="pill-light">Keep Going</div>
 
-          <h2 className="section-title">Want another challenge?</h2>
+          <h2 className="section-title">Don’t stop at just one click</h2>
 
           <p className="section-text-light">
-            Give people another click after today’s puzzle. This is a good place
-            to lift pageviews and keep members engaged longer.
+            The best member experience keeps people moving. Jump into another
+            puzzle, check the leaderboard, and turn one visit into multiple
+            actions before you leave the page.
           </p>
 
           <div
@@ -206,12 +210,12 @@ export default function MemberScanPage() {
         <section className="card" style={{ marginTop: 20 }}>
           <div className="pill">Your Progress</div>
 
-          <h2 className="section-title">Stay consistent and keep climbing</h2>
+          <h2 className="section-title">Your streak is your leverage</h2>
 
           <p className="section-text-dark">
-            The biggest win here is consistency. Small daily actions stack fast,
-            and every correct answer gives members a reason to come back
-            tomorrow.
+            This is where daily play starts to matter. Every correct answer adds
+            to your history, extends your streak, and makes tomorrow’s visit more
+            valuable. Miss a day, and the chain breaks, so consistency pays off.
           </p>
 
           <div className="benefit-list">
@@ -219,7 +223,7 @@ export default function MemberScanPage() {
               `Current streak: ${stats.currentStreak}`,
               `Best streak: ${stats.longestStreak}`,
               `Total puzzle plays: ${stats.attempts}`,
-              "Come back tomorrow to keep the chain alive",
+              "Come back tomorrow to protect your streak",
             ].map((item) => (
               <div key={item} className="benefit-item">
                 <span style={{ fontSize: 18 }}>✓</span>
@@ -232,42 +236,45 @@ export default function MemberScanPage() {
         <section className="card-light" style={{ marginTop: 20 }}>
           <div className="pill-light">Member Extras</div>
 
-          <h2 className="section-title">More for registered players</h2>
+          <h2 className="section-title">You’re building something now</h2>
 
           <p className="section-text-light">
-            This section makes the page feel different from the guest experience
-            and reinforces that members are building something over time.
+            This is more than a one-time puzzle visit. Your account tracks
+            progress, builds habits, and gives each return visit more value than
+            the last. The more often members come back, the stronger the system
+            becomes.
           </p>
 
           <div className="capture-points" style={{ marginTop: 20 }}>
             <div className="capture-point">
-              <div className="capture-point-title">Track real progress</div>
+              <div className="capture-point-title">Your progress is tracked</div>
               <div className="capture-point-text">
-                Your account keeps score so each day feels connected to the next
-                one.
+                Every answer feeds your stats so each day feels connected instead
+                of random.
               </div>
             </div>
 
             <div className="capture-point">
-              <div className="capture-point-title">Chase streak milestones</div>
+              <div className="capture-point-title">Streaks create return pressure</div>
               <div className="capture-point-text">
-                Build momentum toward bigger streak goals and leaderboard status.
+                The longer your streak runs, the more motivated you are to come
+                back and keep it alive.
               </div>
             </div>
 
             <div className="capture-point">
-              <div className="capture-point-title">Unlock more clicks</div>
+              <div className="capture-point-title">More ways to keep clicking</div>
               <div className="capture-point-text">
-                Yesterday’s puzzle and bonus puzzle give members more reasons to
-                stay active.
+                Yesterday’s puzzle and bonus challenges create extra reasons to
+                stay active longer on every visit.
               </div>
             </div>
 
             <div className="capture-point">
-              <div className="capture-point-title">Make tomorrow matter</div>
+              <div className="capture-point-title">Each visit becomes more valuable</div>
               <div className="capture-point-text">
-                The more connected the experience feels, the more valuable
-                tomorrow’s visit becomes.
+                Daily engagement builds momentum, improves retention, and makes
+                tomorrow’s visit worth even more than today’s.
               </div>
             </div>
           </div>
@@ -276,22 +283,23 @@ export default function MemberScanPage() {
         <section className="card" style={{ marginTop: 20 }}>
           <div className="pill">Brain Boost</div>
 
-          <h2 className="section-title">Did today’s puzzle kick your butt?</h2>
+          <h2 className="section-title">Struggling to stay sharp?</h2>
 
           <p
             className="section-text-dark"
             style={{ maxWidth: "none", opacity: 0.95 }}
           >
-            Need a little extra focus for tomorrow’s challenge? Check out the
-            brain-boost option below.
+            If today’s puzzle slowed you down, use that as your signal. Better
+            focus, better energy, and a stronger routine can help you show up
+            sharper for the next challenge.
           </p>
 
           <div className="benefit-list">
             {[
-              "Fits naturally with the daily puzzle habit",
-              "Easy soft CTA for returning members",
-              "Works well after answer submission",
-              "Built for repeated exposure over time",
+              "Supports focus and mental clarity",
+              "Fits naturally into the daily puzzle habit",
+              "Simple soft CTA for returning members",
+              "Placed at the right moment for repeat exposure",
             ].map((item) => (
               <div key={item} className="benefit-item">
                 <span style={{ fontSize: 18 }}>✓</span>
@@ -306,7 +314,7 @@ export default function MemberScanPage() {
             rel="noreferrer"
             className="btn-primary"
           >
-            See the Brain Boost
+            Upgrade Your Focus
           </a>
         </section>
       </div>
