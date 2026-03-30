@@ -34,24 +34,17 @@ export default function AuthStatus() {
   const router = useRouter();
   const [user, setUser] = useState<SimpleUser>(null);
   const [loading, setLoading] = useState(true);
-  const [hasError, setHasError] = useState(false);
 
   useEffect(() => {
     const supabase = createBrowserSupabaseClient();
 
-    async function loadUser() {
+    async function loadSessionUser() {
       try {
-        const { data, error } = await supabase.auth.getUser();
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
 
-        if (error) {
-          console.error("AuthStatus getUser error:", error.message);
-          setUser(null);
-          setHasError(true);
-          setLoading(false);
-          return;
-        }
-
-        const currentUser = data.user;
+        const currentUser = session?.user ?? null;
 
         if (currentUser) {
           setUser({
@@ -62,23 +55,32 @@ export default function AuthStatus() {
         } else {
           setUser(null);
         }
-
-        setHasError(false);
-        setLoading(false);
       } catch (err) {
-        console.error("AuthStatus unexpected error:", err);
+        console.error("AuthStatus loadSessionUser error:", err);
         setUser(null);
-        setHasError(true);
+      } finally {
         setLoading(false);
       }
     }
 
-    loadUser();
+    loadSessionUser();
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(async () => {
-      await loadUser();
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      const currentUser = session?.user ?? null;
+
+      if (currentUser) {
+        setUser({
+          id: currentUser.id,
+          email: currentUser.email,
+          name: getDisplayName(currentUser),
+        });
+      } else {
+        setUser(null);
+      }
+
+      setLoading(false);
     });
 
     return () => {
@@ -90,6 +92,7 @@ export default function AuthStatus() {
     try {
       const supabase = createBrowserSupabaseClient();
       await supabase.auth.signOut();
+      setUser(null);
       router.push("/scan");
       router.refresh();
     } catch (err) {
@@ -169,18 +172,6 @@ export default function AuthStatus() {
         </>
       ) : (
         <>
-          {hasError ? (
-            <div
-              style={{
-                color: "#ffffff",
-                fontWeight: 600,
-                marginRight: 4,
-              }}
-            >
-              Guest
-            </div>
-          ) : null}
-
           <Link
             href="/login"
             style={{
