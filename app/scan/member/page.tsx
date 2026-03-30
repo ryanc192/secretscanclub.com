@@ -133,13 +133,13 @@ export default function MemberScanPage() {
         </section>
 
         <section className="card-light" style={{ marginTop: 20 }}>
-          <div className="pill-light">Today’s Puzzle</div>
+          <div className="pill-light">Today’s Puzzle: You Get One Shot and One Shot Only</div>
 
           <h2 className="section-title">{drop.title}</h2>
 
           <p className="section-text-light">
             Today’s challenge is live. Solve it, protect your streak, and keep
-            your momentum going before tomorrow’s drop resets the pressure.
+            your momentum going before tomorrow’s drop resets the pressure. And remember, don't mess up. You only get one try.
           </p>
 
           <div className="puzzle-box">
