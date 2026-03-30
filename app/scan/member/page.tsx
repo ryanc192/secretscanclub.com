@@ -109,9 +109,14 @@ export default function MemberScanPage() {
           <h1 className="hero-title">Keep your streak moving.</h1>
 
           <p className="hero-text">
-            You’re in. Show up today, solve the puzzle, and keep stacking
-            progress. Every completed day builds momentum, strengthens the habit,
-            and gives you another reason to come back tomorrow.
+Let’s be real — consistency breaks most people.
+Not because it’s hard… but because they stop showing up.
+
+So here’s the test:
+Solve today’s puzzle. Keep your streak alive. Then take another shot —
+bonus challenge, locked content, whatever’s below.
+
+Or prove you’re no different.
           </p>
 
           <div className="meta-row">
