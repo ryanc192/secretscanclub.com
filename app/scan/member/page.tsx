@@ -5,6 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { createBrowserSupabaseClient } from "../../../lib/supabase/client";
 import AnswerCheckForm from "../../components/AnswerCheckForm";
+import AuthStatus from "../../components/AuthStatus";
 
 type Drop = {
   date: string;
@@ -76,6 +77,17 @@ export default function MemberScanPage() {
 
   return (
     <main className="scan-page">
+      <div
+        style={{
+          position: "fixed",
+          top: "20px",
+          right: "20px",
+          zIndex: 999999,
+        }}
+      >
+        <AuthStatus />
+      </div>
+
       <section className="logo-splash">
         <div className="logo-splash-overlay" />
         <div className="logo-splash-inner">
@@ -94,13 +106,11 @@ export default function MemberScanPage() {
         <section className="card">
           <div className="pill">Member Mode</div>
 
-          <h1 className="hero-title">
-            Keep your streak moving.
-          </h1>
+          <h1 className="hero-title">Keep your streak moving.</h1>
 
           <p className="hero-text">
-            You’re in. Show up today, solve the puzzle, and keep stacking progress.
-            Every completed day builds momentum.
+            You’re in. Show up today, solve the puzzle, and keep stacking
+            progress. Every completed day builds momentum.
           </p>
 
           <div className="meta-row">
@@ -149,7 +159,8 @@ export default function MemberScanPage() {
           <h2 className="section-title">Submit your answer</h2>
 
           <p className="section-text-dark">
-            Lock in today’s answer and keep your stats moving in the right direction.
+            Lock in today’s answer and keep your stats moving in the right
+            direction.
           </p>
 
           <AnswerCheckForm
@@ -166,8 +177,8 @@ export default function MemberScanPage() {
           <h2 className="section-title">Want another challenge?</h2>
 
           <p className="section-text-light">
-            Give people another click after today’s puzzle. This is a good place to
-            lift pageviews and keep members engaged longer.
+            Give people another click after today’s puzzle. This is a good place
+            to lift pageviews and keep members engaged longer.
           </p>
 
           <div
@@ -199,7 +210,8 @@ export default function MemberScanPage() {
 
           <p className="section-text-dark">
             The biggest win here is consistency. Small daily actions stack fast,
-            and every correct answer gives members a reason to come back tomorrow.
+            and every correct answer gives members a reason to come back
+            tomorrow.
           </p>
 
           <div className="benefit-list">
@@ -223,15 +235,16 @@ export default function MemberScanPage() {
           <h2 className="section-title">More for registered players</h2>
 
           <p className="section-text-light">
-            This section makes the page feel different from the guest experience and
-            reinforces that members are building something over time.
+            This section makes the page feel different from the guest experience
+            and reinforces that members are building something over time.
           </p>
 
           <div className="capture-points" style={{ marginTop: 20 }}>
             <div className="capture-point">
               <div className="capture-point-title">Track real progress</div>
               <div className="capture-point-text">
-                Your account keeps score so each day feels connected to the next one.
+                Your account keeps score so each day feels connected to the next
+                one.
               </div>
             </div>
 
@@ -245,14 +258,16 @@ export default function MemberScanPage() {
             <div className="capture-point">
               <div className="capture-point-title">Unlock more clicks</div>
               <div className="capture-point-text">
-                Yesterday’s puzzle and bonus puzzle give members more reasons to stay active.
+                Yesterday’s puzzle and bonus puzzle give members more reasons to
+                stay active.
               </div>
             </div>
 
             <div className="capture-point">
               <div className="capture-point-title">Make tomorrow matter</div>
               <div className="capture-point-text">
-                The more connected the experience feels, the more valuable tomorrow’s visit becomes.
+                The more connected the experience feels, the more valuable
+                tomorrow’s visit becomes.
               </div>
             </div>
           </div>
@@ -263,9 +278,12 @@ export default function MemberScanPage() {
 
           <h2 className="section-title">Did today’s puzzle kick your butt?</h2>
 
-          <p className="section-text-dark" style={{ maxWidth: "none", opacity: 0.95 }}>
-            Need a little extra focus for tomorrow’s challenge? Check out the brain-boost
-            option below.
+          <p
+            className="section-text-dark"
+            style={{ maxWidth: "none", opacity: 0.95 }}
+          >
+            Need a little extra focus for tomorrow’s challenge? Check out the
+            brain-boost option below.
           </p>
 
           <div className="benefit-list">
