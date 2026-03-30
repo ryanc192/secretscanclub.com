@@ -110,13 +110,13 @@ export default function MemberScanPage() {
 
           <p className="hero-text">
 Let’s be real — consistency breaks most people.
-Not because it’s hard… but because they stop showing up.
+<p></p>Not because it’s hard… but because they stop showing up.
 
-So here’s the test:
-Solve today’s puzzle. Keep your streak alive. Then take another shot —
+<p></p>So here’s the test:
+<p></p>Solve today’s puzzle. Keep your streak alive. Then take another shot —
 bonus challenge, locked content, whatever’s below.
 
-Or prove you’re no different.
+<p></p>Or prove you’re no different from the rest of them.
           </p>
 
           <div className="meta-row">
@@ -182,13 +182,13 @@ Or prove you’re no different.
         <section className="card-light" style={{ marginTop: 20 }}>
           <div className="pill-light">Keep Going</div>
 
-          <h2 className="section-title">Don’t stop at just one click</h2>
+          <h2 className="section-title">One click doesn’t prove anything</h2>
 
           <p className="section-text-light">
-            The best member experience keeps people moving. Jump into another
-            puzzle, check the leaderboard, and turn one visit into multiple
-            actions before you leave the page.
-          </p>
+Anyone can do that.
+
+<p></p>Try it again. Hit another puzzle. See where you stack up on the leaderboard.
+<p></p>That’s where it starts to count. 
 
           <div
             style={{
@@ -215,12 +215,16 @@ Or prove you’re no different.
         <section className="card" style={{ marginTop: 20 }}>
           <div className="pill">Your Progress</div>
 
-          <h2 className="section-title">Your streak is your leverage</h2>
+          <h2 className="section-title" style={{ color: "#ffffff !important" }}>
+  Your Streak is Your Leverage
+</h2>
 
           <p className="section-text-dark">
-            This is where daily play starts to matter. Every correct answer adds
-            to your history, extends your streak, and makes tomorrow’s visit more
-            valuable. Miss a day, and the chain breaks, so consistency pays off.
+This is where consistency shows.
+<p></p>Every correct answer adds up. Your streak grows. Progress compounds.
+
+<p></p>Miss a day, and the chain breaks.
+<p></p>It’s that simple.
           </p>
 
           <div className="benefit-list">
@@ -244,51 +248,50 @@ Or prove you’re no different.
           <h2 className="section-title">You’re building something now</h2>
 
           <p className="section-text-light">
-            This is more than a one-time puzzle visit. Your account tracks
-            progress, builds habits, and gives each return visit more value than
-            the last. The more often members come back, the stronger the system
-            becomes.
-          </p>
+<p>
+  This isn’t a one-time puzzle visit. Every time you show up, your progress stacks,
+  your streak grows, and the system tightens around your consistency. Each return
+  matters more than the last.
 
-          <div className="capture-points" style={{ marginTop: 20 }}>
-            <div className="capture-point">
-              <div className="capture-point-title">Your progress is tracked</div>
-              <div className="capture-point-text">
-                Every answer feeds your stats so each day feels connected instead
-                of random.
-              </div>
-            </div>
+  Most people don’t stick with it. That’s why nothing changes for them.
+</p>
 
-            <div className="capture-point">
-              <div className="capture-point-title">Streaks create return pressure</div>
-              <div className="capture-point-text">
-                The longer your streak runs, the more motivated you are to come
-                back and keep it alive.
-              </div>
-            </div>
+<div className="capture-points" style={{ marginTop: 20 }}>
+  <div className="capture-point">
+    <div className="capture-point-title">Your progress is tracked</div>
+    <div className="capture-point-text">
+      Every answer adds up. Your stats build over time, so each day connects — or exposes when you fall off.
+    </div>
+  </div>
 
-            <div className="capture-point">
-              <div className="capture-point-title">More ways to keep clicking</div>
-              <div className="capture-point-text">
-                Yesterday’s puzzle and bonus challenges create extra reasons to
-                stay active longer on every visit.
-              </div>
-            </div>
+  <div className="capture-point">
+    <div className="capture-point-title">Streaks create pressure</div>
+    <div className="capture-point-text">
+      The longer your streak runs, the harder it is to lose. Miss a day, and it’s gone.
+    </div>
+  </div>
 
-            <div className="capture-point">
-              <div className="capture-point-title">Each visit becomes more valuable</div>
-              <div className="capture-point-text">
-                Daily engagement builds momentum, improves retention, and makes
-                tomorrow’s visit worth even more than today’s.
-              </div>
-            </div>
-          </div>
-        </section>
+  <div className="capture-point">
+    <div className="capture-point-title">More ways to stay in it</div>
+    <div className="capture-point-text">
+      Bonus challenges and past puzzles are always there — if you’re willing to keep going.
+    </div>
+  </div>
+
+  <div className="capture-point">
+    <div className="capture-point-title">Each visit raises the stakes</div>
+    <div className="capture-point-text">
+      The more you show up, the more it builds. Momentum compounds — or disappears if you stop.
+    </div>
+  </div>
+</div>
 
         <section className="card" style={{ marginTop: 20 }}>
           <div className="pill">Brain Boost</div>
 
-          <h2 className="section-title">Struggling to stay sharp?</h2>
+          <h2 className="section-title" style={{ color: "#ffffff !important" }}>
+  Struggling to stay sharp?
+</h2>
 
           <p
             className="section-text-dark"
@@ -301,10 +304,11 @@ Or prove you’re no different.
 
           <div className="benefit-list">
             {[
-              "Supports focus and mental clarity",
-              "Fits naturally into the daily puzzle habit",
-              "Simple soft CTA for returning members",
-              "Placed at the right moment for repeat exposure",
+              "Helps you stay sharp and think faster",
+              "Designed for people who actually use their brain daily",
+              "Simple, no-friction way to level up your routine",
+              "Low effort, high impact addition",
+              "Built for daily use, not occasional effort",
             ].map((item) => (
               <div key={item} className="benefit-item">
                 <span style={{ fontSize: 18 }}>✓</span>
