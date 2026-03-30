@@ -22,6 +22,27 @@ type RecentAttempt = {
   created_at: string;
 };
 
+function getErrorMessage(error: unknown) {
+  if (error && typeof error === "object") {
+    const maybeMessage = (error as { message?: unknown }).message;
+    if (typeof maybeMessage === "string" && maybeMessage.trim()) {
+      return maybeMessage;
+    }
+
+    const maybeDetails = (error as { details?: unknown }).details;
+    if (typeof maybeDetails === "string" && maybeDetails.trim()) {
+      return maybeDetails;
+    }
+
+    const maybeHint = (error as { hint?: unknown }).hint;
+    if (typeof maybeHint === "string" && maybeHint.trim()) {
+      return maybeHint;
+    }
+  }
+
+  return "Unknown error.";
+}
+
 export default function DashboardPage() {
   const router = useRouter();
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
@@ -64,6 +85,27 @@ export default function DashboardPage() {
         let plan: "Free" | "Premium" = "Free";
         let currentStreak = 0;
         let longestStreak = 0;
+        let totalAttempts = 0;
+        let totalCorrect = 0;
+        let attempts: RecentAttempt[] = [];
+        let firstError = "";
+
+        const { error: ensureProfileError } = await supabase
+          .from("profiles")
+          .upsert(
+            {
+              id: user.id,
+            },
+            {
+              onConflict: "id",
+              ignoreDuplicates: false,
+            }
+          );
+
+        if (ensureProfileError && !firstError) {
+          firstError = `Profiles upsert failed: ${getErrorMessage(ensureProfileError)}`;
+          console.error("Profiles upsert failed:", ensureProfileError);
+        }
 
         const { data: profileData, error: profileError } = await supabase
           .from("profiles")
@@ -72,13 +114,13 @@ export default function DashboardPage() {
           .maybeSingle();
 
         if (profileError) {
-          throw profileError;
-        }
-
-        if (profileData) {
+          if (!firstError) {
+            firstError = `Profiles read failed: ${getErrorMessage(profileError)}`;
+          }
+          console.error("Profiles read failed:", profileError);
+        } else if (profileData) {
           joinedAt = profileData.created_at ?? joinedAt;
-          plan =
-            profileData.membership_tier === "premium" ? "Premium" : "Free";
+          plan = profileData.membership_tier === "premium" ? "Premium" : "Free";
           currentStreak = profileData.current_streak ?? 0;
           longestStreak = profileData.longest_streak ?? 0;
         }
@@ -92,7 +134,12 @@ export default function DashboardPage() {
             .limit(8);
 
         if (recentAttemptsError) {
-          throw recentAttemptsError;
+          if (!firstError) {
+            firstError = `Recent attempts read failed: ${getErrorMessage(recentAttemptsError)}`;
+          }
+          console.error("Recent attempts read failed:", recentAttemptsError);
+        } else {
+          attempts = recentAttemptsData ?? [];
         }
 
         const { count: totalAttemptsCount, error: totalAttemptsError } =
@@ -102,7 +149,12 @@ export default function DashboardPage() {
             .eq("user_id", user.id);
 
         if (totalAttemptsError) {
-          throw totalAttemptsError;
+          if (!firstError) {
+            firstError = `Attempts count failed: ${getErrorMessage(totalAttemptsError)}`;
+          }
+          console.error("Attempts count failed:", totalAttemptsError);
+        } else {
+          totalAttempts = totalAttemptsCount ?? 0;
         }
 
         const { count: totalCorrectCount, error: totalCorrectError } =
@@ -113,22 +165,31 @@ export default function DashboardPage() {
             .eq("is_correct", true);
 
         if (totalCorrectError) {
-          throw totalCorrectError;
+          if (!firstError) {
+            firstError = `Correct count failed: ${getErrorMessage(totalCorrectError)}`;
+          }
+          console.error("Correct count failed:", totalCorrectError);
+        } else {
+          totalCorrect = totalCorrectCount ?? 0;
         }
 
         setStats({
           currentStreak,
           longestStreak,
-          totalAttempts: totalAttemptsCount ?? 0,
-          totalCorrect: totalCorrectCount ?? 0,
+          totalAttempts,
+          totalCorrect,
           joinedAt,
           plan,
         });
 
-        setRecentAttempts(recentAttemptsData ?? []);
+        setRecentAttempts(attempts);
+
+        if (firstError) {
+          setError(firstError);
+        }
       } catch (err) {
-        console.error(err);
-        setError("Something went wrong loading your dashboard.");
+        console.error("Dashboard load crashed:", err);
+        setError(`Something went wrong loading your dashboard. ${getErrorMessage(err)}`);
       } finally {
         setLoading(false);
       }
@@ -265,6 +326,7 @@ export default function DashboardPage() {
               borderRadius: "14px",
               padding: "14px 16px",
               marginBottom: "20px",
+              whiteSpace: "pre-wrap",
             }}
           >
             {error}
