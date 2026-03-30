@@ -59,20 +59,21 @@ function loadDrop(dateStr?: string): Drop | null {
 export default function ScanPage() {
   const drop = loadDrop();
   const today = todayET();
-  const dateLabel = formatDateLabel(drop?.date ?? today);
+  const activeDate = drop?.date ?? today;
+  const dateLabel = formatDateLabel(activeDate);
 
   return (
     <main className="scan-page">
-    <div
-      style={{
-        position: "fixed",
-        top: "20px",
-        right: "20px",
-        zIndex: 999999,
-      }}
-    >
-      <AuthStatus />
-    </div>
+      <div
+        style={{
+          position: "fixed",
+          top: "20px",
+          right: "20px",
+          zIndex: 999999,
+        }}
+      >
+        <AuthStatus />
+      </div>
 
       <section className="logo-splash">
         <div className="logo-splash-overlay" />
@@ -85,7 +86,6 @@ export default function ScanPage() {
             style={{ width: "100%", height: "100%", objectFit: "contain" }}
             priority
           />
-          
         </div>
         <div className="scroll-cue">↓ Scroll for today’s puzzle ↓</div>
       </section>
@@ -95,12 +95,14 @@ export default function ScanPage() {
           <div className="pill">Today’s Brain Challenge</div>
 
           <h1 className="hero-title">
-            Scan today’s puzzle, test your brain, and come back tomorrow to keep your streak alive.
+            Scan today’s puzzle, test your brain, and come back tomorrow to keep
+            your streak alive.
           </h1>
 
           <p className="hero-text">
-            Every day brings a new challenge. Play for free, check your answer, and create an
-            account to track your progress and build your streak over time.
+            Every day brings a new challenge. Play for free, check your answer,
+            and create an account to track your progress and build your streak
+            over time.
           </p>
 
           <div className="meta-row">
@@ -146,7 +148,7 @@ export default function ScanPage() {
             </div>
           </div>
 
-          {drop?.free.sharePrompt ? (
+          {drop?.free?.sharePrompt ? (
             <div className="share-box">
               <strong>Need a hint?</strong> {drop.free.sharePrompt}
             </div>
@@ -159,11 +161,16 @@ export default function ScanPage() {
           <h2 className="section-title">Submit your answer</h2>
 
           <p className="section-text-dark">
-            Enter your answer, check how you did, and then create an account to start tracking
-            your streak.
+            Enter your answer, check how you did, and then create an account to
+            start tracking your streak.
           </p>
 
-          <AnswerCheckForm dropDate={drop?.date ?? today} />
+          <AnswerCheckForm
+            dropDate={activeDate}
+            correctAnswer={drop?.free?.answer ?? ""}
+            acceptedAnswers={drop?.free?.acceptedAnswers ?? []}
+            explanation={drop?.free?.explanation ?? ""}
+          />
         </section>
 
         <section className="card-light" style={{ marginTop: 20 }}>
@@ -171,11 +178,13 @@ export default function ScanPage() {
 
           <div className="capture-wrap">
             <div className="capture-main">
-              <h2 className="capture-title">Enter your email for daily puzzle reminders</h2>
+              <h2 className="capture-title">
+                Enter your email for daily puzzle reminders
+              </h2>
 
               <p className="capture-subtext">
-                Get tomorrow’s challenge in your inbox, stay connected to Secret Scan Club, and
-                never miss a day.
+                Get tomorrow’s challenge in your inbox, stay connected to Secret
+                Scan Club, and never miss a day.
               </p>
 
               <div className="entry-badge-row">
@@ -187,8 +196,8 @@ export default function ScanPage() {
               <EmailSignupForm />
 
               <div className="capture-note">
-                By signing up, you agree to receive Secret Scan Club emails including daily puzzle
-                reminders and occasional updates.
+                By signing up, you agree to receive Secret Scan Club emails
+                including daily puzzle reminders and occasional updates.
               </div>
             </div>
 
@@ -197,39 +206,42 @@ export default function ScanPage() {
                 <div className="capture-point">
                   <div className="capture-point-title">Come back daily</div>
                   <div className="capture-point-text">
-                    Get a quick reminder each day so you never miss a challenge and keep your
-                    streak alive.
+                    Get a quick reminder each day so you never miss a challenge
+                    and keep your streak alive.
                   </div>
                 </div>
 
                 <div className="capture-point">
                   <div className="capture-point-title">Build your streak</div>
                   <div className="capture-point-text">
-                    Turn solving puzzles into a daily habit and watch your streak grow over time.
+                    Turn solving puzzles into a daily habit and watch your streak
+                    grow over time.
                   </div>
                 </div>
 
                 <div className="capture-point">
                   <div className="capture-point-title">Stay mentally sharp</div>
                   <div className="capture-point-text">
-                    Short daily challenges help you stay focused, think faster, and keep your
-                    brain active.
+                    Short daily challenges help you stay focused, think faster,
+                    and keep your brain active.
                   </div>
                 </div>
 
                 <div className="capture-point">
-                  <div className="capture-point-title">Get tomorrow’s challenge first</div>
+                  <div className="capture-point-title">
+                    Get tomorrow’s challenge first
+                  </div>
                   <div className="capture-point-text">
-                    Be the first to see each new puzzle and get a head start on the next brain
-                    challenge.
+                    Be the first to see each new puzzle and get a head start on
+                    the next brain challenge.
                   </div>
                 </div>
 
                 <div className="capture-point">
                   <div className="capture-point-title">No spam, just value</div>
                   <div className="capture-point-text">
-                    Simple daily emails with your puzzle, your progress, and occasional helpful
-                    extras.
+                    Simple daily emails with your puzzle, your progress, and
+                    occasional helpful extras.
                   </div>
                 </div>
               </div>
@@ -243,8 +255,8 @@ export default function ScanPage() {
           <h2 className="section-title">Track your streak and save your progress</h2>
 
           <p className="section-text-dark">
-            Want more than just today’s puzzle? Create a free account to save your streak, track
-            your history, and build consistency over time.
+            Want more than just today’s puzzle? Create a free account to save
+            your streak, track your history, and build consistency over time.
           </p>
 
           <div className="benefit-list">
@@ -274,9 +286,12 @@ export default function ScanPage() {
 
             <h2 className="section-title">Did today’s puzzle kick your butt?</h2>
 
-            <p className="section-text-dark" style={{ maxWidth: "none", opacity: 0.95 }}>
-              Need a little extra focus for tomorrow’s challenge? Check out the brain-boost
-              option below.
+            <p
+              className="section-text-dark"
+              style={{ maxWidth: "none", opacity: 0.95 }}
+            >
+              Need a little extra focus for tomorrow’s challenge? Check out the
+              brain-boost option below.
             </p>
 
             <div className="benefit-list">
@@ -304,7 +319,9 @@ export default function ScanPage() {
           </div>
 
           <div className="offer-side">
-            <h3 style={{ marginTop: 0, fontSize: 22, fontWeight: 900 }}>How it works</h3>
+            <h3 style={{ marginTop: 0, fontSize: 22, fontWeight: 900 }}>
+              How it works
+            </h3>
 
             <div className="steps">
               {[
