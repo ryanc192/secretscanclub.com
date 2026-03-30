@@ -394,7 +394,7 @@ export default function DashboardPage() {
               }}
             >
               <Link
-                href="/scan"
+                href="/scan/member"
                 style={{
                   display: "inline-block",
                   background: "#ffffff",
