@@ -4,9 +4,8 @@ import { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { createBrowserSupabaseClient } from "../../../lib/supabase/client";
-import AnswerCheckForm from "../../components/AnswerCheckForm";
 import AuthStatus from "../../components/AuthStatus";
-import DailyPuzzle from "../components/DailyPuzzle";
+import DailyPuzzle from "../../components/DailyPuzzle";
 
 type Drop = {
   date: string;
@@ -25,7 +24,7 @@ type MemberStats = {
   longestStreak: number;
   attempts: number;
 };
-<DailyPuzzle puzzleDate={puzzleDate} />
+
 function todayET(): string {
   return new Intl.DateTimeFormat("en-CA", {
     timeZone: "America/New_York",
@@ -134,13 +133,16 @@ export default function MemberScanPage() {
         </section>
 
         <section className="card-light" style={{ marginTop: 20 }}>
-          <div className="pill-light">Today’s Puzzle: You Get One Shot and One Shot Only</div>
+          <div className="pill-light">
+            Today’s Puzzle: You Get One Shot and One Shot Only
+          </div>
 
           <h2 className="section-title">{drop.title}</h2>
 
           <p className="section-text-light">
             Today’s challenge is live. Solve it, protect your streak, and keep
-            your momentum going before tomorrow’s drop resets the pressure. And remember, don't mess up. You only get one try.
+            your momentum going before tomorrow’s drop resets the pressure. And
+            remember, don't mess up. You only get one try.
           </p>
 
           <div className="puzzle-box">
@@ -172,12 +174,7 @@ export default function MemberScanPage() {
             profile.
           </p>
 
-          <AnswerCheckForm
-            dropDate={drop.date}
-            correctAnswer={drop.free.answer}
-            acceptedAnswers={drop.free.acceptedAnswers ?? []}
-            explanation={drop.free.explanation ?? ""}
-          />
+          <DailyPuzzle puzzleDate={drop.date} />
         </section>
 
         <section className="card-light" style={{ marginTop: 20 }}>
