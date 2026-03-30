@@ -31,8 +31,10 @@ export default function DailyPuzzle({ puzzleDate }: { puzzleDate: string }) {
           setStarted(true);
         }
       } catch (err: any) {
+        console.error("startPuzzleSession failed:", err);
+
         if (!cancelled) {
-          setError(err?.message || "Failed to start puzzle session.");
+          setError("Could not start puzzle session. Please refresh and try again.");
         }
       }
     }
@@ -47,7 +49,7 @@ export default function DailyPuzzle({ puzzleDate }: { puzzleDate: string }) {
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
 
-    if (!answer.trim()) return;
+    if (!answer.trim() || !started) return;
 
     setLoading(true);
     setError("");
@@ -56,7 +58,8 @@ export default function DailyPuzzle({ puzzleDate }: { puzzleDate: string }) {
       const data = await submitPuzzleAnswer(puzzleDate, answer.trim());
       setResult(data);
     } catch (err: any) {
-      setError(err?.message || "Failed to submit answer.");
+      console.error("submitPuzzleAnswer failed:", err);
+      setError("Could not submit answer. Please try again.");
     } finally {
       setLoading(false);
     }
