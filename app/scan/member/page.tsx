@@ -6,6 +6,7 @@ import Link from "next/link";
 import { createBrowserSupabaseClient } from "../../../lib/supabase/client";
 import AnswerCheckForm from "../../components/AnswerCheckForm";
 import AuthStatus from "../../components/AuthStatus";
+import DailyPuzzle from "../components/DailyPuzzle";
 
 type Drop = {
   date: string;
@@ -24,7 +25,7 @@ type MemberStats = {
   longestStreak: number;
   attempts: number;
 };
-
+<DailyPuzzle puzzleDate={puzzleDate} />
 function todayET(): string {
   return new Intl.DateTimeFormat("en-CA", {
     timeZone: "America/New_York",
