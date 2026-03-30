@@ -92,7 +92,7 @@ export default function SignupPage() {
       const session = data.session;
       const guestToken = getGuestToken();
 
-      if (session?.access_token) {
+      if (session.access_token) {
         const syncRes = await fetch("/api/auth/sync-guest", {
           method: "POST",
           headers: {
