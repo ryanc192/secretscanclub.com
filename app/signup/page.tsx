@@ -212,8 +212,25 @@ export default function SignupPage() {
             </div>
           ) : null}
 
-          <p style={{ marginTop: 18 }}>
-            Already have an account? <Link href="/login">Log in</Link>
+          {/* ✅ FIXED COLOR (matches login page) */}
+          <p
+            style={{
+              marginTop: 18,
+              color: "#0f172a",
+              fontWeight: 500,
+            }}
+          >
+            Already have an account?{" "}
+            <Link
+              href="/login"
+              style={{
+                color: "#0f172a",
+                fontWeight: 700,
+                textDecoration: "underline",
+              }}
+            >
+              Log in
+            </Link>
           </p>
         </section>
       </div>
