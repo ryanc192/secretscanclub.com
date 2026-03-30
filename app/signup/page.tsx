@@ -58,8 +58,8 @@ export default function SignupPage() {
     try {
       const supabase = createBrowserSupabaseClient();
 
-      const { error } = await supabase.auth.signUp({
-        email,
+      const { data, error } = await supabase.auth.signUp({
+        email: email.trim(),
         password,
         options: {
           data: {
@@ -71,17 +71,29 @@ export default function SignupPage() {
         },
       });
 
+      console.log("signup data:", data);
+      console.log("signup error:", error);
+
       if (error) {
+        if (error.message.toLowerCase().includes("rate limit")) {
+          setMessage("Too many signup attempts. Please wait a few minutes and try again.");
+          return;
+        }
+
         setMessage(error.message);
         return;
       }
 
-      const sessionResult = await supabase.auth.getSession();
-      const session = sessionResult.data.session;
+      if (!data.session) {
+        setMessage("Account created. Please check your email to confirm your account.");
+        return;
+      }
+
+      const session = data.session;
       const guestToken = getGuestToken();
 
       if (session?.access_token) {
-        await fetch("/api/auth/sync-guest", {
+        const syncRes = await fetch("/api/auth/sync-guest", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -93,11 +105,15 @@ export default function SignupPage() {
             lastName: lastName.trim(),
           }),
         });
+
+        const syncData = await syncRes.json();
+        console.log("sync guest response:", syncData);
       }
 
       router.push("/scan");
       router.refresh();
-    } catch {
+    } catch (err) {
+      console.error("signup unexpected error:", err);
       setMessage("Something went wrong creating your account.");
     } finally {
       setLoading(false);
