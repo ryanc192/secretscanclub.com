@@ -60,18 +60,20 @@ export default function DashboardPage() {
         setUserEmail(user.email ?? "");
         setUserId(user.id);
 
-        // Pull profile data if you have a profiles table.
-        // Safe fallback if it doesn't exist yet.
         let joinedAt: string | null = user.created_at ?? null;
         let plan: "Free" | "Premium" = "Free";
         let currentStreak = 0;
         let longestStreak = 0;
 
-        const { data: profileData } = await supabase
+        const { data: profileData, error: profileError } = await supabase
           .from("profiles")
           .select("created_at, membership_tier, current_streak, longest_streak")
           .eq("id", user.id)
           .maybeSingle();
+
+        if (profileError) {
+          throw profileError;
+        }
 
         if (profileData) {
           joinedAt = profileData.created_at ?? joinedAt;
@@ -81,29 +83,49 @@ export default function DashboardPage() {
           longestStreak = profileData.longest_streak ?? 0;
         }
 
-        // Pull recent puzzle attempts if table exists.
-        const { data: attemptsData } = await supabase
-          .from("puzzle_attempts")
-          .select("id, puzzle_date, user_answer, is_correct, created_at")
-          .eq("user_id", user.id)
-          .order("created_at", { ascending: false })
-          .limit(8);
+        const { data: recentAttemptsData, error: recentAttemptsError } =
+          await supabase
+            .from("puzzle_attempts")
+            .select("id, puzzle_date, user_answer, is_correct, created_at")
+            .eq("user_id", user.id)
+            .order("created_at", { ascending: false })
+            .limit(8);
 
-        const attempts = attemptsData ?? [];
+        if (recentAttemptsError) {
+          throw recentAttemptsError;
+        }
 
-        const totalAttempts = attempts.length;
-        const totalCorrect = attempts.filter((a) => a.is_correct).length;
+        const { count: totalAttemptsCount, error: totalAttemptsError } =
+          await supabase
+            .from("puzzle_attempts")
+            .select("*", { count: "exact", head: true })
+            .eq("user_id", user.id);
+
+        if (totalAttemptsError) {
+          throw totalAttemptsError;
+        }
+
+        const { count: totalCorrectCount, error: totalCorrectError } =
+          await supabase
+            .from("puzzle_attempts")
+            .select("*", { count: "exact", head: true })
+            .eq("user_id", user.id)
+            .eq("is_correct", true);
+
+        if (totalCorrectError) {
+          throw totalCorrectError;
+        }
 
         setStats({
           currentStreak,
           longestStreak,
-          totalAttempts,
-          totalCorrect,
+          totalAttempts: totalAttemptsCount ?? 0,
+          totalCorrect: totalCorrectCount ?? 0,
           joinedAt,
           plan,
         });
 
-        setRecentAttempts(attempts);
+        setRecentAttempts(recentAttemptsData ?? []);
       } catch (err) {
         console.error(err);
         setError("Something went wrong loading your dashboard.");
@@ -148,7 +170,9 @@ export default function DashboardPage() {
           padding: "24px",
         }}
       >
-        <div style={{ fontSize: "18px", opacity: 0.9 }}>Loading dashboard...</div>
+        <div style={{ fontSize: "18px", opacity: 0.9 }}>
+          Loading dashboard...
+        </div>
       </main>
     );
   }
@@ -367,14 +391,18 @@ export default function DashboardPage() {
               <div style={{ color: "rgba(255,255,255,0.65)", fontSize: "13px" }}>
                 Plan
               </div>
-              <div style={{ fontSize: "18px", fontWeight: 700 }}>{stats.plan}</div>
+              <div style={{ fontSize: "18px", fontWeight: 700 }}>
+                {stats.plan}
+              </div>
             </div>
 
             <div style={{ marginBottom: "14px" }}>
               <div style={{ color: "rgba(255,255,255,0.65)", fontSize: "13px" }}>
                 Member Since
               </div>
-              <div style={{ fontSize: "18px", fontWeight: 700 }}>{joinedText}</div>
+              <div style={{ fontSize: "18px", fontWeight: 700 }}>
+                {joinedText}
+              </div>
             </div>
 
             <div style={{ marginBottom: "20px" }}>
@@ -407,7 +435,9 @@ export default function DashboardPage() {
                 fontSize: "15px",
               }}
             >
-              {stats.plan === "Premium" ? "Manage Membership" : "Upgrade to Premium"}
+              {stats.plan === "Premium"
+                ? "Manage Membership"
+                : "Upgrade to Premium"}
             </Link>
           </div>
         </section>
@@ -461,7 +491,8 @@ export default function DashboardPage() {
                   lineHeight: 1.6,
                 }}
               >
-                No puzzle attempts yet. Head to today’s puzzle and make your first entry.
+                No puzzle attempts yet. Head to today’s puzzle and make your first
+                entry.
               </div>
             ) : (
               <div style={{ display: "grid", gap: "12px" }}>
