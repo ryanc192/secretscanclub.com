@@ -1,4 +1,4 @@
-import { createBrowserSupabaseClient } from "@/lib/supabase/client";
+import { createBrowserSupabaseClient } from "../supabase/client";
 
 export async function startPuzzleSession(puzzleDate: string) {
   const supabase = createBrowserSupabaseClient();
