@@ -5,6 +5,7 @@ import Image from "next/image";
 import EmailSignupForm from "../components/EmailSignupForm";
 import AnswerCheckForm from "../components/AnswerCheckForm";
 import AuthStatus from "../components/AuthStatus";
+import ScanRedirect from "./ScanRedirect";
 
 type Drop = {
   date: string;
@@ -64,6 +65,7 @@ export default function ScanPage() {
 
   return (
     <main className="scan-page">
+      <ScanRedirect />
       <div
         style={{
           position: "fixed",
