@@ -161,7 +161,7 @@ export default function AnswerCheckForm({
           explanation,
         });
       } catch {
-        // fail silently so the form still works with local state
+        // fail silently
       }
     }
 
