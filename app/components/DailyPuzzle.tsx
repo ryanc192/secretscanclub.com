@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { startPuzzleSession } from "@/lib/puzzles/startPuzzleSession";
-import { submitPuzzleAnswer } from "@/lib/puzzles/submitPuzzleAnswer";
+import { startPuzzleSession } from "../../lib/puzzles/startPuzzleSession";
+import { submitPuzzleAnswer } from "../../lib/puzzles/submitPuzzleAnswer";
 
 type SubmitResult = {
   is_correct: boolean;
