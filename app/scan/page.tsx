@@ -61,13 +61,7 @@ export default function ScanPage() {
   const today = todayET();
   const activeDate = drop?.date ?? today;
   const dateLabel = formatDateLabel(activeDate);
-const {
-  data: { user },
-} = await supabase.auth.getUser();
 
-if (user) {
-  router.replace("/scan/member");
-}
   return (
     <main className="scan-page">
       <div
