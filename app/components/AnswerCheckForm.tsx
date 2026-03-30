@@ -73,6 +73,27 @@ function normalizeAnswer(value: string) {
   return value.trim().toLowerCase().replace(/\s+/g, " ");
 }
 
+function getErrorMessage(error: unknown) {
+  if (error && typeof error === "object") {
+    const maybeMessage = (error as { message?: unknown }).message;
+    if (typeof maybeMessage === "string" && maybeMessage.trim()) {
+      return maybeMessage;
+    }
+
+    const maybeDetails = (error as { details?: unknown }).details;
+    if (typeof maybeDetails === "string" && maybeDetails.trim()) {
+      return maybeDetails;
+    }
+
+    const maybeHint = (error as { hint?: unknown }).hint;
+    if (typeof maybeHint === "string" && maybeHint.trim()) {
+      return maybeHint;
+    }
+  }
+
+  return "Unknown error.";
+}
+
 export default function AnswerCheckForm({
   dropDate,
   correctAnswer,
@@ -130,7 +151,14 @@ export default function AnswerCheckForm({
           .eq("puzzle_date", dropDate)
           .maybeSingle();
 
-        if (cancelled || error || !data) {
+        if (cancelled) return;
+
+        if (error) {
+          console.error("Existing submission lookup failed:", error);
+          return;
+        }
+
+        if (!data) {
           return;
         }
 
@@ -160,8 +188,8 @@ export default function AnswerCheckForm({
           message: "You already answered today.",
           explanation,
         });
-      } catch {
-        // fail silently
+      } catch (error) {
+        console.error("loadExistingSubmission failed:", error);
       }
     }
 
@@ -226,7 +254,11 @@ export default function AnswerCheckForm({
         error: userError,
       } = await supabase.auth.getUser();
 
-      if (!userError && user) {
+      if (userError) {
+        throw userError;
+      }
+
+      if (user) {
         const { error: upsertError } = await supabase
           .from("puzzle_attempts")
           .upsert(
@@ -253,12 +285,15 @@ export default function AnswerCheckForm({
         );
 
         if (streakError) {
-          throw streakError;
+          console.error("Streak recalculation failed:", streakError);
+          responseData.message = isCorrect
+            ? "Correct! Your answer was saved, but streak stats could not be updated yet."
+            : "Answer submitted, but streak stats could not be updated yet.";
+        } else {
+          responseData.message = isCorrect
+            ? "Correct! Your answer has been saved and your stats were updated."
+            : "Answer submitted. Your stats were updated.";
         }
-
-        responseData.message = isCorrect
-          ? "Correct! Your answer has been saved and your stats were updated."
-          : "Answer submitted. Your stats were updated.";
       } else {
         responseData.message = isCorrect
           ? "Correct! Your answer has been locked for today."
@@ -279,10 +314,10 @@ export default function AnswerCheckForm({
         explanation,
       });
     } catch (error) {
-      console.error(error);
+      console.error("handleSubmit failed:", error);
       setResult({
         ok: false,
-        error: "Could not save your answer right now.",
+        error: `Could not save your answer right now. ${getErrorMessage(error)}`,
       });
     } finally {
       setLoading(false);
