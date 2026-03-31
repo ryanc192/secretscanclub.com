@@ -127,7 +127,7 @@ export default function DashboardPage() {
 
         const { data: recentAttemptsData, error: recentAttemptsError } =
           await supabase
-            .from("puzzle_attempts")
+            .from("puzzle_sessions")
             .select("id, puzzle_date, user_answer, is_correct, created_at")
             .eq("user_id", user.id)
             .order("created_at", { ascending: false })
