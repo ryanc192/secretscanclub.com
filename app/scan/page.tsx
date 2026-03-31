@@ -28,7 +28,13 @@ type Drop = {
     emailTeaser?: string;
   };
 };
-
+function loadDrop(date: string): Drop | null {
+  try {
+    return require(`../../content/drops/${date}.json`);
+  } catch {
+    return null;
+  }
+}
 function todayET(): string {
   return new Intl.DateTimeFormat("en-CA", {
     timeZone: "America/New_York",
