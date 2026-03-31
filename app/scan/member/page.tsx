@@ -6,6 +6,7 @@ import Link from "next/link";
 import { createBrowserSupabaseClient } from "../../../lib/supabase/client";
 import AuthStatus from "../../components/AuthStatus";
 import DailyPuzzle from "../../components/DailyPuzzle";
+
 export const dynamic = "force-dynamic";
 
 type Drop = {
@@ -25,6 +26,7 @@ type MemberStats = {
   longestStreak: number;
   attempts: number;
 };
+
 function loadDrop(date: string): Drop | null {
   try {
     return require(`../../../content/drops/${date}.json`);
@@ -32,6 +34,7 @@ function loadDrop(date: string): Drop | null {
     return null;
   }
 }
+
 function todayET(): string {
   return new Intl.DateTimeFormat("en-CA", {
     timeZone: "America/New_York",
@@ -51,7 +54,7 @@ export default function MemberScanPage() {
   });
 
   const today = todayET();
-  const drop: Drop = require(`../../../content/drops/${today}.json`);
+  const drop = loadDrop(today);
 
   useEffect(() => {
     async function load() {
@@ -144,12 +147,14 @@ export default function MemberScanPage() {
             Today’s Puzzle: You Get One Shot and One Shot Only
           </div>
 
-          <h2 className="section-title">{drop.title}</h2>
+          <h2 className="section-title">
+            {drop?.title ?? "Today’s puzzle is not live yet"}
+          </h2>
 
           <p className="section-text-light">
-            Today’s challenge is live. Solve it, protect your streak, and keep
-            your momentum going before tomorrow’s drop resets the pressure. And
-            remember, don't mess up. You only get one try.
+            {drop
+              ? "Today’s challenge is live. Solve it, protect your streak, and keep your momentum going before tomorrow’s drop resets the pressure. And remember, don't mess up. You only get one try."
+              : "Today’s puzzle file has not been added yet. Come back soon."}
           </p>
 
           <div className="puzzle-box">
@@ -165,7 +170,7 @@ export default function MemberScanPage() {
               >
                 Today’s Brain Tester
               </div>
-              <div>{drop.free.puzzle}</div>
+              <div>{drop?.free?.puzzle ?? "Come back soon for today’s puzzle."}</div>
             </div>
           </div>
         </section>
@@ -181,10 +186,27 @@ export default function MemberScanPage() {
             profile.
           </p>
 
-          <DailyPuzzle
-  puzzleDate={drop.date}
-  acceptedAnswers={drop.free.acceptedAnswers ?? [drop.free.answer]}
-/>
+          {drop ? (
+            <DailyPuzzle
+              puzzleDate={drop.date}
+              acceptedAnswers={drop.free.acceptedAnswers ?? [drop.free.answer]}
+            />
+          ) : (
+            <div
+              style={{
+                marginTop: 18,
+                padding: "12px 14px",
+                borderRadius: 14,
+                border: "1px solid rgba(255,255,255,0.12)",
+                background: "rgba(255,255,255,0.06)",
+                color: "#ffd6d6",
+                fontSize: 14,
+                lineHeight: 1.5,
+              }}
+            >
+              Today’s puzzle is not available yet, so answer submission is disabled.
+            </div>
+          )}
         </section>
 
         <section className="card-light" style={{ marginTop: 20 }}>
