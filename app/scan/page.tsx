@@ -100,14 +100,12 @@ export default function ScanPage() {
           <div className="pill">Today’s Brain Challenge</div>
 
           <h1 className="hero-title">
-            Scan today’s puzzle, test your brain, and come back tomorrow to keep
-            your streak alive.
+            Think You’re Smarter Than Today’s Puzzle?
           </h1>
 
           <p className="hero-text">
-            Every day brings a new challenge. Play for free, check your answer,
-            and create an account to track your progress and build your streak
-            over time.
+          Scan to play, test your brain, and check your answer.
+          <p></p>New challenge drops daily — don’t miss your streak.
           </p>
 
           <div className="meta-row">
@@ -352,7 +350,7 @@ export default function ScanPage() {
                 ["1", "Scan the code", "Land on today’s puzzle instantly."],
                 ["2", "Play for free", "Read the puzzle and submit your answer."],
                 ["3", "Save your streak", "Create a free account to track progress."],
-                ["4", "Come back tomorrow", "Emails bring people back to the next challenge."],
+                ["4", "Come back tomorrow", "See if your brain can handle the challlenges of tomorrow."],
               ].map(([num, title, text]) => (
                 <div key={num} className="step">
                   <div className="step-num">{num}</div>
