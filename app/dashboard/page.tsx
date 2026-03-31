@@ -16,10 +16,12 @@ type DashboardStats = {
 
 type RecentAttempt = {
   id: string;
-  puzzle_date: string;
-  user_answer: string;
+  latest_answer_text: string | null;
   is_correct: boolean;
-  created_at: string;
+  submitted_at: string | null;
+  daily_puzzles: {
+    puzzle_date: string;
+  } | null;
 };
 
 function getErrorMessage(error: unknown) {
@@ -128,9 +130,12 @@ export default function DashboardPage() {
         const { data: recentAttemptsData, error: recentAttemptsError } =
           await supabase
             .from("puzzle_sessions")
-            .select("id, puzzle_date, user_answer, is_correct, created_at")
+            .select(
+              "id, latest_answer_text, is_correct, submitted_at, daily_puzzles(puzzle_date)"
+            )
             .eq("user_id", user.id)
-            .order("created_at", { ascending: false })
+            .not("submitted_at", "is", null)
+            .order("submitted_at", { ascending: false })
             .limit(8);
 
         if (recentAttemptsError) {
@@ -139,14 +144,15 @@ export default function DashboardPage() {
           }
           console.error("Recent attempts read failed:", recentAttemptsError);
         } else {
-          attempts = recentAttemptsData ?? [];
+          attempts = (recentAttemptsData as RecentAttempt[]) ?? [];
         }
 
         const { count: totalAttemptsCount, error: totalAttemptsError } =
           await supabase
-            .from("puzzle_attempts")
+            .from("puzzle_sessions")
             .select("*", { count: "exact", head: true })
-            .eq("user_id", user.id);
+            .eq("user_id", user.id)
+            .not("submitted_at", "is", null);
 
         if (totalAttemptsError) {
           if (!firstError) {
@@ -159,10 +165,11 @@ export default function DashboardPage() {
 
         const { count: totalCorrectCount, error: totalCorrectError } =
           await supabase
-            .from("puzzle_attempts")
+            .from("puzzle_sessions")
             .select("*", { count: "exact", head: true })
             .eq("user_id", user.id)
-            .eq("is_correct", true);
+            .eq("is_correct", true)
+            .not("submitted_at", "is", null);
 
         if (totalCorrectError) {
           if (!firstError) {
@@ -580,7 +587,7 @@ export default function DashboardPage() {
                           marginBottom: "4px",
                         }}
                       >
-                        Puzzle {attempt.puzzle_date}
+                        Puzzle {attempt.daily_puzzles?.puzzle_date ?? "Unknown"}
                       </div>
                       <div
                         style={{
@@ -588,7 +595,7 @@ export default function DashboardPage() {
                           color: "rgba(255,255,255,0.68)",
                         }}
                       >
-                        Answer: {attempt.user_answer || "No answer recorded"}
+                        Answer: {attempt.latest_answer_text || "No answer recorded"}
                       </div>
                     </div>
 
