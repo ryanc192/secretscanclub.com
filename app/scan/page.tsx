@@ -235,7 +235,7 @@ export default function ScanPage() {
                  <div className="capture-point">
                   <div className="capture-point-title">It's all FREE</div>
                   <div className="capture-point-text">
-                    Every puzzle. Every Day. Always FREE. 
+                    Every Puzzle. Every Day. Always FREE. 
                   </div>
                 </div>
                 <div className="capture-point">
