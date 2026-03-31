@@ -6,6 +6,7 @@ import Link from "next/link";
 import { createBrowserSupabaseClient } from "../../../lib/supabase/client";
 import AuthStatus from "../../components/AuthStatus";
 import DailyPuzzle from "../../components/DailyPuzzle";
+export const dynamic = "force-dynamic";
 
 type Drop = {
   date: string;
