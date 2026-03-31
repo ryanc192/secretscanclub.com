@@ -3,7 +3,8 @@ import { createBrowserSupabaseClient } from "../supabase/client";
 export async function submitPuzzleAnswer(
   puzzleDate: string,
   answer: string,
-  acceptedAnswers: string[]
+  acceptedAnswers: string[],
+  guestToken?: string
 ) {
   const supabase = createBrowserSupabaseClient();
 
@@ -11,6 +12,7 @@ export async function submitPuzzleAnswer(
     p_puzzle_date: puzzleDate,
     p_answer: answer,
     p_accepted_answers: acceptedAnswers,
+    p_guest_token: guestToken ?? null,
   });
 
   if (error) {
