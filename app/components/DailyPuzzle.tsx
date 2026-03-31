@@ -1,8 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { startPuzzleSession } from "../../lib/puzzles/startPuzzleSession";
-import { submitPuzzleAnswer } from "../../lib/puzzles/submitPuzzleAnswer";
+import { useEffect, useMemo, useState } from "react";
+import { createBrowserSupabaseClient } from "../../lib/supabase/client";
 
 type SubmitResult = {
   is_correct: boolean;
@@ -18,6 +17,8 @@ export default function DailyPuzzle({
   puzzleDate,
   acceptedAnswers,
 }: DailyPuzzleProps) {
+  const supabase = useMemo(() => createBrowserSupabaseClient(), []);
+
   const [answer, setAnswer] = useState("");
   const [loading, setLoading] = useState(false);
   const [started, setStarted] = useState(false);
@@ -31,13 +32,28 @@ export default function DailyPuzzle({
     async function boot() {
       try {
         setError("");
-        await startPuzzleSession(puzzleDate);
+
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+
+        if (!session?.user) {
+          throw new Error("No active session found.");
+        }
+
+        const { error } = await supabase.rpc("start_puzzle_session", {
+          p_puzzle_date: puzzleDate,
+        });
+
+        if (error) {
+          throw error;
+        }
 
         if (!cancelled) {
           setStarted(true);
         }
       } catch (err) {
-        console.error("startPuzzleSession failed:", err);
+        console.error("start puzzle session failed:", err);
 
         if (!cancelled) {
           setError("Could not start puzzle session. Please refresh and try again.");
@@ -50,7 +66,7 @@ export default function DailyPuzzle({
     return () => {
       cancelled = true;
     };
-  }, [puzzleDate]);
+  }, [puzzleDate, supabase]);
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -61,20 +77,33 @@ export default function DailyPuzzle({
     setError("");
 
     try {
-      const data = await submitPuzzleAnswer(
-        puzzleDate,
-        answer.trim(),
-        acceptedAnswers
-      );
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
 
-      setResult(data);
+      if (!session?.user) {
+        throw new Error("No active session found.");
+      }
+
+      const { data, error } = await supabase.rpc("submit_puzzle_answer", {
+        p_puzzle_date: puzzleDate,
+        p_answer: answer.trim(),
+        p_accepted_answers: acceptedAnswers,
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      const row = data?.[0] ?? null;
+      setResult(row);
       setSubmitted(true);
 
-      if (data?.already_submitted) {
+      if (row?.already_submitted) {
         setError("You have already submitted today's answer.");
       }
     } catch (err) {
-      console.error("submitPuzzleAnswer failed:", err);
+      console.error("submit puzzle answer failed:", err);
       setError("Could not submit answer. Please try again.");
     } finally {
       setLoading(false);
@@ -162,11 +191,6 @@ export default function DailyPuzzle({
               fontWeight: 800,
               cursor:
                 formDisabled || !answer.trim() ? "not-allowed" : "pointer",
-              transition: "all 0.2s ease",
-              boxShadow:
-                formDisabled || !answer.trim()
-                  ? "none"
-                  : "0 10px 24px rgba(217,119,6,0.28)",
             }}
           >
             {loading
