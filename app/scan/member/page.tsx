@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { createBrowserSupabaseClient } from "../../../lib/supabase/client";
 import AuthStatus from "../../components/AuthStatus";
 import DailyPuzzle from "../../components/DailyPuzzle";
@@ -46,7 +47,9 @@ function todayET(): string {
 
 export default function MemberScanPage() {
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
+  const router = useRouter();
 
+  const [authReady, setAuthReady] = useState(false);
   const [stats, setStats] = useState<MemberStats>({
     currentStreak: 0,
     longestStreak: 0,
@@ -57,12 +60,26 @@ export default function MemberScanPage() {
   const drop = loadDrop(today);
 
   useEffect(() => {
+    let isMounted = true;
+
     async function load() {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (!session?.user) {
+        router.replace("/scan");
+        return;
+      }
+
       const {
         data: { user },
       } = await supabase.auth.getUser();
 
-      if (!user) return;
+      if (!user) {
+        router.replace("/scan");
+        return;
+      }
 
       const { data: profile } = await supabase
         .from("profiles")
@@ -75,15 +92,36 @@ export default function MemberScanPage() {
         .select("*", { count: "exact", head: true })
         .eq("user_id", user.id);
 
+      if (!isMounted) return;
+
       setStats({
         currentStreak: profile?.current_streak ?? 0,
         longestStreak: profile?.longest_streak ?? 0,
         attempts: count ?? 0,
       });
+
+      setAuthReady(true);
     }
 
     load();
-  }, [supabase]);
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!session?.user) {
+        router.replace("/scan");
+      }
+    });
+
+    return () => {
+      isMounted = false;
+      subscription.unsubscribe();
+    };
+  }, [router, supabase]);
+
+  if (!authReady) {
+    return null;
+  }
 
   return (
     <main className="scan-page">
