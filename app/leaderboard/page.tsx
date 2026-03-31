@@ -4,14 +4,26 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { createBrowserSupabaseClient } from "../../lib/supabase/client";
 
+type AttemptRow = {
+  user_id: string | null;
+  is_correct: boolean | null;
+  submitted_at: string | null;
+};
+
+type ProfileRow = {
+  id: string;
+  display_name: string | null;
+  full_name: string | null;
+};
+
 type LeaderboardRow = {
   rank: number;
   user_id: string;
   display_name: string;
   points: number;
   correct_answers: number;
+  total_attempts: number;
   current_streak: number;
-  total_submissions: number;
   last_activity: string | null;
 };
 
@@ -19,100 +31,96 @@ type WinnerRow = {
   id: string;
   winner_name: string;
   prize_name: string;
-  month_label: string;
   announced_at: string | null;
 };
 
 const AMWAY_PRODUCT_URL =
   process.env.NEXT_PUBLIC_AMWAY_PRODUCT_URL || "https://www.amway.com/";
 
-function formatMonthLabel(date: Date) {
-  return new Intl.DateTimeFormat("en-US", {
-    month: "long",
-    year: "numeric",
-    timeZone: "America/New_York",
-  }).format(date);
+function formatDate(dateString: string | null) {
+  if (!dateString) return "—";
+
+  try {
+    return new Intl.DateTimeFormat("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+      timeZone: "America/New_York",
+    }).format(new Date(dateString));
+  } catch {
+    return "—";
+  }
 }
 
-function getMonthDateRangeET() {
-  const now = new Date();
+function getSafeDisplayName(profile?: ProfileRow | null, userId?: string | null) {
+  const preferred =
+    profile?.display_name?.trim() ||
+    profile?.full_name?.trim() ||
+    "";
 
-  const etFormatter = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "America/New_York",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  });
+  if (preferred) return preferred.slice(0, 24);
 
-  const parts = etFormatter.formatToParts(now);
-  const year = Number(parts.find((p) => p.type === "year")?.value || "0");
-  const month = Number(parts.find((p) => p.type === "month")?.value || "1");
+  if (userId) {
+    return `Player ${userId.slice(0, 6)}`;
+  }
 
-  const start = new Date(Date.UTC(year, month - 1, 1, 0, 0, 0));
-  const end = new Date(Date.UTC(year, month, 1, 0, 0, 0));
-
-  return {
-    startIso: start.toISOString(),
-    endIso: end.toISOString(),
-    monthLabel: formatMonthLabel(now),
-  };
-}
-
-function getDisplayName(raw: any) {
-  const name =
-    raw?.profiles?.display_name ||
-    raw?.profiles?.full_name ||
-    raw?.email?.split("@")?.[0] ||
-    "Player";
-
-  return String(name).trim().slice(0, 24);
+  return "Player";
 }
 
 export default function LeaderboardPage() {
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
-  const [{ startIso, endIso, monthLabel }, setMonthInfo] = useState(() =>
-    getMonthDateRangeET()
-  );
 
   const [leaderboard, setLeaderboard] = useState<LeaderboardRow[]>([]);
-  const [winners, setWinners] = useState<WinnerRow[]>([]);
+  const [previousWinners, setPreviousWinners] = useState<WinnerRow[]>([]);
   const [loading, setLoading] = useState(true);
-  const [rulesOpen, setRulesOpen] = useState(false);
 
   useEffect(() => {
-    setMonthInfo(getMonthDateRangeET());
-  }, []);
+    let active = true;
 
-  useEffect(() => {
-    let isMounted = true;
-
-    async function loadPageData() {
+    async function loadLeaderboardPage() {
       setLoading(true);
 
-      const { data: attemptsData } = await supabase
+      const { data: attemptRows, error: attemptsError } = await supabase
         .from("puzzle_attempts")
-        .select(
-          `
-          user_id,
-          is_correct,
-          submitted_at,
-          profiles:user_id (
-            display_name,
-            full_name
-          )
-        `
-        )
-        .gte("submitted_at", startIso)
-        .lt("submitted_at", endIso)
+        .select("user_id, is_correct, submitted_at")
+        .not("user_id", "is", null)
         .order("submitted_at", { ascending: true });
 
-      const { data: winnersData } = await supabase
-        .from("monthly_leaderboard_winners")
-        .select("id, winner_name, prize_name, month_label, announced_at")
-        .order("announced_at", { ascending: false })
-        .limit(12);
+      if (attemptsError) {
+        console.error("Leaderboard attempts error:", attemptsError);
+      }
 
-      if (!isMounted) return;
+      const attempts = ((attemptRows as AttemptRow[] | null) || []).filter(
+        (row) => row.user_id
+      );
+
+      const uniqueUserIds = Array.from(
+        new Set(
+          attempts
+            .map((row) => row.user_id)
+            .filter((value): value is string => Boolean(value))
+        )
+      );
+
+      let profileMap = new Map<string, ProfileRow>();
+
+      if (uniqueUserIds.length > 0) {
+        const { data: profileRows, error: profilesError } = await supabase
+          .from("profiles")
+          .select("id, display_name, full_name")
+          .in("id", uniqueUserIds);
+
+        if (profilesError) {
+          console.error("Leaderboard profiles error:", profilesError);
+        }
+
+        profileMap = new Map(
+          (((profileRows as ProfileRow[] | null) || []).map((profile) => [
+            profile.id,
+            profile,
+          ]))
+        );
+      }
 
       const grouped = new Map<
         string,
@@ -121,287 +129,129 @@ export default function LeaderboardPage() {
           display_name: string;
           points: number;
           correct_answers: number;
-          total_submissions: number;
-          streak: number;
-          bestStreak: number;
+          total_attempts: number;
+          current_streak: number;
           last_activity: string | null;
         }
       >();
 
-      for (const row of attemptsData || []) {
-        const userId = row.user_id || "guest";
-        const existing = grouped.get(userId) || {
-          user_id: userId,
-          display_name: getDisplayName(row),
-          points: 0,
-          correct_answers: 0,
-          total_submissions: 0,
-          streak: 0,
-          bestStreak: 0,
-          last_activity: null,
-        };
+      for (const attempt of attempts) {
+        const userId = attempt.user_id as string;
+        const profile = profileMap.get(userId);
 
-        existing.total_submissions += 1;
-        existing.last_activity = row.submitted_at || existing.last_activity;
+        const current =
+          grouped.get(userId) ||
+          {
+            user_id: userId,
+            display_name: getSafeDisplayName(profile, userId),
+            points: 0,
+            correct_answers: 0,
+            total_attempts: 0,
+            current_streak: 0,
+            last_activity: null,
+          };
 
-        if (row.is_correct) {
-          existing.correct_answers += 1;
-          existing.points += 10;
-          existing.streak += 1;
-          existing.bestStreak = Math.max(existing.bestStreak, existing.streak);
+        current.total_attempts += 1;
+        current.last_activity = attempt.submitted_at || current.last_activity;
+
+        if (attempt.is_correct) {
+          current.correct_answers += 1;
+          current.points += 10;
+          current.current_streak += 1;
         } else {
-          existing.streak = 0;
+          current.current_streak = 0;
         }
 
-        grouped.set(userId, existing);
+        grouped.set(userId, current);
       }
 
-      const ranked = Array.from(grouped.values())
+      const ranked: LeaderboardRow[] = Array.from(grouped.values())
         .sort((a, b) => {
           if (b.points !== a.points) return b.points - a.points;
           if (b.correct_answers !== a.correct_answers) {
             return b.correct_answers - a.correct_answers;
           }
-          return (
-            new Date(b.last_activity || 0).getTime() -
-            new Date(a.last_activity || 0).getTime()
-          );
+          if (b.current_streak !== a.current_streak) {
+            return b.current_streak - a.current_streak;
+          }
+
+          const aTime = a.last_activity ? new Date(a.last_activity).getTime() : 0;
+          const bTime = b.last_activity ? new Date(b.last_activity).getTime() : 0;
+
+          return bTime - aTime;
         })
-        .map((player, index) => ({
+        .map((row, index) => ({
+          ...row,
           rank: index + 1,
-          user_id: player.user_id,
-          display_name: player.display_name,
-          points: player.points,
-          correct_answers: player.correct_answers,
-          current_streak: player.bestStreak,
-          total_submissions: player.total_submissions,
-          last_activity: player.last_activity,
         }));
 
+      const { data: winnersRows, error: winnersError } = await supabase
+        .from("monthly_leaderboard_winners")
+        .select("id, winner_name, prize_name, announced_at")
+        .order("announced_at", { ascending: false })
+        .limit(12);
+
+      if (winnersError) {
+        console.error("Previous winners error:", winnersError);
+      }
+
+      if (!active) return;
+
       setLeaderboard(ranked);
-      setWinners((winnersData as WinnerRow[]) || []);
+      setPreviousWinners(((winnersRows as WinnerRow[] | null) || []));
       setLoading(false);
     }
 
-    loadPageData();
+    loadLeaderboardPage();
 
     return () => {
-      isMounted = false;
+      active = false;
     };
-  }, [supabase, startIso, endIso]);
+  }, [supabase]);
 
   return (
     <main className="leaderboard-page">
       <div className="leaderboard-shell">
-        <header className="hero-card">
-          <div className="eyebrow">Secret Scan Club Leaderboard</div>
-          <h1>{monthLabel} Competition</h1>
-          <p className="hero-copy">
-            Climb the monthly leaderboard, stay in the mix for random prize
-            drawings, and keep your streak alive by coming back every day. The
-            board resets at the start of each new month so everyone gets a fresh
-            shot.
-          </p>
-
-          <div className="hero-actions">
-            <Link href="/scan" className="primary-btn">
-              Play today&apos;s puzzle
-            </Link>
-            <Link href="/signup" className="secondary-btn">
-              Create account
-            </Link>
-          </div>
-
-          <div className="hero-notes">
-            <div className="hero-note">
-              <strong>Monthly reset:</strong> Scores shown here only count for{" "}
-              {monthLabel}.
-            </div>
-            <div className="hero-note">
-              <strong>Winners:</strong> Some prizes are leaderboard-based and
-              some are chosen at random from eligible entries.
-            </div>
-          </div>
-        </header>
-
-        <section className="grid two-up">
-          <div className="panel">
-            <div className="panel-label">Prizes</div>
-            <h2>What you can win</h2>
-            <p>
-              Each month gives players a new chance to win. Top placement helps
-              you stand out on the board, while eligible entries can also be
-              used for random drawings so newer players still have a real shot.
+        <section className="hero-card">
+          <div className="hero-copy-wrap">
+            <div className="eyebrow">Secret Scan Club</div>
+            <h1>Leaderboard, prizes, perks, and how it all works</h1>
+            <p className="hero-copy">
+              See where players stand, learn how prizes are awarded, explore
+              subscription perks like bonus hints, and check out featured offers
+              tied to the game.
             </p>
 
-            <div className="prize-list">
-              <div className="prize-item">
-                <div className="prize-title">Monthly top performer prize</div>
-                <div className="prize-text">
-                  Reserved for the highest ranked eligible player at the end of
-                  the month.
-                </div>
-              </div>
-
-              <div className="prize-item">
-                <div className="prize-title">Random winner drawings</div>
-                <div className="prize-text">
-                  Extra winners may be selected randomly from eligible entries,
-                  even if they do not finish in first place.
-                </div>
-              </div>
-
-              <div className="prize-item">
-                <div className="prize-title">Bonus member-only perks</div>
-                <div className="prize-text">
-                  Subscribers can unlock extra hints, bonus content, and
-                  additional ways to stay engaged throughout the month.
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="panel">
-            <div className="panel-label">Subscription</div>
-            <h2>What members get</h2>
-            <p>
-              A subscription is built for players who want more than the free
-              daily challenge. It gives people extra tools, extra content, and a
-              better shot at staying consistent.
-            </p>
-
-            <div className="perk-list">
-              <div className="perk-item">Bonus hints on select puzzles</div>
-              <div className="perk-item">Extra puzzle help and clue support</div>
-              <div className="perk-item">
-                Members-only bonus challenge content
-              </div>
-              <div className="perk-item">
-                Better tracking of streaks and puzzle progress
-              </div>
-              <div className="perk-item">
-                Faster access to answers and bonus reveals
-              </div>
-              <div className="perk-item">
-                More reasons to come back and stay active daily
-              </div>
-            </div>
-
-            <div className="subscription-cta">
-              <Link href="/signup" className="primary-btn">
-                Unlock subscription perks
+            <div className="hero-actions">
+              <Link href="/scan" className="primary-btn">
+                Play today&apos;s puzzle
+              </Link>
+              <Link href="/signup" className="secondary-btn">
+                Create account
               </Link>
             </div>
           </div>
         </section>
 
-        <section className="grid two-up">
-          <div className="panel">
-            <div className="panel-label">Featured Product</div>
-            <h2>Need a brain boost?</h2>
-            <p>
-              Add a clear call to action for the product you want to promote.
-              This section gives you a place to connect puzzle traffic to your
-              offer without making the page feel cluttered.
-            </p>
-
-            <a
-              href={AMWAY_PRODUCT_URL}
-              target="_blank"
-              rel="noreferrer"
-              className="product-card"
-            >
-              <div className="product-card-title">Shop the featured product</div>
-              <div className="product-card-text">
-                Send players to your promoted Amway item, bundle, or landing
-                page here.
-              </div>
-              <div className="product-card-link">View product</div>
-            </a>
-          </div>
-
-          <div className="panel">
-            <div className="panel-label">Contest Rules</div>
-            <h2>How the contest works</h2>
-            <p>
-              Keep the rules simple, visible, and easy to understand. This helps
-              users know what counts, how winners are chosen, and why the board
-              resets each month.
-            </p>
-
-            <div className="rules-summary">
-              <div className="rule-line">
-                1. The leaderboard resets at the beginning of each month.
-              </div>
-              <div className="rule-line">
-                2. Only activity recorded during the current month counts toward
-                this board.
-              </div>
-              <div className="rule-line">
-                3. Some prizes may go to top leaderboard finishers.
-              </div>
-              <div className="rule-line">
-                4. Some prizes may be awarded to random eligible winners.
-              </div>
-              <div className="rule-line">
-                5. Random drawings are not guaranteed to go to the highest score.
-              </div>
-              <div className="rule-line">
-                6. Players should check the official rules page for full
-                eligibility and prize terms.
-              </div>
-            </div>
-
-            <button
-              type="button"
-              className="rules-toggle"
-              onClick={() => setRulesOpen((prev) => !prev)}
-            >
-              {rulesOpen ? "Hide expanded rules copy" : "Show expanded rules copy"}
-            </button>
-
-            {rulesOpen && (
-              <div className="rules-expanded">
-                <p>
-                  Winners may be selected in more than one way. Some prizes can
-                  reward strong leaderboard performance, while others can be
-                  awarded through a random drawing from eligible entries for the
-                  month. Because of that, being active matters, but finishing in
-                  first place does not automatically guarantee every prize.
-                </p>
-                <p>
-                  The leaderboard is intended to reflect current-month activity
-                  only. At the start of each month, totals reset so every player
-                  begins again on equal footing. This keeps the contest fresh,
-                  easier to follow, and more exciting for new and returning
-                  users.
-                </p>
-                <p>
-                  You should still publish an official rules page that covers
-                  eligibility, entry methods, odds, start and end dates, prize
-                  descriptions, winner contact method, and any required legal
-                  language for your promotion.
-                </p>
-              </div>
-            )}
-          </div>
-        </section>
-
-        <section className="panel leaderboard-panel">
-          <div className="panel-top">
+        <section className="panel leaderboard-panel top-panel">
+          <div className="panel-head">
             <div>
-              <div className="panel-label">Live Rankings</div>
-              <h2>{monthLabel} Leaderboard</h2>
+              <div className="panel-label">Top Players</div>
+              <h2>All-Time Leaderboard</h2>
+              <p className="panel-subcopy">
+                This board shows overall player performance across all recorded
+                puzzles. It is not tied to a specific month.
+              </p>
             </div>
-            <div className="month-reset-badge">Resets monthly</div>
+            <div className="leaderboard-badge">Live rankings</div>
           </div>
 
           {loading ? (
             <div className="empty-state">Loading leaderboard...</div>
           ) : leaderboard.length === 0 ? (
             <div className="empty-state">
-              No scores have been recorded for this month yet. Be the first one
-              on the board.
+              No leaderboard data yet. Once players start submitting answers,
+              rankings will appear here.
             </div>
           ) : (
             <div className="leaderboard-table-wrap">
@@ -412,13 +262,14 @@ export default function LeaderboardPage() {
                     <th>Player</th>
                     <th>Points</th>
                     <th>Correct</th>
-                    <th>Best Streak</th>
                     <th>Attempts</th>
+                    <th>Streak</th>
+                    <th>Last Active</th>
                   </tr>
                 </thead>
                 <tbody>
                   {leaderboard.map((player) => (
-                    <tr key={`${player.user_id}-${player.rank}`}>
+                    <tr key={player.user_id}>
                       <td>
                         <span
                           className={
@@ -428,11 +279,12 @@ export default function LeaderboardPage() {
                           #{player.rank}
                         </span>
                       </td>
-                      <td>{player.display_name}</td>
+                      <td className="player-name">{player.display_name}</td>
                       <td>{player.points}</td>
                       <td>{player.correct_answers}</td>
+                      <td>{player.total_attempts}</td>
                       <td>{player.current_streak}</td>
-                      <td>{player.total_submissions}</td>
+                      <td>{formatDate(player.last_activity)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -441,76 +293,191 @@ export default function LeaderboardPage() {
           )}
         </section>
 
-        <section className="panel">
-          <div className="panel-label">Past Winners</div>
-          <h2>Previous prize winners</h2>
+        <section className="content-grid">
+          <section className="panel">
+            <div className="panel-label">Prizes</div>
+            <h2>What players can win</h2>
+            <p>
+              The leaderboard gives players something visible to compete for,
+              while prize promotions give them another reason to keep coming
+              back. You can award prizes for high performance, random drawings,
+              or both.
+            </p>
 
-          {winners.length === 0 ? (
-            <div className="empty-state">
-              No winners have been posted yet. Once you start selecting winners,
-              they will appear here.
-            </div>
-          ) : (
-            <div className="winner-grid">
-              {winners.map((winner) => (
-                <div className="winner-card" key={winner.id}>
-                  <div className="winner-month">{winner.month_label}</div>
-                  <div className="winner-name">{winner.winner_name}</div>
-                  <div className="winner-prize">{winner.prize_name}</div>
+            <div className="card-list">
+              <div className="info-card">
+                <div className="info-card-title">Top leaderboard prizes</div>
+                <div className="info-card-text">
+                  Reward your strongest players with featured prizes based on
+                  rank, points, or streak performance.
                 </div>
-              ))}
-            </div>
-          )}
-        </section>
+              </div>
 
-        <section className="grid two-up">
-          <div className="panel">
-            <div className="panel-label">Why this page matters</div>
-            <h2>What makes it work</h2>
-            <p>
-              A good leaderboard page does more than list scores. It builds
-              trust, explains the game, sells the value of subscribing, and
-              gives players a reason to come back tomorrow.
-            </p>
-            <div className="mini-list">
-              <div className="mini-item">Clear prize explanation</div>
-              <div className="mini-item">Visible monthly reset structure</div>
-              <div className="mini-item">Trust-building rules summary</div>
-              <div className="mini-item">Proof with past winners</div>
-              <div className="mini-item">A direct monetization path</div>
-            </div>
-          </div>
+              <div className="info-card">
+                <div className="info-card-title">Random winner drawings</div>
+                <div className="info-card-text">
+                  Random winners keep the experience open to more people so it
+                  is not only the top few users who feel like they have a shot.
+                </div>
+              </div>
 
-          <div className="panel">
-            <div className="panel-label">Next best CTA</div>
-            <h2>Keep the user moving</h2>
+              <div className="info-card">
+                <div className="info-card-title">Bonus promotional prizes</div>
+                <div className="info-card-text">
+                  You can also feature surprise rewards, member-only bonuses, or
+                  sponsor-backed giveaways.
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section className="panel">
+            <div className="panel-label">Subscription</div>
+            <h2>What subscribers get</h2>
             <p>
-              This page should always push the user toward one next action:
-              playing today&apos;s puzzle, subscribing, or checking out the
-              featured product.
+              The subscription should feel like an upgrade, not just a payment
+              wall. Give players more help, more content, and a better
+              experience inside the game.
             </p>
-            <div className="cta-stack">
-              <Link href="/scan" className="primary-btn full-btn">
-                Go to today&apos;s puzzle
-              </Link>
-              <Link href="/signup" className="secondary-btn full-btn">
-                Sign up for more features
+
+            <div className="card-list">
+              <div className="info-card">
+                <div className="info-card-title">Bonus hints</div>
+                <div className="info-card-text">
+                  Extra help on tough puzzles when players need a little push.
+                </div>
+              </div>
+
+              <div className="info-card">
+                <div className="info-card-title">Extra clue access</div>
+                <div className="info-card-text">
+                  More support for solving puzzles faster and keeping streaks
+                  alive.
+                </div>
+              </div>
+
+              <div className="info-card">
+                <div className="info-card-title">Members-only content</div>
+                <div className="info-card-text">
+                  Bonus puzzle material, special drops, and premium unlocks.
+                </div>
+              </div>
+
+              <div className="info-card">
+                <div className="info-card-title">Better progress tracking</div>
+                <div className="info-card-text">
+                  A stronger account experience with more visibility into their
+                  activity.
+                </div>
+              </div>
+            </div>
+
+            <div className="section-actions">
+              <Link href="/signup" className="primary-btn">
+                Unlock subscription perks
               </Link>
             </div>
-          </div>
+          </section>
+
+          <section className="panel">
+            <div className="panel-label">Featured Offer</div>
+            <h2>Recommended product</h2>
+            <p>
+              This section gives you a clean place to promote your featured
+              product without cluttering the puzzle experience.
+            </p>
+
+            <a
+              href={AMWAY_PRODUCT_URL}
+              target="_blank"
+              rel="noreferrer"
+              className="product-card"
+            >
+              <div className="product-card-title">View featured product</div>
+              <div className="product-card-text">
+                Send traffic directly to your promoted Amway product, product
+                stack, or landing page.
+              </div>
+              <div className="product-card-link">Open product page</div>
+            </a>
+          </section>
+
+          <section className="panel">
+            <div className="panel-label">Rules</div>
+            <h2>Contest rules at a glance</h2>
+            <p>
+              Players should quickly understand that prizes may be based on
+              leaderboard results, random drawings, or a mix of both depending
+              on the promotion.
+            </p>
+
+            <div className="card-list">
+              <div className="info-card">
+                <div className="info-card-title">Performance can matter</div>
+                <div className="info-card-text">
+                  Some promotions may reward top players or top streaks.
+                </div>
+              </div>
+
+              <div className="info-card">
+                <div className="info-card-title">Random winners may be chosen</div>
+                <div className="info-card-text">
+                  Certain prizes may be awarded randomly from eligible entries.
+                </div>
+              </div>
+
+              <div className="info-card">
+                <div className="info-card-title">Official rules still matter</div>
+                <div className="info-card-text">
+                  You should still publish a full official rules page covering
+                  eligibility, prize details, timing, and required legal terms.
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section className="panel full-width">
+            <div className="panel-label">Previous Winners</div>
+            <h2>Past prize winners</h2>
+            <p>
+              Showing previous winners helps build trust and proves the contest
+              is active.
+            </p>
+
+            {previousWinners.length === 0 ? (
+              <div className="empty-state">
+                No winners have been added yet. Once you post winners, they will
+                show up here.
+              </div>
+            ) : (
+              <div className="winner-grid">
+                {previousWinners.map((winner) => (
+                  <div className="winner-card" key={winner.id}>
+                    <div className="winner-name">{winner.winner_name}</div>
+                    <div className="winner-prize">{winner.prize_name}</div>
+                    <div className="winner-date">
+                      {formatDate(winner.announced_at)}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
         </section>
       </div>
 
       <style jsx>{`
         .leaderboard-page {
           min-height: 100vh;
-          background: linear-gradient(180deg, #08111f 0%, #0d1a2d 100%);
+          background:
+            radial-gradient(circle at top, rgba(72, 126, 176, 0.2), transparent 35%),
+            linear-gradient(180deg, #08111f 0%, #0d1a2d 100%);
           color: #ffffff;
-          padding: 32px 16px 56px;
+          padding: 24px 16px 56px;
         }
 
         .leaderboard-shell {
-          max-width: 1180px;
+          max-width: 1200px;
           margin: 0 auto;
         }
 
@@ -520,165 +487,206 @@ export default function LeaderboardPage() {
           border: 1px solid rgba(255, 255, 255, 0.12);
           border-radius: 24px;
           backdrop-filter: blur(8px);
-          box-shadow: 0 20px 50px rgba(0, 0, 0, 0.25);
+          box-shadow: 0 20px 50px rgba(0, 0, 0, 0.22);
         }
 
         .hero-card {
-          padding: 32px;
+          padding: 28px;
           margin-bottom: 24px;
+        }
+
+        .hero-copy-wrap {
+          max-width: 760px;
         }
 
         .eyebrow,
         .panel-label {
           display: inline-block;
-          font-size: 12px;
-          letter-spacing: 0.14em;
-          text-transform: uppercase;
-          color: #8dc7ff;
           margin-bottom: 10px;
+          font-size: 12px;
+          text-transform: uppercase;
+          letter-spacing: 0.14em;
           font-weight: 700;
+          color: #8dc7ff;
         }
 
         h1 {
-          font-size: clamp(2rem, 4vw, 3.6rem);
-          line-height: 1.05;
           margin: 0 0 12px;
+          font-size: clamp(2rem, 4vw, 3.25rem);
+          line-height: 1.05;
         }
 
         h2 {
-          font-size: clamp(1.4rem, 2.2vw, 2rem);
-          margin: 0 0 12px;
+          margin: 0 0 10px;
+          font-size: clamp(1.4rem, 2.4vw, 2rem);
+          line-height: 1.15;
         }
 
         .hero-copy,
-        .panel p {
-          color: rgba(255, 255, 255, 0.85);
+        .panel p,
+        .panel-subcopy {
+          margin: 0;
+          color: rgba(255, 255, 255, 0.84);
           line-height: 1.7;
-          margin: 0 0 18px;
         }
 
         .hero-actions,
-        .cta-stack {
+        .section-actions {
           display: flex;
           flex-wrap: wrap;
           gap: 12px;
-          margin-top: 20px;
+          margin-top: 22px;
         }
 
         .primary-btn,
-        .secondary-btn,
-        .rules-toggle {
+        .secondary-btn {
           display: inline-flex;
           align-items: center;
           justify-content: center;
           min-height: 48px;
-          border-radius: 999px;
           padding: 0 18px;
-          font-weight: 700;
+          border-radius: 999px;
           text-decoration: none;
+          font-weight: 700;
           transition: 0.2s ease;
-          cursor: pointer;
         }
 
         .primary-btn {
           background: #ffffff;
-          color: #09111f;
-          border: none;
+          color: #08111f;
+          border: 1px solid #ffffff;
         }
 
-        .primary-btn:hover {
-          transform: translateY(-1px);
-        }
-
-        .secondary-btn,
-        .rules-toggle {
+        .secondary-btn {
           background: transparent;
           color: #ffffff;
           border: 1px solid rgba(255, 255, 255, 0.2);
         }
 
+        .primary-btn:hover,
         .secondary-btn:hover,
-        .rules-toggle:hover {
-          background: rgba(255, 255, 255, 0.07);
+        .product-card:hover {
+          transform: translateY(-1px);
         }
 
-        .full-btn {
-          width: 100%;
-        }
-
-        .hero-notes {
-          display: grid;
-          grid-template-columns: repeat(2, minmax(0, 1fr));
-          gap: 12px;
-          margin-top: 22px;
-        }
-
-        .hero-note {
-          padding: 14px 16px;
-          border-radius: 16px;
-          background: rgba(255, 255, 255, 0.05);
-          color: rgba(255, 255, 255, 0.9);
-          line-height: 1.5;
-        }
-
-        .grid {
-          display: grid;
-          gap: 24px;
+        .top-panel {
           margin-bottom: 24px;
-        }
-
-        .two-up {
-          grid-template-columns: repeat(2, minmax(0, 1fr));
         }
 
         .panel {
           padding: 28px;
         }
 
-        .prize-list,
-        .perk-list,
-        .mini-list,
-        .rules-summary {
+        .panel-head {
+          display: flex;
+          justify-content: space-between;
+          gap: 16px;
+          align-items: flex-start;
+          margin-bottom: 18px;
+        }
+
+        .leaderboard-badge {
+          white-space: nowrap;
+          padding: 10px 14px;
+          border-radius: 999px;
+          background: #8dc7ff;
+          color: #08111f;
+          font-weight: 700;
+          font-size: 0.95rem;
+        }
+
+        .leaderboard-table-wrap {
+          overflow-x: auto;
+        }
+
+        .leaderboard-table {
+          width: 100%;
+          min-width: 820px;
+          border-collapse: collapse;
+        }
+
+        .leaderboard-table th,
+        .leaderboard-table td {
+          padding: 14px 12px;
+          border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+          text-align: left;
+        }
+
+        .leaderboard-table th {
+          color: #8dc7ff;
+          font-size: 0.88rem;
+          font-weight: 700;
+          text-transform: uppercase;
+          letter-spacing: 0.06em;
+        }
+
+        .player-name {
+          font-weight: 700;
+        }
+
+        .rank-pill {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          min-width: 54px;
+          min-height: 34px;
+          border-radius: 999px;
+          background: rgba(255, 255, 255, 0.08);
+          font-weight: 700;
+        }
+
+        .top-rank {
+          background: #ffffff;
+          color: #08111f;
+        }
+
+        .content-grid {
+          display: grid;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 24px;
+        }
+
+        .full-width {
+          grid-column: 1 / -1;
+        }
+
+        .card-list {
           display: grid;
           gap: 12px;
+          margin-top: 18px;
         }
 
-        .prize-item,
-        .perk-item,
-        .mini-item,
-        .rule-line {
+        .info-card {
           background: rgba(255, 255, 255, 0.05);
           border: 1px solid rgba(255, 255, 255, 0.08);
-          border-radius: 16px;
-          padding: 14px 16px;
+          border-radius: 18px;
+          padding: 16px;
         }
 
-        .prize-title {
+        .info-card-title {
           font-weight: 700;
           margin-bottom: 6px;
         }
 
-        .prize-text {
-          color: rgba(255, 255, 255, 0.78);
-          line-height: 1.6;
-        }
-
-        .subscription-cta {
-          margin-top: 18px;
+        .info-card-text {
+          color: rgba(255, 255, 255, 0.8);
+          line-height: 1.65;
         }
 
         .product-card {
           display: block;
-          text-decoration: none;
-          color: inherit;
+          margin-top: 18px;
           padding: 18px;
           border-radius: 20px;
+          text-decoration: none;
+          color: inherit;
           background: linear-gradient(
             135deg,
             rgba(255, 255, 255, 0.08),
-            rgba(141, 199, 255, 0.14)
+            rgba(141, 199, 255, 0.16)
           );
-          border: 1px solid rgba(255, 255, 255, 0.14);
+          border: 1px solid rgba(255, 255, 255, 0.12);
+          transition: 0.2s ease;
         }
 
         .product-card-title {
@@ -698,117 +706,47 @@ export default function LeaderboardPage() {
           font-weight: 700;
         }
 
-        .rules-expanded {
-          margin-top: 14px;
-          padding: 16px;
-          border-radius: 16px;
-          background: rgba(255, 255, 255, 0.05);
-        }
-
-        .leaderboard-panel {
-          overflow: hidden;
-        }
-
-        .panel-top {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          gap: 16px;
-          margin-bottom: 14px;
-        }
-
-        .month-reset-badge {
-          white-space: nowrap;
-          font-size: 0.95rem;
-          font-weight: 700;
-          color: #09111f;
-          background: #8dc7ff;
-          padding: 10px 14px;
-          border-radius: 999px;
-        }
-
-        .leaderboard-table-wrap {
-          overflow-x: auto;
-          margin-top: 12px;
-        }
-
-        .leaderboard-table {
-          width: 100%;
-          border-collapse: collapse;
-          min-width: 760px;
-        }
-
-        .leaderboard-table th,
-        .leaderboard-table td {
-          padding: 14px 12px;
-          text-align: left;
-          border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-        }
-
-        .leaderboard-table th {
-          color: #8dc7ff;
-          font-size: 0.9rem;
-          text-transform: uppercase;
-          letter-spacing: 0.06em;
-        }
-
-        .rank-pill {
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          min-width: 52px;
-          min-height: 34px;
-          border-radius: 999px;
-          background: rgba(255, 255, 255, 0.08);
-          font-weight: 700;
-        }
-
-        .top-rank {
-          background: #ffffff;
-          color: #09111f;
-        }
-
         .winner-grid {
           display: grid;
           grid-template-columns: repeat(3, minmax(0, 1fr));
           gap: 16px;
-          margin-top: 14px;
+          margin-top: 18px;
         }
 
         .winner-card {
-          padding: 18px;
-          border-radius: 18px;
           background: rgba(255, 255, 255, 0.05);
           border: 1px solid rgba(255, 255, 255, 0.08);
-        }
-
-        .winner-month {
-          color: #8dc7ff;
-          font-size: 0.9rem;
-          margin-bottom: 8px;
-          font-weight: 700;
+          border-radius: 18px;
+          padding: 18px;
         }
 
         .winner-name {
-          font-size: 1.1rem;
+          font-size: 1.08rem;
           font-weight: 700;
           margin-bottom: 6px;
         }
 
         .winner-prize {
           color: rgba(255, 255, 255, 0.82);
+          margin-bottom: 8px;
+        }
+
+        .winner-date {
+          color: #8dc7ff;
+          font-size: 0.92rem;
+          font-weight: 700;
         }
 
         .empty-state {
           padding: 18px;
           border-radius: 16px;
           background: rgba(255, 255, 255, 0.05);
-          color: rgba(255, 255, 255, 0.85);
-          line-height: 1.6;
+          color: rgba(255, 255, 255, 0.84);
+          line-height: 1.65;
         }
 
-        @media (max-width: 900px) {
-          .two-up {
+        @media (max-width: 960px) {
+          .content-grid {
             grid-template-columns: 1fr;
           }
 
@@ -816,11 +754,7 @@ export default function LeaderboardPage() {
             grid-template-columns: 1fr;
           }
 
-          .hero-notes {
-            grid-template-columns: 1fr;
-          }
-
-          .panel-top {
+          .panel-head {
             flex-direction: column;
             align-items: flex-start;
           }
@@ -828,7 +762,7 @@ export default function LeaderboardPage() {
 
         @media (max-width: 640px) {
           .leaderboard-page {
-            padding: 20px 12px 44px;
+            padding: 18px 12px 42px;
           }
 
           .hero-card,
@@ -838,8 +772,7 @@ export default function LeaderboardPage() {
           }
 
           .primary-btn,
-          .secondary-btn,
-          .rules-toggle {
+          .secondary-btn {
             width: 100%;
           }
         }
