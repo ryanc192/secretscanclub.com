@@ -232,7 +232,12 @@ export default function ScanPage() {
                     and keep your streak alive.
                   </div>
                 </div>
-
+                 <div className="capture-point">
+                  <div className="capture-point-title">It's all FREE</div>
+                  <div className="capture-point-text">
+                    Every puzzle. Every Day. Always FREE. 
+                  </div>
+                </div>
                 <div className="capture-point">
                   <div className="capture-point-title">Build your streak</div>
                   <div className="capture-point-text">
