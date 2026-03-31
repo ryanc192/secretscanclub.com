@@ -26,6 +26,7 @@ type MemberStats = {
   currentStreak: number;
   longestStreak: number;
   attempts: number;
+  accuracy: number;
 };
 
 function loadDrop(date: string): Drop | null {
@@ -54,6 +55,7 @@ export default function MemberScanPage() {
     currentStreak: 0,
     longestStreak: 0,
     attempts: 0,
+    accuracy: 0,
   });
 
   const today = todayET();
@@ -87,17 +89,31 @@ export default function MemberScanPage() {
         .eq("id", user.id)
         .maybeSingle();
 
-      const { count } = await supabase
-        .from("puzzle_attempts")
+      const { count: attemptsCount } = await supabase
+        .from("puzzle_sessions")
         .select("*", { count: "exact", head: true })
-        .eq("user_id", user.id);
+        .eq("user_id", user.id)
+        .not("submitted_at", "is", null);
+
+      const { count: correctCount } = await supabase
+        .from("puzzle_sessions")
+        .select("*", { count: "exact", head: true })
+        .eq("user_id", user.id)
+        .eq("is_correct", true)
+        .not("submitted_at", "is", null);
+
+      const attempts = attemptsCount ?? 0;
+      const correct = correctCount ?? 0;
+      const accuracy =
+        attempts > 0 ? Math.round((correct / attempts) * 100) : 0;
 
       if (!isMounted) return;
 
       setStats({
         currentStreak: profile?.current_streak ?? 0,
         longestStreak: profile?.longest_streak ?? 0,
-        attempts: count ?? 0,
+        attempts,
+        accuracy,
       });
 
       setAuthReady(true);
@@ -176,6 +192,9 @@ export default function MemberScanPage() {
             </div>
             <div className="meta-box">
               <strong>Total Plays:</strong> {stats.attempts}
+            </div>
+            <div className="meta-box">
+              <strong>Accuracy:</strong> {stats.accuracy}%
             </div>
           </div>
         </section>
@@ -302,6 +321,7 @@ export default function MemberScanPage() {
               `Current streak: ${stats.currentStreak}`,
               `Best streak: ${stats.longestStreak}`,
               `Total puzzle plays: ${stats.attempts}`,
+              `Accuracy: ${stats.accuracy}%`,
               "Come back tomorrow to protect your streak",
             ].map((item) => (
               <div key={item} className="benefit-item">
