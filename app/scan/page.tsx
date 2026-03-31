@@ -167,12 +167,10 @@ export default function ScanPage() {
             start tracking your streak.
           </p>
 
-          <AnswerCheckForm
-            dropDate={activeDate}
-            correctAnswer={drop?.free?.answer ?? ""}
-            acceptedAnswers={drop?.free?.acceptedAnswers ?? []}
-            explanation={drop?.free?.explanation ?? ""}
-          />
+<DailyPuzzle
+  puzzleDate={drop.date}
+  acceptedAnswers={drop.free.acceptedAnswers ?? [drop.free.answer]}
+/>
         </section>
 
         <section className="card-light" style={{ marginTop: 20 }}>
