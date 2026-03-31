@@ -5,7 +5,6 @@ import Image from "next/image";
 import EmailSignupForm from "../components/EmailSignupForm";
 import AuthStatus from "../components/AuthStatus";
 import ScanRedirect from "./ScanRedirect";
-import DailyPuzzle from "../components/DailyPuzzle";
 import AnswerCheckForm from "../components/AnswerCheckForm";
 
 export const dynamic = "force-dynamic";
