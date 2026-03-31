@@ -6,6 +6,7 @@ import EmailSignupForm from "../components/EmailSignupForm";
 import AnswerCheckForm from "../components/AnswerCheckForm";
 import AuthStatus from "../components/AuthStatus";
 import ScanRedirect from "./ScanRedirect";
+import DailyPuzzle from "../components/DailyPuzzle";
 
 type Drop = {
   date: string;
