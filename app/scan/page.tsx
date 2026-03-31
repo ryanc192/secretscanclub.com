@@ -7,7 +7,7 @@ import AnswerCheckForm from "../components/AnswerCheckForm";
 import AuthStatus from "../components/AuthStatus";
 import ScanRedirect from "./ScanRedirect";
 import DailyPuzzle from "../components/DailyPuzzle";
-
+export const dynamic = "force-dynamic";
 type Drop = {
   date: string;
   number?: number;
