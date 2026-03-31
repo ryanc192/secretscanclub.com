@@ -318,10 +318,11 @@ export default function ScanPage() {
 
             <div className="benefit-list">
               {[
-                "Fits naturally with the daily puzzle habit",
-                "Easy soft CTA at the bottom of the page",
-                "Can also be used inside daily emails",
-                "Built for repeated exposure over time",
+              "Helps you stay sharp and think faster",
+              "Designed for people who actually use their brain daily",
+              "Simple, no-friction way to level up your routine",
+              "Low effort, high impact addition",
+              "Built for daily use, not occasional effort",
               ].map((item) => (
                 <div key={item} className="benefit-item">
                   <span style={{ fontSize: 18 }}>✓</span>
