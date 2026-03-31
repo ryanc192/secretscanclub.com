@@ -3,11 +3,12 @@ import path from "path";
 import Link from "next/link";
 import Image from "next/image";
 import EmailSignupForm from "../components/EmailSignupForm";
-import AnswerCheckForm from "../components/AnswerCheckForm";
 import AuthStatus from "../components/AuthStatus";
 import ScanRedirect from "./ScanRedirect";
 import DailyPuzzle from "../components/DailyPuzzle";
+
 export const dynamic = "force-dynamic";
+
 type Drop = {
   date: string;
   number?: number;
@@ -28,13 +29,7 @@ type Drop = {
     emailTeaser?: string;
   };
 };
-function loadDrop(date: string): Drop | null {
-  try {
-    return require(`../../content/drops/${date}.json`);
-  } catch {
-    return null;
-  }
-}
+
 function todayET(): string {
   return new Intl.DateTimeFormat("en-CA", {
     timeZone: "America/New_York",
@@ -65,14 +60,15 @@ function loadDrop(dateStr?: string): Drop | null {
 }
 
 export default function ScanPage() {
-  const drop = loadDrop();
   const today = todayET();
+  const drop = loadDrop(today);
   const activeDate = drop?.date ?? today;
   const dateLabel = formatDateLabel(activeDate);
 
   return (
     <main className="scan-page">
       <ScanRedirect />
+
       <div
         style={{
           position: "fixed",
@@ -124,7 +120,7 @@ export default function ScanPage() {
             </div>
 
             <div className="meta-box">
-              <strong>Status:</strong> Free daily puzzle
+              <strong>Status:</strong> {drop ? "Free daily puzzle" : "Not live yet"}
             </div>
           </div>
         </section>
@@ -137,7 +133,9 @@ export default function ScanPage() {
           </h2>
 
           <p className="section-text-light">
-            Solve today’s puzzle for free and check your answer below.
+            {drop
+              ? "Solve today’s puzzle for free and check your answer below."
+              : "Today’s puzzle file has not been added yet. Come back soon."}
           </p>
 
           <div className="puzzle-box">
@@ -174,10 +172,27 @@ export default function ScanPage() {
             start tracking your streak.
           </p>
 
-<DailyPuzzle
-  puzzleDate={drop.date}
-  acceptedAnswers={drop.free.acceptedAnswers ?? [drop.free.answer]}
-/>
+          {drop ? (
+            <DailyPuzzle
+              puzzleDate={drop.date}
+              acceptedAnswers={drop.free.acceptedAnswers ?? [drop.free.answer]}
+            />
+          ) : (
+            <div
+              style={{
+                marginTop: 18,
+                padding: "12px 14px",
+                borderRadius: 14,
+                border: "1px solid rgba(255,255,255,0.12)",
+                background: "rgba(255,255,255,0.06)",
+                color: "#ffd6d6",
+                fontSize: 14,
+                lineHeight: 1.5,
+              }}
+            >
+              Today’s puzzle is not available yet, so answer submission is disabled.
+            </div>
+          )}
         </section>
 
         <section className="card-light" style={{ marginTop: 20 }}>
