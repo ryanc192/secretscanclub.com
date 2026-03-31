@@ -6,6 +6,7 @@ import EmailSignupForm from "../components/EmailSignupForm";
 import AuthStatus from "../components/AuthStatus";
 import ScanRedirect from "./ScanRedirect";
 import DailyPuzzle from "../components/DailyPuzzle";
+import AnswerCheckForm from "../components/AnswerCheckForm";
 
 export const dynamic = "force-dynamic";
 
@@ -173,10 +174,12 @@ export default function ScanPage() {
           </p>
 
           {drop ? (
-            <DailyPuzzle
-              puzzleDate={drop.date}
-              acceptedAnswers={drop.free.acceptedAnswers ?? [drop.free.answer]}
-            />
+            <AnswerCheckForm
+              dropDate={drop.date}
+              correctAnswer={drop.free.answer}
+              acceptedAnswers={drop.free.acceptedAnswers ?? []}
+              explanation={drop.free.explanation ?? ""}
+          />
           ) : (
             <div
               style={{
