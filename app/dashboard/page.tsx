@@ -21,7 +21,7 @@ type RecentAttempt = {
   submitted_at: string | null;
   daily_puzzles: {
     puzzle_date: string;
-  } | null;
+  }[];
 };
 
 function getErrorMessage(error: unknown) {
@@ -587,7 +587,7 @@ export default function DashboardPage() {
                           marginBottom: "4px",
                         }}
                       >
-                        Puzzle {attempt.daily_puzzles?.puzzle_date ?? "Unknown"}
+                        Puzzle {attempt.daily_puzzles?.[0]?.puzzle_date ?? "Unknown"}
                       </div>
                       <div
                         style={{
