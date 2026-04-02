@@ -27,7 +27,6 @@ export default function SubscribePage() {
   const [userEmail, setUserEmail] = useState("");
   const [currentTier, setCurrentTier] = useState<TierKey>("free");
   const [loading, setLoading] = useState(true);
-  const [actionLoading, setActionLoading] = useState<TierKey | null>(null);
 
   const plans: Plan[] = [
     {
@@ -129,7 +128,7 @@ export default function SubscribePage() {
     };
   }, [supabase]);
 
-  async function handlePlanSelect(planKey: TierKey) {
+  function handlePlanSelect(planKey: TierKey) {
     if (planKey === currentTier) {
       router.push("/dashboard");
       return;
@@ -140,39 +139,24 @@ export default function SubscribePage() {
       return;
     }
 
-    try {
-      setActionLoading(planKey);
+    let url = "";
 
-      const response = await fetch("/api/create-checkout-session", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          plan: planKey,
-          billingMode,
-        }),
-      });
+    if (planKey === "plus") {
+      url =
+        billingMode === "monthly"
+          ? "https://buy.stripe.com/28E14obRZ4zB3U70oG48000"
+          : "https://buy.stripe.com/aFa4gA7BJc23aiv9Zg48001";
+    }
 
-      if (!response.ok) {
-        throw new Error("Failed to create checkout session.");
-      }
+    if (planKey === "pro") {
+      url =
+        billingMode === "monthly"
+          ? "https://buy.stripe.com/cNiaEY2hpgij2Q3c7o48002"
+          : "https://buy.stripe.com/dRmcN68FNgij62f9Zg48003";
+    }
 
-      const data = await response.json();
-
-      if (data?.url) {
-        window.location.href = data.url;
-        return;
-      }
-
-      throw new Error("Checkout URL not returned.");
-    } catch (error) {
-      console.error(error);
-      alert(
-        "Your checkout session could not be created yet. Make sure your Stripe checkout route is connected."
-      );
-    } finally {
-      setActionLoading(null);
+    if (url) {
+      window.location.href = url;
     }
   }
 
@@ -321,13 +305,12 @@ export default function SubscribePage() {
                 <button
                   type="button"
                   onClick={() => handlePlanSelect(plan.key)}
-                  disabled={actionLoading !== null}
                   style={{
                     ...styles.planButton,
                     ...(isCurrent ? styles.planButtonCurrent : {}),
                   }}
                 >
-                  {actionLoading === plan.key ? "Loading..." : getPlanButtonLabel(plan)}
+                  {getPlanButtonLabel(plan)}
                 </button>
               </article>
             );
