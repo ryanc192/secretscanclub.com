@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { createBrowserSupabaseClient } from "../../lib/supabase/client";
 
 type TierKey = "free" | "plus" | "pro";
+type BillingMode = "monthly" | "yearly";
 
 type Plan = {
   key: TierKey;
@@ -19,14 +20,29 @@ type Plan = {
   popular?: boolean;
 };
 
+const STRIPE_PRICE_IDS: Record<Exclude<TierKey, "free">, Record<BillingMode, string>> = {
+  plus: {
+    monthly: "price_1TH9ClJcQiUWXawe6KLbnBu5",
+    yearly: "price_1TH9CkJcQiUWXaweFlF8JEXJ",
+  },
+  pro: {
+    monthly: "price_1TH9CkJcQiUWXawe6tmC65d5",
+    yearly: "price_1TH9ClJcQiUWXaweq1tnRM5U",
+  },
+};
+
 export default function SubscribePage() {
   const router = useRouter();
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
-  const [billingMode, setBillingMode] = useState<"monthly" | "yearly">("monthly");
+
+  const [billingMode, setBillingMode] = useState<BillingMode>("monthly");
+  const [userId, setUserId] = useState("");
   const [userName, setUserName] = useState("");
   const [userEmail, setUserEmail] = useState("");
   const [currentTier, setCurrentTier] = useState<TierKey>("free");
   const [loading, setLoading] = useState(true);
+  const [checkoutLoading, setCheckoutLoading] = useState<Exclude<TierKey, "free"> | null>(null);
+  const [errorMessage, setErrorMessage] = useState("");
 
   const plans: Plan[] = [
     {
@@ -93,29 +109,59 @@ export default function SubscribePage() {
 
         if (!mounted) return;
 
-        if (user) {
-          setUserEmail(user.email ?? "");
-          setUserName(
-            (user.user_metadata?.full_name as string) ||
-              (user.user_metadata?.name as string) ||
-              (user.email?.split("@")[0] ?? "")
-          );
+        if (!user) {
+          setLoading(false);
+          return;
+        }
 
-          const { data: profile } = await supabase
-            .from("profiles")
-            .select("subscription_tier")
-            .eq("id", user.id)
-            .maybeSingle();
+        setUserId(user.id);
+        setUserEmail(user.email ?? "");
+        setUserName(
+          (user.user_metadata?.full_name as string) ||
+            (user.user_metadata?.name as string) ||
+            (user.email?.split("@")[0] ?? "")
+        );
 
-          if (!mounted) return;
+        const [{ data: profile }, { data: userSubscription }] = await Promise.all([
+          supabase.from("profiles").select("subscription_tier").eq("id", user.id).maybeSingle(),
+          supabase
+            .from("user_subscriptions")
+            .select("subscription_status, stripe_price_id")
+            .eq("user_id", user.id)
+            .maybeSingle(),
+        ]);
 
-          const tier = (profile?.subscription_tier as TierKey | null) ?? "free";
-          if (tier === "free" || tier === "plus" || tier === "pro") {
-            setCurrentTier(tier);
+        if (!mounted) return;
+
+        const profileTier = (profile?.subscription_tier as TierKey | null) ?? "free";
+
+        if (
+          userSubscription?.subscription_status &&
+          ["active", "trialing", "past_due"].includes(userSubscription.subscription_status)
+        ) {
+          const stripePriceId = userSubscription.stripe_price_id ?? "";
+
+          if (
+            stripePriceId === STRIPE_PRICE_IDS.plus.monthly ||
+            stripePriceId === STRIPE_PRICE_IDS.plus.yearly
+          ) {
+            setCurrentTier("plus");
+          } else if (
+            stripePriceId === STRIPE_PRICE_IDS.pro.monthly ||
+            stripePriceId === STRIPE_PRICE_IDS.pro.yearly
+          ) {
+            setCurrentTier("pro");
+          } else if (profileTier === "free" || profileTier === "plus" || profileTier === "pro") {
+            setCurrentTier(profileTier);
           }
+        } else if (profileTier === "free" || profileTier === "plus" || profileTier === "pro") {
+          setCurrentTier(profileTier);
         }
       } catch (error) {
         console.error("Failed to load subscription page data:", error);
+        if (mounted) {
+          setErrorMessage("Could not load membership details. Please refresh and try again.");
+        }
       } finally {
         if (mounted) setLoading(false);
       }
@@ -128,6 +174,43 @@ export default function SubscribePage() {
     };
   }, [supabase]);
 
+  async function startCheckout(planKey: Exclude<TierKey, "free">) {
+    setErrorMessage("");
+
+    if (!userId) {
+      router.push("/login?next=/subscribe");
+      return;
+    }
+
+    const priceId = STRIPE_PRICE_IDS[planKey][billingMode];
+
+    try {
+      setCheckoutLoading(planKey);
+
+      const { data, error } = await supabase.functions.invoke("create-checkout-session", {
+        body: { priceId },
+      });
+
+      if (error) {
+        console.error("Checkout session error:", error);
+        setErrorMessage(error.message || "Could not start checkout. Please try again.");
+        return;
+      }
+
+      if (!data?.url) {
+        setErrorMessage("Checkout did not return a payment link. Please try again.");
+        return;
+      }
+
+      window.location.href = data.url;
+    } catch (error) {
+      console.error("Unexpected checkout error:", error);
+      setErrorMessage("Could not start checkout. Please try again.");
+    } finally {
+      setCheckoutLoading(null);
+    }
+  }
+
   function handlePlanSelect(planKey: TierKey) {
     if (planKey === currentTier) {
       router.push("/dashboard");
@@ -139,28 +222,11 @@ export default function SubscribePage() {
       return;
     }
 
-    let url = "";
-
-    if (planKey === "plus") {
-      url =
-        billingMode === "monthly"
-          ? "https://buy.stripe.com/28E14obRZ4zB3U70oG48000"
-          : "https://buy.stripe.com/aFa4gA7BJc23aiv9Zg48001";
-    }
-
-    if (planKey === "pro") {
-      url =
-        billingMode === "monthly"
-          ? "https://buy.stripe.com/cNiaEY2hpgij2Q3c7o48002"
-          : "https://buy.stripe.com/dRmcN68FNgij62f9Zg48003";
-    }
-
-    if (url) {
-      window.location.href = url;
-    }
+    void startCheckout(planKey);
   }
 
   function getPlanButtonLabel(plan: Plan) {
+    if (checkoutLoading === plan.key) return "Redirecting...";
     if (plan.key === currentTier) return "Current Plan";
     if (currentTier === "free") return plan.cta;
     if (plan.key === "free") return "Downgrade to Free";
@@ -224,6 +290,8 @@ export default function SubscribePage() {
                 <div style={styles.userValue}>{labelTier(currentTier)}</div>
               </div>
             </div>
+
+            {errorMessage ? <div style={styles.errorBox}>{errorMessage}</div> : null}
           </div>
 
           <div style={styles.heroCard}>
@@ -267,6 +335,7 @@ export default function SubscribePage() {
           {plans.map((plan) => {
             const isCurrent = plan.key === currentTier;
             const price = billingMode === "monthly" ? plan.priceMonthly : plan.priceYearly;
+            const isBusy = checkoutLoading === plan.key;
 
             return (
               <article
@@ -305,9 +374,11 @@ export default function SubscribePage() {
                 <button
                   type="button"
                   onClick={() => handlePlanSelect(plan.key)}
+                  disabled={isBusy}
                   style={{
                     ...styles.planButton,
                     ...(isCurrent ? styles.planButtonCurrent : {}),
+                    ...(isBusy ? styles.planButtonDisabled : {}),
                   }}
                 >
                   {getPlanButtonLabel(plan)}
@@ -394,9 +465,17 @@ export default function SubscribePage() {
             <button
               type="button"
               onClick={() => handlePlanSelect(currentTier === "free" ? "plus" : "pro")}
-              style={styles.primaryCta}
+              disabled={checkoutLoading !== null}
+              style={{
+                ...styles.primaryCta,
+                ...(checkoutLoading !== null ? styles.planButtonDisabled : {}),
+              }}
             >
-              {currentTier === "free" ? "Upgrade Now" : "See Next Tier"}
+              {checkoutLoading !== null
+                ? "Redirecting..."
+                : currentTier === "free"
+                ? "Upgrade Now"
+                : "See Next Tier"}
             </button>
           </div>
         </section>
@@ -572,6 +651,17 @@ const styles: Record<string, React.CSSProperties> = {
     borderRadius: 16,
     padding: "14px 16px",
   },
+  errorBox: {
+    marginTop: 18,
+    padding: "14px 16px",
+    borderRadius: 16,
+    background: "rgba(255, 87, 87, 0.12)",
+    border: "1px solid rgba(255, 120, 120, 0.28)",
+    color: "#ffd7d7",
+    fontSize: 14,
+    fontWeight: 600,
+    lineHeight: 1.5,
+  },
   heroCard: {
     background: "linear-gradient(180deg, rgba(57,95,194,0.22), rgba(255,255,255,0.05))",
     border: "1px solid rgba(255,255,255,0.1)",
@@ -737,6 +827,10 @@ const styles: Record<string, React.CSSProperties> = {
     background: "rgba(255,255,255,0.09)",
     color: "#ffffff",
     border: "1px solid rgba(255,255,255,0.12)",
+  },
+  planButtonDisabled: {
+    opacity: 0.72,
+    cursor: "not-allowed",
   },
   infoGrid: {
     display: "grid",
