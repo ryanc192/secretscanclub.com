@@ -187,8 +187,23 @@ export default function SubscribePage() {
     try {
       setCheckoutLoading(planKey);
 
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      const accessToken = session?.access_token;
+
+      if (!accessToken) {
+        setErrorMessage("You must be logged in before starting checkout.");
+        router.push("/login?next=/subscribe");
+        return;
+      }
+
       const { data, error } = await supabase.functions.invoke("create-checkout-session", {
         body: { priceId },
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
       });
 
       if (error) {
