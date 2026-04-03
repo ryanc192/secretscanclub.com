@@ -14,8 +14,8 @@ type ProfileRow = {
 };
 
 type SubscriptionRow = {
-  status: string | null;
-  price_id: string | null;
+  subscription_status: string | null;
+  stripe_price_id: string | null;
   current_period_end: string | null;
   cancel_at_period_end: boolean | null;
 };
@@ -83,8 +83,8 @@ export default function AccountPage() {
         }
 
         const { data: subData } = await supabase
-          .from("subscriptions")
-          .select("status, price_id, current_period_end, cancel_at_period_end")
+          .from("user_subscriptions")
+          .select("subscription_status, stripe_price_id, current_period_end, cancel_at_period_end")
           .eq("user_id", user.id)
           .maybeSingle<SubscriptionRow>();
 
@@ -201,8 +201,22 @@ export default function AccountPage() {
     setOpeningPortal(true);
 
     try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      const accessToken = session?.access_token;
+
+      if (!accessToken) {
+        setBillingMessage("You must be logged in to manage billing.");
+        return;
+      }
+
       const res = await fetch("/api/billing/portal", {
         method: "POST",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
       });
 
       const data = await res.json();
@@ -337,7 +351,7 @@ export default function AccountPage() {
               <div className="summary-item">
                 <span className="summary-label">Plan</span>
                 <span className="summary-value">
-                  {formatSubscriptionStatus(subscription?.status)}
+                  {formatSubscriptionStatus(subscription?.subscription_status)}
                 </span>
               </div>
 
