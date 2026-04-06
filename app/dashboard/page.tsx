@@ -5,13 +5,15 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createBrowserSupabaseClient } from "../../lib/supabase/client";
 
+type DashboardPlan = "Free" | "Club Member" | "VIP Member";
+
 type DashboardStats = {
   currentStreak: number;
   longestStreak: number;
   totalAttempts: number;
   totalCorrect: number;
   joinedAt: string | null;
-  plan: "Free" | "Premium";
+  plan: DashboardPlan;
 };
 
 type RecentAttempt = {
@@ -22,6 +24,17 @@ type RecentAttempt = {
   daily_puzzles: {
     puzzle_date: string;
   }[];
+};
+
+const STRIPE_PRICE_IDS = {
+  plus: {
+    monthly: "price_1TH9ClJcQiUWXawe6KLbnBu5",
+    yearly: "price_1TH9CkJcQiUWXaweFlF8JEXJ",
+  },
+  pro: {
+    monthly: "price_1TH9CkJcQiUWXawe6tmC65d5",
+    yearly: "price_1TH9ClJcQiUWXaweq1tnRM5U",
+  },
 };
 
 function getErrorMessage(error: unknown) {
@@ -43,6 +56,40 @@ function getErrorMessage(error: unknown) {
   }
 
   return "Unknown error.";
+}
+
+function getPlanFromSubscription(
+  profileTier: string | null | undefined,
+  subscriptionStatus: string | null | undefined,
+  stripePriceId: string | null | undefined
+): DashboardPlan {
+  const normalizedTier = (profileTier ?? "").toLowerCase();
+  const normalizedStatus = (subscriptionStatus ?? "").toLowerCase();
+  const activeStatuses = ["active", "trialing", "past_due"];
+
+  if (activeStatuses.includes(normalizedStatus)) {
+    if (
+      stripePriceId === STRIPE_PRICE_IDS.plus.monthly ||
+      stripePriceId === STRIPE_PRICE_IDS.plus.yearly
+    ) {
+      return "Club Member";
+    }
+
+    if (
+      stripePriceId === STRIPE_PRICE_IDS.pro.monthly ||
+      stripePriceId === STRIPE_PRICE_IDS.pro.yearly
+    ) {
+      return "VIP Member";
+    }
+
+    if (normalizedTier === "plus") return "Club Member";
+    if (normalizedTier === "pro") return "VIP Member";
+  }
+
+  if (normalizedTier === "plus") return "Club Member";
+  if (normalizedTier === "pro") return "VIP Member";
+
+  return "Free";
 }
 
 export default function DashboardPage() {
@@ -84,7 +131,7 @@ export default function DashboardPage() {
         setUserId(user.id);
 
         let joinedAt: string | null = user.created_at ?? null;
-        let plan: "Free" | "Premium" = "Free";
+        let plan: DashboardPlan = "Free";
         let currentStreak = 0;
         let longestStreak = 0;
         let totalAttempts = 0;
@@ -109,11 +156,42 @@ export default function DashboardPage() {
           console.error("Profiles upsert failed:", ensureProfileError);
         }
 
-        const { data: profileData, error: profileError } = await supabase
-          .from("profiles")
-          .select("created_at, membership_tier, current_streak, longest_streak")
-          .eq("id", user.id)
-          .maybeSingle();
+        const [
+          { data: profileData, error: profileError },
+          { data: userSubscription, error: subscriptionError },
+          { data: recentAttemptsData, error: recentAttemptsError },
+          { count: totalAttemptsCount, error: totalAttemptsError },
+          { count: totalCorrectCount, error: totalCorrectError },
+        ] = await Promise.all([
+          supabase
+            .from("profiles")
+            .select("created_at, subscription_tier, current_streak, longest_streak")
+            .eq("id", user.id)
+            .maybeSingle(),
+          supabase
+            .from("user_subscriptions")
+            .select("subscription_status, stripe_price_id")
+            .eq("user_id", user.id)
+            .maybeSingle(),
+          supabase
+            .from("puzzle_sessions")
+            .select("id, latest_answer_text, is_correct, submitted_at, daily_puzzles(puzzle_date)")
+            .eq("user_id", user.id)
+            .not("submitted_at", "is", null)
+            .order("submitted_at", { ascending: false })
+            .limit(8),
+          supabase
+            .from("puzzle_sessions")
+            .select("*", { count: "exact", head: true })
+            .eq("user_id", user.id)
+            .not("submitted_at", "is", null),
+          supabase
+            .from("puzzle_sessions")
+            .select("*", { count: "exact", head: true })
+            .eq("user_id", user.id)
+            .eq("is_correct", true)
+            .not("submitted_at", "is", null),
+        ]);
 
         if (profileError) {
           if (!firstError) {
@@ -122,21 +200,22 @@ export default function DashboardPage() {
           console.error("Profiles read failed:", profileError);
         } else if (profileData) {
           joinedAt = profileData.created_at ?? joinedAt;
-          plan = profileData.membership_tier === "premium" ? "Premium" : "Free";
           currentStreak = profileData.current_streak ?? 0;
           longestStreak = profileData.longest_streak ?? 0;
         }
 
-        const { data: recentAttemptsData, error: recentAttemptsError } =
-          await supabase
-            .from("puzzle_sessions")
-            .select(
-              "id, latest_answer_text, is_correct, submitted_at, daily_puzzles(puzzle_date)"
-            )
-            .eq("user_id", user.id)
-            .not("submitted_at", "is", null)
-            .order("submitted_at", { ascending: false })
-            .limit(8);
+        if (subscriptionError) {
+          if (!firstError) {
+            firstError = `Subscription read failed: ${getErrorMessage(subscriptionError)}`;
+          }
+          console.error("Subscription read failed:", subscriptionError);
+        }
+
+        plan = getPlanFromSubscription(
+          profileData?.subscription_tier,
+          userSubscription?.subscription_status,
+          userSubscription?.stripe_price_id
+        );
 
         if (recentAttemptsError) {
           if (!firstError) {
@@ -147,13 +226,6 @@ export default function DashboardPage() {
           attempts = (recentAttemptsData as RecentAttempt[]) ?? [];
         }
 
-        const { count: totalAttemptsCount, error: totalAttemptsError } =
-          await supabase
-            .from("puzzle_sessions")
-            .select("*", { count: "exact", head: true })
-            .eq("user_id", user.id)
-            .not("submitted_at", "is", null);
-
         if (totalAttemptsError) {
           if (!firstError) {
             firstError = `Attempts count failed: ${getErrorMessage(totalAttemptsError)}`;
@@ -162,14 +234,6 @@ export default function DashboardPage() {
         } else {
           totalAttempts = totalAttemptsCount ?? 0;
         }
-
-        const { count: totalCorrectCount, error: totalCorrectError } =
-          await supabase
-            .from("puzzle_sessions")
-            .select("*", { count: "exact", head: true })
-            .eq("user_id", user.id)
-            .eq("is_correct", true)
-            .not("submitted_at", "is", null);
 
         if (totalCorrectError) {
           if (!firstError) {
@@ -238,9 +302,7 @@ export default function DashboardPage() {
           padding: "24px",
         }}
       >
-        <div style={{ fontSize: "18px", opacity: 0.9 }}>
-          Loading dashboard...
-        </div>
+        <div style={{ fontSize: "18px", opacity: 0.9 }}>Loading dashboard...</div>
       </main>
     );
   }
@@ -388,9 +450,8 @@ export default function DashboardPage() {
                 marginBottom: "24px",
               }}
             >
-              Jump into today’s challenge, submit your answer, and keep stacking
-              daily progress. The more often you return, the more valuable your
-              account becomes.
+              Jump into today’s challenge, submit your answer, and keep stacking daily progress.
+              The more often you return, the more valuable your account becomes.
             </p>
 
             <div
@@ -457,27 +518,19 @@ export default function DashboardPage() {
             </div>
 
             <div style={{ marginBottom: "14px" }}>
-              <div style={{ color: "rgba(255,255,255,0.65)", fontSize: "13px" }}>
-                Plan
-              </div>
-              <div style={{ fontSize: "18px", fontWeight: 700 }}>
-                {stats.plan}
-              </div>
+              <div style={{ color: "rgba(255,255,255,0.65)", fontSize: "13px" }}>Plan</div>
+              <div style={{ fontSize: "18px", fontWeight: 700 }}>{stats.plan}</div>
             </div>
 
             <div style={{ marginBottom: "14px" }}>
               <div style={{ color: "rgba(255,255,255,0.65)", fontSize: "13px" }}>
                 Member Since
               </div>
-              <div style={{ fontSize: "18px", fontWeight: 700 }}>
-                {joinedText}
-              </div>
+              <div style={{ fontSize: "18px", fontWeight: 700 }}>{joinedText}</div>
             </div>
 
             <div style={{ marginBottom: "20px" }}>
-              <div style={{ color: "rgba(255,255,255,0.65)", fontSize: "13px" }}>
-                User ID
-              </div>
+              <div style={{ color: "rgba(255,255,255,0.65)", fontSize: "13px" }}>User ID</div>
               <div
                 style={{
                   fontSize: "13px",
@@ -504,9 +557,7 @@ export default function DashboardPage() {
                 fontSize: "15px",
               }}
             >
-              {stats.plan === "Premium"
-                ? "Manage Membership"
-                : "Upgrade to Premium"}
+              {stats.plan === "Free" ? "Upgrade Membership" : "Manage Membership"}
             </Link>
           </div>
         </section>
@@ -560,8 +611,7 @@ export default function DashboardPage() {
                   lineHeight: 1.6,
                 }}
               >
-                No puzzle attempts yet. Head to today’s puzzle and make your first
-                entry.
+                No puzzle attempts yet. Head to today’s puzzle and make your first entry.
               </div>
             ) : (
               <div style={{ display: "grid", gap: "12px" }}>
