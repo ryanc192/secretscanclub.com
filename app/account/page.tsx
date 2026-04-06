@@ -5,55 +5,89 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createBrowserSupabaseClient } from "../../lib/supabase/client";
 
-type ProfileRow = {
-  id: string;
-  username: string | null;
-  email_reminders: boolean | null;
-  marketing_emails: boolean | null;
-  public_leaderboard: boolean | null;
-};
+type TierKey = "free" | "plus" | "pro";
+type BillingMode = "monthly" | "yearly";
 
 type SubscriptionRow = {
-  subscription_status: string | null;
+  stripe_customer_id: string | null;
+  stripe_subscription_id: string | null;
   stripe_price_id: string | null;
+  subscription_status: string | null;
   current_period_end: string | null;
   cancel_at_period_end: boolean | null;
 };
+
+const STRIPE_PRICE_IDS: Record<Exclude<TierKey, "free">, Record<BillingMode, string>> = {
+  plus: {
+    monthly: "price_1TH9ClJcQiUWXawe6KLbnBu5",
+    yearly: "price_1TH9CkJcQiUWXaweFlF8JEXJ",
+  },
+  pro: {
+    monthly: "price_1TH9CkJcQiUWXawe6tmC65d5",
+    yearly: "price_1TH9ClJcQiUWXaweq1tnRM5U",
+  },
+};
+
+function getTierLabel(tier: TierKey) {
+  switch (tier) {
+    case "plus":
+      return "Club Member";
+    case "pro":
+      return "VIP Member";
+    default:
+      return "Free";
+  }
+}
+
+function getTierFromData(
+  subscriptionTier: string | null | undefined,
+  subscription: SubscriptionRow | null,
+): TierKey {
+  const profileTier = (subscriptionTier ?? "").toLowerCase();
+  const status = (subscription?.subscription_status ?? "").toLowerCase();
+  const priceId = subscription?.stripe_price_id ?? "";
+
+  if (["active", "trialing", "past_due"].includes(status)) {
+    if (
+      priceId === STRIPE_PRICE_IDS.plus.monthly ||
+      priceId === STRIPE_PRICE_IDS.plus.yearly
+    ) {
+      return "plus";
+    }
+
+    if (
+      priceId === STRIPE_PRICE_IDS.pro.monthly ||
+      priceId === STRIPE_PRICE_IDS.pro.yearly
+    ) {
+      return "pro";
+    }
+  }
+
+  if (profileTier === "plus") return "plus";
+  if (profileTier === "pro") return "pro";
+
+  return "free";
+}
 
 export default function AccountPage() {
   const router = useRouter();
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
 
   const [loading, setLoading] = useState(true);
-  const [savingProfile, setSavingProfile] = useState(false);
-  const [savingPassword, setSavingPassword] = useState(false);
-  const [openingPortal, setOpeningPortal] = useState(false);
-  const [signingOut, setSigningOut] = useState(false);
-
-  const [userId, setUserId] = useState<string>("");
-  const [userEmail, setUserEmail] = useState<string>("");
-  const [username, setUsername] = useState("");
-  const [newPassword, setNewPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
-
-  const [emailReminders, setEmailReminders] = useState(true);
-  const [marketingEmails, setMarketingEmails] = useState(false);
-  const [publicLeaderboard, setPublicLeaderboard] = useState(true);
-
+  const [portalLoading, setPortalLoading] = useState(false);
+  const [checkoutLoading, setCheckoutLoading] = useState<Exclude<TierKey, "free"> | null>(null);
+  const [userEmail, setUserEmail] = useState("");
+  const [userId, setUserId] = useState("");
+  const [currentTier, setCurrentTier] = useState<TierKey>("free");
   const [subscription, setSubscription] = useState<SubscriptionRow | null>(null);
-
-  const [profileMessage, setProfileMessage] = useState("");
-  const [passwordMessage, setPasswordMessage] = useState("");
-  const [billingMessage, setBillingMessage] = useState("");
-  const [pageMessage, setPageMessage] = useState("");
+  const [errorMessage, setErrorMessage] = useState("");
 
   useEffect(() => {
+    let mounted = true;
+
     async function loadAccount() {
       setLoading(true);
-      setPageMessage("");
-      setProfileMessage("");
-      setPasswordMessage("");
-      setBillingMessage("");
+      setErrorMessage("");
 
       try {
         const {
@@ -66,141 +100,69 @@ export default function AccountPage() {
           return;
         }
 
-        setUserId(user.id);
+        if (!mounted) return;
+
         setUserEmail(user.email ?? "");
+        setUserId(user.id);
 
-        const { data: profileData } = await supabase
-          .from("profiles")
-          .select("id, username, email_reminders, marketing_emails, public_leaderboard")
-          .eq("id", user.id)
-          .maybeSingle<ProfileRow>();
+        const [{ data: profile, error: profileError }, { data: subscriptionData, error: subscriptionError }] =
+          await Promise.all([
+            supabase
+              .from("profiles")
+              .select("subscription_tier")
+              .eq("id", user.id)
+              .maybeSingle(),
+            supabase
+              .from("user_subscriptions")
+              .select(
+                "stripe_customer_id, stripe_subscription_id, stripe_price_id, subscription_status, current_period_end, cancel_at_period_end",
+              )
+              .eq("user_id", user.id)
+              .maybeSingle(),
+          ]);
 
-        if (profileData) {
-          setUsername(profileData.username ?? "");
-          setEmailReminders(profileData.email_reminders ?? true);
-          setMarketingEmails(profileData.marketing_emails ?? false);
-          setPublicLeaderboard(profileData.public_leaderboard ?? true);
+        if (!mounted) return;
+
+        if (profileError) {
+          console.error("Profile load failed:", profileError);
         }
 
-        const { data: subData } = await supabase
-          .from("user_subscriptions")
-          .select("subscription_status, stripe_price_id, current_period_end, cancel_at_period_end")
-          .eq("user_id", user.id)
-          .maybeSingle<SubscriptionRow>();
-
-        if (subData) {
-          setSubscription(subData);
-        } else {
-          setSubscription(null);
+        if (subscriptionError) {
+          console.error("Subscription load failed:", subscriptionError);
         }
+
+        const resolvedTier = getTierFromData(profile?.subscription_tier, subscriptionData ?? null);
+
+        setSubscription((subscriptionData as SubscriptionRow | null) ?? null);
+        setCurrentTier(resolvedTier);
       } catch (error) {
-        console.error(error);
-        setPageMessage("We couldn't load your account right now.");
+        console.error("Account page load failed:", error);
+        if (mounted) {
+          setErrorMessage("Could not load your billing details. Please refresh and try again.");
+        }
       } finally {
-        setLoading(false);
+        if (mounted) setLoading(false);
       }
     }
 
     loadAccount();
+
+    return () => {
+      mounted = false;
+    };
   }, [router, supabase]);
 
-  async function handleSaveProfile(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    setProfileMessage("");
+  async function startCheckout(planKey: Exclude<TierKey, "free">) {
+    setErrorMessage("");
 
     if (!userId) {
-      setProfileMessage("You must be logged in to update your account.");
+      router.push("/login?next=/account");
       return;
     }
-
-    const cleanedUsername = username.trim();
-
-    if (!cleanedUsername) {
-      setProfileMessage("Please enter a username.");
-      return;
-    }
-
-    if (cleanedUsername.length < 3) {
-      setProfileMessage("Username must be at least 3 characters.");
-      return;
-    }
-
-    setSavingProfile(true);
 
     try {
-      const { error } = await supabase.from("profiles").upsert(
-        {
-          id: userId,
-          username: cleanedUsername,
-          email_reminders: emailReminders,
-          marketing_emails: marketingEmails,
-          public_leaderboard: publicLeaderboard,
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: "id" }
-      );
+      setCheckoutLoading(planKey);
 
-      if (error) {
-        setProfileMessage(error.message);
-        return;
-      }
-
-      setProfileMessage("Account settings updated.");
-    } catch (error) {
-      console.error(error);
-      setProfileMessage("Something went wrong while saving your settings.");
-    } finally {
-      setSavingProfile(false);
-    }
-  }
-
-  async function handleUpdatePassword(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    setPasswordMessage("");
-
-    if (!newPassword || !confirmPassword) {
-      setPasswordMessage("Please enter and confirm your new password.");
-      return;
-    }
-
-    if (newPassword.length < 8) {
-      setPasswordMessage("Password must be at least 8 characters.");
-      return;
-    }
-
-    if (newPassword !== confirmPassword) {
-      setPasswordMessage("Passwords do not match.");
-      return;
-    }
-
-    setSavingPassword(true);
-
-    try {
-      const { error } = await supabase.auth.updateUser({
-        password: newPassword,
-      });
-
-      if (error) {
-        setPasswordMessage(error.message);
-        return;
-      }
-
-      setNewPassword("");
-      setConfirmPassword("");
-      setPasswordMessage("Password updated successfully.");
-    } catch (error) {
-      console.error(error);
-      setPasswordMessage("Something went wrong while updating your password.");
-    } finally {
-      setSavingPassword(false);
-    }
-  }
-
-  async function handleManageSubscription() {
-    setBillingMessage("");
-    setOpeningPortal(true);
-
-    try {
       const {
         data: { session },
       } = await supabase.auth.getSession();
@@ -208,640 +170,673 @@ export default function AccountPage() {
       const accessToken = session?.access_token;
 
       if (!accessToken) {
-        setBillingMessage("You must be logged in to manage billing.");
+        setErrorMessage("You must be logged in before starting checkout.");
+        router.push("/login?next=/account");
         return;
       }
 
-      const res = await fetch("/api/billing/portal", {
-        method: "POST",
+      const priceId = STRIPE_PRICE_IDS[planKey].monthly;
+
+      const { data, error } = await supabase.functions.invoke("create-checkout-session", {
+        body: { priceId },
         headers: {
           Authorization: `Bearer ${accessToken}`,
         },
       });
 
-      const data = await res.json();
-
-      if (!res.ok) {
-        setBillingMessage(data?.error || "Unable to open billing portal.");
+      if (error) {
+        console.error("Checkout session error:", error);
+        setErrorMessage(error.message || "Could not start checkout. Please try again.");
         return;
       }
 
-      if (data?.url) {
-        window.location.href = data.url;
+      if (!data?.url) {
+        setErrorMessage("Checkout did not return a payment link. Please try again.");
         return;
       }
 
-      setBillingMessage("Billing portal link was not returned.");
+      window.location.href = data.url;
     } catch (error) {
-      console.error(error);
-      setBillingMessage("Something went wrong while opening billing.");
+      console.error("Unexpected checkout error:", error);
+      setErrorMessage("Could not start checkout. Please try again.");
     } finally {
-      setOpeningPortal(false);
+      setCheckoutLoading(null);
     }
   }
 
-  async function handleSignOut() {
-    setSigningOut(true);
+  async function openBillingPortal() {
+    setErrorMessage("");
 
     try {
-      await supabase.auth.signOut();
-      router.push("/login");
-      router.refresh();
+      setPortalLoading(true);
+
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      const accessToken = session?.access_token;
+
+      if (!accessToken) {
+        setErrorMessage("You must be logged in before opening billing management.");
+        router.push("/login?next=/account");
+        return;
+      }
+
+      const { data, error } = await supabase.functions.invoke("create-billing-portal-session", {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      });
+
+      if (error) {
+        console.error("Billing portal error:", error);
+        setErrorMessage(error.message || "Could not open billing management.");
+        return;
+      }
+
+      if (!data?.url) {
+        setErrorMessage("Billing portal did not return a link.");
+        return;
+      }
+
+      window.location.href = data.url;
     } catch (error) {
-      console.error(error);
-      setPageMessage("Unable to sign out right now.");
+      console.error("Unexpected billing portal error:", error);
+      setErrorMessage("Could not open billing management.");
     } finally {
-      setSigningOut(false);
+      setPortalLoading(false);
     }
   }
 
-  function formatSubscriptionStatus(status: string | null | undefined) {
-    if (!status) return "Free plan";
-    return status
-      .replaceAll("_", " ")
-      .replace(/\b\w/g, (char) => char.toUpperCase());
-  }
+  const renewalText = subscription?.current_period_end
+    ? new Date(subscription.current_period_end).toLocaleDateString("en-US", {
+        month: "long",
+        day: "numeric",
+        year: "numeric",
+      })
+    : "N/A";
 
-  function formatDate(dateString: string | null | undefined) {
-    if (!dateString) return "—";
-
-    const date = new Date(dateString);
-    if (Number.isNaN(date.getTime())) return "—";
-
-    return date.toLocaleDateString("en-US", {
-      year: "numeric",
-      month: "long",
-      day: "numeric",
-    });
-  }
+  const statusText = subscription?.subscription_status
+    ? subscription.subscription_status.replaceAll("_", " ")
+    : "No active paid subscription";
 
   if (loading) {
     return (
-      <main className="account-page">
-        <div className="account-shell">
-          <div className="topbar">
-            <Link href="/dashboard" className="ghost-btn">
-              Dashboard
-            </Link>
-            <Link href="/scan" className="ghost-btn">
-              Back to Scan
-            </Link>
-          </div>
-
-          <div className="loading-card">Loading your account...</div>
+      <main style={styles.page}>
+        <div style={styles.shell}>
+          <div style={styles.loadingCard}>Loading account management...</div>
         </div>
-
-        <style jsx>{styles}</style>
       </main>
     );
   }
 
   return (
-    <main className="account-page">
-      <div className="account-shell">
-        <div className="topbar">
-          <div className="topbar-left">
-            <span className="eyebrow">Manage Account</span>
-            <h1>Your account settings</h1>
-            <p>
-              Update your profile, security settings, and subscription details.
+    <main style={styles.page}>
+      <div style={styles.backgroundGlowTop} />
+      <div style={styles.backgroundGlowBottom} />
+
+      <div style={styles.shell}>
+        <header style={styles.topBar}>
+          <Link href="/scan" style={styles.logoWrap}>
+            <div style={styles.logoMark}>SSC</div>
+            <div>
+              <div style={styles.logoTitle}>Secret Scan Club</div>
+              <div style={styles.logoSub}>Billing and membership management</div>
+            </div>
+          </Link>
+
+          <div style={styles.topLinks}>
+            <Link href="/scan" style={styles.topLink}>Daily Puzzle</Link>
+            <Link href="/dashboard" style={styles.topLink}>Dashboard</Link>
+            <Link href="/subscribe" style={styles.topLink}>Membership</Link>
+          </div>
+        </header>
+
+        <section style={styles.hero}>
+          <div style={styles.heroText}>
+            <div style={styles.kicker}>Manage your membership</div>
+            <h1 style={styles.heroTitle}>Billing, upgrades, downgrades, and account control in one place.</h1>
+            <p style={styles.heroBody}>
+              Review your current plan, upgrade when you want more access, or open the Stripe billing portal to downgrade, cancel, or update your payment method.
             </p>
-          </div>
 
-          <div className="topbar-actions">
-            <Link href="/dashboard" className="ghost-btn">
-              Dashboard
-            </Link>
-            <Link href="/scan" className="ghost-btn">
-              Back to Scan
-            </Link>
-            <button
-              type="button"
-              className="danger-btn"
-              onClick={handleSignOut}
-              disabled={signingOut}
-            >
-              {signingOut ? "Signing out..." : "Sign out"}
-            </button>
-          </div>
-        </div>
-
-        {pageMessage ? <div className="global-message">{pageMessage}</div> : null}
-
-        <section className="grid">
-          <div className="card">
-            <div className="card-header">
+            <div style={styles.heroUserBox}>
               <div>
-                <div className="card-kicker">Account overview</div>
-                <h2>Profile summary</h2>
+                <div style={styles.userLabel}>Signed in as</div>
+                <div style={styles.userValue}>{userEmail || "Member"}</div>
+              </div>
+              <div>
+                <div style={styles.userLabel}>Current membership</div>
+                <div style={styles.userValue}>{getTierLabel(currentTier)}</div>
               </div>
             </div>
 
-            <div className="summary-list">
-              <div className="summary-item">
-                <span className="summary-label">Email</span>
-                <span className="summary-value">{userEmail || "—"}</span>
-              </div>
-
-              <div className="summary-item">
-                <span className="summary-label">Username</span>
-                <span className="summary-value">{username || "Not set"}</span>
-              </div>
-
-              <div className="summary-item">
-                <span className="summary-label">Plan</span>
-                <span className="summary-value">
-                  {formatSubscriptionStatus(subscription?.subscription_status)}
-                </span>
-              </div>
-
-              <div className="summary-item">
-                <span className="summary-label">Renewal / access through</span>
-                <span className="summary-value">
-                  {formatDate(subscription?.current_period_end)}
-                </span>
-              </div>
-
-              <div className="summary-item">
-                <span className="summary-label">Cancel at period end</span>
-                <span className="summary-value">
-                  {subscription?.cancel_at_period_end ? "Yes" : "No"}
-                </span>
-              </div>
-            </div>
+            {errorMessage ? <div style={styles.errorBox}>{errorMessage}</div> : null}
           </div>
 
-          <div className="card">
-            <div className="card-header">
-              <div>
-                <div className="card-kicker">Billing</div>
-                <h2>Manage subscription</h2>
-              </div>
+          <div style={styles.accountCard}>
+            <div style={styles.accountTitle}>Billing Summary</div>
+
+            <div style={styles.summaryItem}>
+              <div style={styles.summaryLabel}>Plan</div>
+              <div style={styles.summaryValue}>{getTierLabel(currentTier)}</div>
             </div>
 
-            <p className="card-text">
-              Update payment details, cancel, reactivate, or change your plan in
-              the customer billing portal.
-            </p>
+            <div style={styles.summaryItem}>
+              <div style={styles.summaryLabel}>Status</div>
+              <div style={styles.summaryValue}>{statusText}</div>
+            </div>
+
+            <div style={styles.summaryItem}>
+              <div style={styles.summaryLabel}>Renewal / period end</div>
+              <div style={styles.summaryValue}>{renewalText}</div>
+            </div>
+
+            <div style={styles.summaryItem}>
+              <div style={styles.summaryLabel}>Cancel at period end</div>
+              <div style={styles.summaryValue}>
+                {subscription?.cancel_at_period_end ? "Yes" : "No"}
+              </div>
+            </div>
 
             <button
               type="button"
-              className="primary-btn"
-              onClick={handleManageSubscription}
-              disabled={openingPortal}
+              onClick={openBillingPortal}
+              disabled={portalLoading}
+              style={{
+                ...styles.portalButton,
+                ...(portalLoading ? styles.disabledButton : {}),
+              }}
             >
-              {openingPortal ? "Opening..." : "Open billing portal"}
+              {portalLoading ? "Opening billing portal..." : "Manage Billing in Stripe"}
             </button>
-
-            {billingMessage ? (
-              <div className="section-message">{billingMessage}</div>
-            ) : null}
           </div>
         </section>
 
-        <section className="grid">
-          <div className="card">
-            <div className="card-header">
-              <div>
-                <div className="card-kicker">Profile</div>
-                <h2>Username and preferences</h2>
-              </div>
+        <section style={styles.planGrid}>
+          <article
+            style={{
+              ...styles.planCard,
+              ...(currentTier === "free" ? styles.planCardCurrent : {}),
+            }}
+          >
+            <h2 style={styles.planName}>Free</h2>
+            <div style={styles.planPrice}>$0<span style={styles.planTerm}> / month</span></div>
+            <p style={styles.planDescription}>
+              Keep playing the daily puzzle for free.
+            </p>
+            <div style={styles.planFeatures}>
+              <div style={styles.featureItem}><span style={styles.check}>✓</span><span>Daily puzzle access</span></div>
+              <div style={styles.featureItem}><span style={styles.check}>✓</span><span>Basic participation</span></div>
+            </div>
+            <button
+              type="button"
+              disabled
+              style={{
+                ...styles.planButton,
+                ...styles.planButtonCurrent,
+              }}
+            >
+              {currentTier === "free" ? "Current Plan" : "Use Billing Portal to Downgrade"}
+            </button>
+          </article>
+
+          <article
+            style={{
+              ...styles.planCard,
+              ...(currentTier === "plus" ? styles.planCardCurrent : {}),
+            }}
+          >
+            <h2 style={styles.planName}>Club Member</h2>
+            <div style={styles.planPrice}>$4.99<span style={styles.planTerm}> / month</span></div>
+            <p style={styles.planDescription}>
+              Bonus hints, answer access, streak perks, and extra engagement features.
+            </p>
+            <div style={styles.planFeatures}>
+              <div style={styles.featureItem}><span style={styles.check}>✓</span><span>Everything in Free</span></div>
+              <div style={styles.featureItem}><span style={styles.check}>✓</span><span>Bonus hints</span></div>
+              <div style={styles.featureItem}><span style={styles.check}>✓</span><span>Answer access</span></div>
             </div>
 
-            <form onSubmit={handleSaveProfile} className="form">
-              <label className="field">
-                <span>Username</span>
-                <input
-                  type="text"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  placeholder="Choose a username"
-                  maxLength={30}
-                />
-              </label>
-
-              <div className="toggle-list">
-                <label className="toggle-row">
-                  <div>
-                    <div className="toggle-title">Daily reminder emails</div>
-                    <div className="toggle-text">
-                      Receive reminders to come back for the next puzzle.
-                    </div>
-                  </div>
-                  <input
-                    type="checkbox"
-                    checked={emailReminders}
-                    onChange={(e) => setEmailReminders(e.target.checked)}
-                  />
-                </label>
-
-                <label className="toggle-row">
-                  <div>
-                    <div className="toggle-title">Marketing emails</div>
-                    <div className="toggle-text">
-                      Get promotions, launch updates, and bonus offers.
-                    </div>
-                  </div>
-                  <input
-                    type="checkbox"
-                    checked={marketingEmails}
-                    onChange={(e) => setMarketingEmails(e.target.checked)}
-                  />
-                </label>
-
-                <label className="toggle-row">
-                  <div>
-                    <div className="toggle-title">Public leaderboard profile</div>
-                    <div className="toggle-text">
-                      Allow your username to appear publicly on leaderboards and
-                      winner lists.
-                    </div>
-                  </div>
-                  <input
-                    type="checkbox"
-                    checked={publicLeaderboard}
-                    onChange={(e) => setPublicLeaderboard(e.target.checked)}
-                  />
-                </label>
-              </div>
-
+            {currentTier === "plus" ? (
               <button
-                type="submit"
-                className="primary-btn"
-                disabled={savingProfile}
+                type="button"
+                onClick={openBillingPortal}
+                disabled={portalLoading}
+                style={{
+                  ...styles.planButton,
+                  ...(portalLoading ? styles.disabledButton : {}),
+                }}
               >
-                {savingProfile ? "Saving..." : "Save account settings"}
+                {portalLoading ? "Opening..." : "Manage or Downgrade"}
               </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => startCheckout("plus")}
+                disabled={checkoutLoading !== null}
+                style={{
+                  ...styles.planButton,
+                  ...(checkoutLoading !== null ? styles.disabledButton : {}),
+                }}
+              >
+                {checkoutLoading === "plus" ? "Redirecting..." : "Choose Club Member"}
+              </button>
+            )}
+          </article>
 
-              {profileMessage ? (
-                <div className="section-message">{profileMessage}</div>
-              ) : null}
-            </form>
-          </div>
-
-          <div className="card">
-            <div className="card-header">
-              <div>
-                <div className="card-kicker">Security</div>
-                <h2>Update password</h2>
-              </div>
+          <article
+            style={{
+              ...styles.planCard,
+              ...(currentTier === "pro" ? styles.planCardCurrent : {}),
+            }}
+          >
+            <h2 style={styles.planName}>VIP Member</h2>
+            <div style={styles.planPrice}>$9.99<span style={styles.planTerm}> / month</span></div>
+            <p style={styles.planDescription}>
+              Maximum access, more perks, stronger rewards, and the full premium experience.
+            </p>
+            <div style={styles.planFeatures}>
+              <div style={styles.featureItem}><span style={styles.check}>✓</span><span>Everything in Club</span></div>
+              <div style={styles.featureItem}><span style={styles.check}>✓</span><span>VIP rewards</span></div>
+              <div style={styles.featureItem}><span style={styles.check}>✓</span><span>Top-tier access</span></div>
             </div>
 
-            <form onSubmit={handleUpdatePassword} className="form">
-              <label className="field">
-                <span>New password</span>
-                <input
-                  type="password"
-                  value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
-                  placeholder="Enter new password"
-                />
-              </label>
-
-              <label className="field">
-                <span>Confirm new password</span>
-                <input
-                  type="password"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  placeholder="Confirm new password"
-                />
-              </label>
-
+            {currentTier === "pro" ? (
               <button
-                type="submit"
-                className="primary-btn"
-                disabled={savingPassword}
+                type="button"
+                onClick={openBillingPortal}
+                disabled={portalLoading}
+                style={{
+                  ...styles.planButton,
+                  ...(portalLoading ? styles.disabledButton : {}),
+                }}
               >
-                {savingPassword ? "Updating..." : "Update password"}
+                {portalLoading ? "Opening..." : "Manage or Downgrade"}
               </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => startCheckout("pro")}
+                disabled={checkoutLoading !== null}
+                style={{
+                  ...styles.planButton,
+                  ...(checkoutLoading !== null ? styles.disabledButton : {}),
+                }}
+              >
+                {checkoutLoading === "pro" ? "Redirecting..." : currentTier === "plus" ? "Upgrade to VIP" : "Choose VIP"}
+              </button>
+            )}
+          </article>
+        </section>
 
-              {passwordMessage ? (
-                <div className="section-message">{passwordMessage}</div>
-              ) : null}
-            </form>
+        <section style={styles.bottomCta}>
+          <h2 style={styles.bottomCtaTitle}>Need to change your billing?</h2>
+          <p style={styles.bottomCtaText}>
+            Use the Stripe billing portal for cancellations, downgrades, payment method updates, and invoice management.
+          </p>
+          <div style={styles.bottomCtaButtons}>
+            <Link href="/dashboard" style={styles.secondaryCta}>Back to Dashboard</Link>
+            <button
+              type="button"
+              onClick={openBillingPortal}
+              disabled={portalLoading}
+              style={{
+                ...styles.primaryCta,
+                ...(portalLoading ? styles.disabledButton : {}),
+              }}
+            >
+              {portalLoading ? "Opening..." : "Open Billing Portal"}
+            </button>
           </div>
         </section>
       </div>
-
-      <style jsx>{styles}</style>
     </main>
   );
 }
 
-const styles = `
-  .account-page {
-    min-height: 100vh;
+const styles: Record<string, React.CSSProperties> = {
+  page: {
+    minHeight: "100vh",
+    position: "relative",
+    overflow: "hidden",
     background:
-      radial-gradient(circle at top, rgba(110, 76, 255, 0.18), transparent 32%),
-      linear-gradient(180deg, #0b1020 0%, #090d18 100%);
-    color: #f5f7ff;
-    padding: 32px 20px 80px;
-  }
-
-  .account-shell {
-    width: 100%;
-    max-width: 1180px;
-    margin: 0 auto;
-  }
-
-  .topbar {
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 24px;
-    margin-bottom: 28px;
-    flex-wrap: wrap;
-  }
-
-  .topbar-left h1 {
-    margin: 8px 0 8px;
-    font-size: clamp(2rem, 4vw, 3rem);
-    line-height: 1.05;
-    font-weight: 800;
-    letter-spacing: -0.04em;
-  }
-
-  .topbar-left p {
-    margin: 0;
-    max-width: 680px;
-    color: rgba(245, 247, 255, 0.78);
-    font-size: 1rem;
-    line-height: 1.6;
-  }
-
-  .eyebrow {
-    display: inline-flex;
-    align-items: center;
-    padding: 6px 12px;
-    border-radius: 999px;
-    background: rgba(255, 255, 255, 0.08);
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    color: #cfc8ff;
-    font-size: 0.78rem;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-    font-weight: 700;
-  }
-
-  .topbar-actions {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    flex-wrap: wrap;
-  }
-
-  .grid {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 20px;
-    margin-bottom: 20px;
-  }
-
-  .card,
-  .loading-card,
-  .global-message {
-    border-radius: 24px;
-    background: rgba(255, 255, 255, 0.06);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.25);
-    backdrop-filter: blur(14px);
-  }
-
-  .card {
-    padding: 24px;
-  }
-
-  .loading-card,
-  .global-message {
-    padding: 18px 20px;
-  }
-
-  .global-message {
-    margin-bottom: 20px;
-    color: #ffd7d7;
-    background: rgba(255, 95, 95, 0.08);
-    border-color: rgba(255, 95, 95, 0.18);
-  }
-
-  .card-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 16px;
-    margin-bottom: 18px;
-  }
-
-  .card-kicker {
-    color: #cfc8ff;
-    font-size: 0.78rem;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-    font-weight: 700;
-    margin-bottom: 8px;
-  }
-
-  .card h2 {
-    margin: 0;
-    font-size: 1.4rem;
-    line-height: 1.2;
-    font-weight: 800;
-    letter-spacing: -0.03em;
-  }
-
-  .card-text {
-    margin: 0 0 18px;
-    color: rgba(245, 247, 255, 0.78);
-    line-height: 1.6;
-  }
-
-  .summary-list {
-    display: grid;
-    gap: 14px;
-  }
-
-  .summary-item {
-    display: flex;
-    justify-content: space-between;
-    gap: 12px;
-    padding: 14px 16px;
-    border-radius: 16px;
-    background: rgba(255, 255, 255, 0.04);
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    flex-wrap: wrap;
-  }
-
-  .summary-label {
-    color: rgba(245, 247, 255, 0.68);
-  }
-
-  .summary-value {
-    font-weight: 700;
-  }
-
-  .form {
-    display: grid;
-    gap: 16px;
-  }
-
-  .field {
-    display: grid;
-    gap: 8px;
-  }
-
-  .field span {
-    font-size: 0.95rem;
-    font-weight: 700;
-  }
-
-  .field input {
-    width: 100%;
-    min-height: 52px;
-    border-radius: 14px;
-    border: 1px solid rgba(255, 255, 255, 0.14);
-    background: rgba(10, 14, 28, 0.9);
-    color: #f5f7ff;
-    padding: 0 14px;
-    font-size: 1rem;
-    outline: none;
-  }
-
-  .field input::placeholder {
-    color: rgba(245, 247, 255, 0.38);
-  }
-
-  .field input:focus {
-    border-color: rgba(140, 108, 255, 0.8);
-    box-shadow: 0 0 0 3px rgba(140, 108, 255, 0.18);
-  }
-
-  .toggle-list {
-    display: grid;
-    gap: 12px;
-  }
-
-  .toggle-row {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: 16px;
-    padding: 16px;
-    border-radius: 16px;
-    background: rgba(255, 255, 255, 0.04);
-    border: 1px solid rgba(255, 255, 255, 0.08);
-  }
-
-  .toggle-title {
-    font-weight: 700;
-    margin-bottom: 4px;
-  }
-
-  .toggle-text {
-    color: rgba(245, 247, 255, 0.7);
-    line-height: 1.5;
-    font-size: 0.95rem;
-  }
-
-  .toggle-row input[type="checkbox"] {
-    width: 20px;
-    height: 20px;
-    accent-color: #8c6cff;
-    flex: 0 0 auto;
-  }
-
-  .primary-btn,
-  .ghost-btn,
-  .danger-btn {
-    min-height: 48px;
-    border-radius: 14px;
-    padding: 0 16px;
-    font-size: 0.95rem;
-    font-weight: 700;
-    text-decoration: none;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    transition: 180ms ease;
-    cursor: pointer;
-  }
-
-  .primary-btn {
-    border: 0;
-    color: #ffffff;
-    background: linear-gradient(135deg, #8c6cff 0%, #5e7bff 100%);
-    box-shadow: 0 14px 30px rgba(94, 123, 255, 0.28);
-  }
-
-  .primary-btn:hover {
-    transform: translateY(-1px);
-    filter: brightness(1.04);
-  }
-
-  .ghost-btn {
-    color: #f5f7ff;
-    background: rgba(255, 255, 255, 0.06);
-    border: 1px solid rgba(255, 255, 255, 0.12);
-  }
-
-  .ghost-btn:hover {
-    background: rgba(255, 255, 255, 0.1);
-  }
-
-  .danger-btn {
-    color: #ffd9d9;
-    background: rgba(255, 95, 95, 0.08);
-    border: 1px solid rgba(255, 95, 95, 0.2);
-  }
-
-  .danger-btn:hover {
-    background: rgba(255, 95, 95, 0.12);
-  }
-
-  .primary-btn:disabled,
-  .ghost-btn:disabled,
-  .danger-btn:disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
-    transform: none;
-  }
-
-  .section-message {
-    padding: 14px 16px;
-    border-radius: 14px;
-    background: rgba(255, 255, 255, 0.05);
-    color: #dcd7ff;
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    line-height: 1.5;
-  }
-
-  @media (max-width: 900px) {
-    .grid {
-      grid-template-columns: 1fr;
-    }
-  }
-
-  @media (max-width: 640px) {
-    .account-page {
-      padding: 24px 16px 64px;
-    }
-
-    .card {
-      padding: 20px;
-    }
-
-    .topbar-actions {
-      width: 100%;
-    }
-
-    .topbar-actions :global(a),
-    .topbar-actions button {
-      width: 100%;
-    }
-
-    .toggle-row,
-    .summary-item {
-      flex-direction: column;
-      align-items: flex-start;
-    }
-  }
-`;
+      "radial-gradient(circle at top, rgba(84,130,255,0.18), transparent 30%), linear-gradient(180deg, #07111f 0%, #0b1426 45%, #08101d 100%)",
+    color: "#f8fbff",
+  },
+  backgroundGlowTop: {
+    position: "absolute",
+    top: -120,
+    left: -120,
+    width: 320,
+    height: 320,
+    borderRadius: "50%",
+    background: "rgba(73, 120, 255, 0.18)",
+    filter: "blur(60px)",
+    pointerEvents: "none",
+  },
+  backgroundGlowBottom: {
+    position: "absolute",
+    bottom: -160,
+    right: -120,
+    width: 360,
+    height: 360,
+    borderRadius: "50%",
+    background: "rgba(20, 194, 255, 0.14)",
+    filter: "blur(70px)",
+    pointerEvents: "none",
+  },
+  shell: {
+    position: "relative",
+    zIndex: 1,
+    width: "100%",
+    maxWidth: 1220,
+    margin: "0 auto",
+    padding: "24px 20px 72px",
+  },
+  topBar: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: 20,
+    flexWrap: "wrap",
+    marginBottom: 36,
+  },
+  logoWrap: {
+    display: "flex",
+    alignItems: "center",
+    gap: 14,
+    color: "#ffffff",
+    textDecoration: "none",
+  },
+  logoMark: {
+    width: 48,
+    height: 48,
+    borderRadius: 14,
+    display: "grid",
+    placeItems: "center",
+    fontWeight: 800,
+    fontSize: 16,
+    background: "linear-gradient(135deg, #7a8cff 0%, #35d6ff 100%)",
+    color: "#07111f",
+    boxShadow: "0 12px 28px rgba(0,0,0,0.25)",
+  },
+  logoTitle: {
+    fontSize: 18,
+    fontWeight: 800,
+    letterSpacing: 0.2,
+  },
+  logoSub: {
+    fontSize: 13,
+    color: "rgba(255,255,255,0.72)",
+    marginTop: 2,
+  },
+  topLinks: {
+    display: "flex",
+    alignItems: "center",
+    gap: 12,
+    flexWrap: "wrap",
+  },
+  topLink: {
+    color: "#d7e6ff",
+    textDecoration: "none",
+    fontSize: 14,
+    fontWeight: 600,
+    padding: "10px 14px",
+    borderRadius: 999,
+    background: "rgba(255,255,255,0.06)",
+    border: "1px solid rgba(255,255,255,0.08)",
+  },
+  hero: {
+    display: "grid",
+    gridTemplateColumns: "1.2fr 0.8fr",
+    gap: 24,
+    alignItems: "stretch",
+    marginBottom: 28,
+  },
+  heroText: {
+    background: "rgba(255,255,255,0.05)",
+    border: "1px solid rgba(255,255,255,0.09)",
+    borderRadius: 28,
+    padding: 32,
+    boxShadow: "0 22px 60px rgba(0,0,0,0.28)",
+  },
+  kicker: {
+    display: "inline-flex",
+    padding: "8px 12px",
+    borderRadius: 999,
+    background: "rgba(74, 139, 255, 0.16)",
+    border: "1px solid rgba(116, 164, 255, 0.28)",
+    color: "#cfe0ff",
+    fontSize: 12,
+    fontWeight: 700,
+    letterSpacing: 0.4,
+    textTransform: "uppercase",
+    marginBottom: 18,
+  },
+  heroTitle: {
+    fontSize: "clamp(2rem, 4vw, 3.3rem)",
+    lineHeight: 1.05,
+    margin: "0 0 16px",
+    fontWeight: 900,
+    maxWidth: 720,
+  },
+  heroBody: {
+    margin: 0,
+    maxWidth: 760,
+    color: "rgba(255,255,255,0.8)",
+    fontSize: 17,
+    lineHeight: 1.7,
+  },
+  heroUserBox: {
+    display: "grid",
+    gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+    gap: 14,
+    marginTop: 24,
+  },
+  userLabel: {
+    fontSize: 12,
+    textTransform: "uppercase",
+    letterSpacing: 0.6,
+    color: "rgba(255,255,255,0.58)",
+    marginBottom: 6,
+    fontWeight: 700,
+  },
+  userValue: {
+    fontSize: 16,
+    fontWeight: 700,
+    color: "#ffffff",
+    background: "rgba(255,255,255,0.05)",
+    border: "1px solid rgba(255,255,255,0.08)",
+    borderRadius: 16,
+    padding: "14px 16px",
+  },
+  errorBox: {
+    marginTop: 18,
+    padding: "14px 16px",
+    borderRadius: 16,
+    background: "rgba(255, 87, 87, 0.12)",
+    border: "1px solid rgba(255, 120, 120, 0.28)",
+    color: "#ffd7d7",
+    fontSize: 14,
+    fontWeight: 600,
+    lineHeight: 1.5,
+  },
+  accountCard: {
+    background: "linear-gradient(180deg, rgba(57,95,194,0.22), rgba(255,255,255,0.05))",
+    border: "1px solid rgba(255,255,255,0.1)",
+    borderRadius: 28,
+    padding: 28,
+    boxShadow: "0 22px 60px rgba(0,0,0,0.28)",
+  },
+  accountTitle: {
+    fontSize: 22,
+    fontWeight: 800,
+    marginBottom: 20,
+  },
+  summaryItem: {
+    marginBottom: 14,
+  },
+  summaryLabel: {
+    fontSize: 12,
+    color: "rgba(255,255,255,0.6)",
+    textTransform: "uppercase",
+    letterSpacing: 0.6,
+    marginBottom: 6,
+    fontWeight: 700,
+  },
+  summaryValue: {
+    fontSize: 17,
+    fontWeight: 700,
+    color: "#ffffff",
+    lineHeight: 1.5,
+  },
+  portalButton: {
+    marginTop: 16,
+    width: "100%",
+    border: "none",
+    borderRadius: 18,
+    padding: "15px 18px",
+    fontSize: 15,
+    fontWeight: 800,
+    cursor: "pointer",
+    background: "linear-gradient(135deg, #7a8cff 0%, #35d6ff 100%)",
+    color: "#06111d",
+  },
+  planGrid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+    gap: 20,
+    marginBottom: 34,
+  },
+  planCard: {
+    display: "flex",
+    flexDirection: "column",
+    borderRadius: 28,
+    padding: 28,
+    background: "rgba(255,255,255,0.05)",
+    border: "1px solid rgba(255,255,255,0.08)",
+    boxShadow: "0 20px 48px rgba(0,0,0,0.25)",
+    minHeight: 420,
+  },
+  planCardCurrent: {
+    boxShadow: "0 0 0 1px rgba(78, 227, 174, 0.35), 0 20px 48px rgba(0,0,0,0.25)",
+  },
+  planName: {
+    fontSize: 24,
+    fontWeight: 800,
+    margin: "0 0 12px",
+  },
+  planPrice: {
+    fontSize: 40,
+    fontWeight: 900,
+    lineHeight: 1,
+    marginBottom: 14,
+  },
+  planTerm: {
+    fontSize: 14,
+    color: "rgba(255,255,255,0.65)",
+    fontWeight: 700,
+  },
+  planDescription: {
+    margin: "0 0 18px",
+    color: "rgba(255,255,255,0.8)",
+    lineHeight: 1.6,
+    fontSize: 15,
+  },
+  planFeatures: {
+    display: "grid",
+    gap: 12,
+    marginBottom: 24,
+  },
+  featureItem: {
+    display: "flex",
+    alignItems: "flex-start",
+    gap: 10,
+    color: "#eef5ff",
+    fontSize: 15,
+    lineHeight: 1.5,
+  },
+  check: {
+    fontWeight: 900,
+    color: "#78f1cf",
+    flexShrink: 0,
+    marginTop: 1,
+  },
+  planButton: {
+    marginTop: "auto",
+    border: "none",
+    borderRadius: 18,
+    padding: "15px 18px",
+    fontSize: 15,
+    fontWeight: 800,
+    cursor: "pointer",
+    background: "linear-gradient(135deg, #7a8cff 0%, #35d6ff 100%)",
+    color: "#06111d",
+  },
+  planButtonCurrent: {
+    background: "rgba(255,255,255,0.09)",
+    color: "#ffffff",
+    border: "1px solid rgba(255,255,255,0.12)",
+  },
+  disabledButton: {
+    opacity: 0.72,
+    cursor: "not-allowed",
+  },
+  bottomCta: {
+    textAlign: "center",
+    borderRadius: 30,
+    padding: "34px 24px",
+    background:
+      "linear-gradient(180deg, rgba(68,104,215,0.22), rgba(255,255,255,0.06) 55%, rgba(255,255,255,0.05) 100%)",
+    border: "1px solid rgba(255,255,255,0.09)",
+  },
+  bottomCtaTitle: {
+    margin: "0 0 12px",
+    fontSize: 30,
+    fontWeight: 900,
+  },
+  bottomCtaText: {
+    margin: "0 auto 20px",
+    maxWidth: 760,
+    color: "rgba(255,255,255,0.78)",
+    fontSize: 16,
+    lineHeight: 1.7,
+  },
+  bottomCtaButtons: {
+    display: "flex",
+    justifyContent: "center",
+    gap: 12,
+    flexWrap: "wrap",
+  },
+  primaryCta: {
+    border: "none",
+    borderRadius: 18,
+    padding: "14px 20px",
+    background: "linear-gradient(135deg, #7a8cff 0%, #35d6ff 100%)",
+    color: "#06111d",
+    fontWeight: 800,
+    fontSize: 15,
+    cursor: "pointer",
+  },
+  secondaryCta: {
+    borderRadius: 18,
+    padding: "14px 20px",
+    background: "rgba(255,255,255,0.06)",
+    color: "#ffffff",
+    fontWeight: 800,
+    fontSize: 15,
+    textDecoration: "none",
+    border: "1px solid rgba(255,255,255,0.1)",
+  },
+  loadingCard: {
+    marginTop: 80,
+    borderRadius: 24,
+    padding: 32,
+    textAlign: "center",
+    background: "rgba(255,255,255,0.05)",
+    border: "1px solid rgba(255,255,255,0.08)",
+    fontSize: 18,
+    fontWeight: 700,
+  },
+};
