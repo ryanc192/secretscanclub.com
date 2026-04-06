@@ -543,7 +543,7 @@ export default function DashboardPage() {
             </div>
 
             <Link
-              href="/account/billing"
+              href={stats.plan === "Free" ? "/subscribe" : "/account"}
               style={{
                 display: "inline-block",
                 width: "100%",
@@ -697,7 +697,10 @@ export default function DashboardPage() {
               <DashboardLink href="/scan" label="Play Today’s Puzzle" />
               <DashboardLink href="/leaderboard" label="See the Leaderboard" />
               <DashboardLink href="/account" label="Manage Account" />
-              <DashboardLink href="/account/billing" label="Manage Billing" />
+              <DashboardLink
+                href={stats.plan === "Free" ? "/subscribe" : "/account"}
+                label={stats.plan === "Free" ? "Upgrade Membership" : "Manage Membership"}
+              />
             </div>
           </div>
         </section>
