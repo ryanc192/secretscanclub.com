@@ -543,7 +543,7 @@ export default function DashboardPage() {
             </div>
 
             <Link
-              href="/subscribe"
+              href="/account/billing"
               style={{
                 display: "inline-block",
                 width: "100%",
@@ -697,7 +697,7 @@ export default function DashboardPage() {
               <DashboardLink href="/scan" label="Play Today’s Puzzle" />
               <DashboardLink href="/leaderboard" label="See the Leaderboard" />
               <DashboardLink href="/account" label="Manage Account" />
-              <DashboardLink href="/subscribe" label="Upgrade Membership" />
+              <DashboardLink href="/account/billing" label="Manage Billing" />
             </div>
           </div>
         </section>
