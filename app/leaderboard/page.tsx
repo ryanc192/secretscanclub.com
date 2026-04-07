@@ -27,13 +27,6 @@ type LeaderboardRow = {
   last_activity: string | null;
 };
 
-type WinnerRow = {
-  id: string;
-  winner_name: string;
-  prize_name: string;
-  announced_at: string | null;
-};
-
 const AMWAY_PRODUCT_URL =
   process.env.NEXT_PUBLIC_AMWAY_PRODUCT_URL || "https://www.amway.com/";
 
@@ -53,10 +46,7 @@ function formatDate(dateString: string | null) {
 }
 
 function getSafeDisplayName(profile?: ProfileRow | null, userId?: string | null) {
-  const preferred =
-    profile?.display_name?.trim() ||
-    profile?.full_name?.trim() ||
-    "";
+  const preferred = profile?.display_name?.trim() || profile?.full_name?.trim() || "";
 
   if (preferred) return preferred.slice(0, 24);
 
@@ -71,7 +61,6 @@ export default function LeaderboardPage() {
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
 
   const [leaderboard, setLeaderboard] = useState<LeaderboardRow[]>([]);
-  const [previousWinners, setPreviousWinners] = useState<WinnerRow[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -140,8 +129,7 @@ export default function LeaderboardPage() {
         const profile = profileMap.get(userId);
 
         const current =
-          grouped.get(userId) ||
-          {
+          grouped.get(userId) || {
             user_id: userId,
             display_name: getSafeDisplayName(profile, userId),
             points: 0,
@@ -185,20 +173,9 @@ export default function LeaderboardPage() {
           rank: index + 1,
         }));
 
-      const { data: winnersRows, error: winnersError } = await supabase
-        .from("monthly_leaderboard_winners")
-        .select("id, winner_name, prize_name, announced_at")
-        .order("announced_at", { ascending: false })
-        .limit(12);
-
-      if (winnersError) {
-        console.error("Previous winners error:", winnersError);
-      }
-
       if (!active) return;
 
       setLeaderboard(ranked);
-      setPreviousWinners(((winnersRows as WinnerRow[] | null) || []));
       setLoading(false);
     }
 
@@ -215,11 +192,10 @@ export default function LeaderboardPage() {
         <section className="hero-card">
           <div className="hero-copy-wrap">
             <div className="eyebrow">Secret Scan Club</div>
-            <h1>Leaderboard, prizes, perks, and how it all works</h1>
+            <h1>Leaderboard, prizes, winners, and contest details</h1>
             <p className="hero-copy">
-              See where players stand, learn how prizes are awarded, explore
-              subscription perks like bonus hints, and check out featured offers
-              tied to the game.
+              See where players stand right now, then jump into the prize details,
+              winner archive, and full contest rules from the quick links below.
             </p>
 
             <div className="hero-actions">
@@ -295,86 +271,31 @@ export default function LeaderboardPage() {
 
         <section className="content-grid">
           <section className="panel">
-            <div className="panel-label">Prizes</div>
-            <h2>What players can win</h2>
+            <div className="panel-label">Prize Details</div>
+            <h2>See what players can win</h2>
             <p>
-              The leaderboard gives players something visible to compete for,
-              while prize promotions give them another reason to keep coming
-              back. You can award prizes for high performance, random drawings,
-              or both.
+              View the full prize structure, prize multipliers by membership
+              level, monthly rewards, random winner payouts, and scaling prize details.
             </p>
 
-            <div className="card-list">
-              <div className="info-card">
-                <div className="info-card-title">Top leaderboard prizes</div>
-                <div className="info-card-text">
-                  Reward your strongest players with featured prizes based on
-                  rank, points, or streak performance.
-                </div>
-              </div>
-
-              <div className="info-card">
-                <div className="info-card-title">Random winner drawings</div>
-                <div className="info-card-text">
-                  Random winners keep the experience open to more people so it
-                  is not only the top few users who feel like they have a shot.
-                </div>
-              </div>
-
-              <div className="info-card">
-                <div className="info-card-title">Bonus promotional prizes</div>
-                <div className="info-card-text">
-                  You can also feature surprise rewards, member-only bonuses, or
-                  sponsor-backed giveaways.
-                </div>
-              </div>
+            <div className="section-actions">
+              <Link href="/prize" className="primary-btn">
+                View Prize Page
+              </Link>
             </div>
           </section>
 
           <section className="panel">
-            <div className="panel-label">Subscription</div>
-            <h2>What subscribers get</h2>
+            <div className="panel-label">Winners Archive</div>
+            <h2>See current and past winners</h2>
             <p>
-              The subscription should feel like an upgrade, not just a payment
-              wall. Give players more help, more content, and a better
-              experience inside the game.
+              Open the winners page to view this month’s winners and the previous
+              months as they rotate through over time.
             </p>
 
-            <div className="card-list">
-              <div className="info-card">
-                <div className="info-card-title">Bonus hints</div>
-                <div className="info-card-text">
-                  Extra help on tough puzzles when players need a little push.
-                </div>
-              </div>
-
-              <div className="info-card">
-                <div className="info-card-title">Extra clue access</div>
-                <div className="info-card-text">
-                  More support for solving puzzles faster and keeping streaks
-                  alive.
-                </div>
-              </div>
-
-              <div className="info-card">
-                <div className="info-card-title">Members-only content</div>
-                <div className="info-card-text">
-                  Bonus puzzle material, special drops, and premium unlocks.
-                </div>
-              </div>
-
-              <div className="info-card">
-                <div className="info-card-title">Better progress tracking</div>
-                <div className="info-card-text">
-                  A stronger account experience with more visibility into their
-                  activity.
-                </div>
-              </div>
-            </div>
-
             <div className="section-actions">
-              <Link href="/signup" className="primary-btn">
-                Unlock subscription perks
+              <Link href="/winners" className="primary-btn">
+                View Winners Page
               </Link>
             </div>
           </section>
@@ -403,65 +324,19 @@ export default function LeaderboardPage() {
           </section>
 
           <section className="panel">
-            <div className="panel-label">Rules</div>
-            <h2>Contest rules at a glance</h2>
+            <div className="panel-label">Contest Rules</div>
+            <h2>See the full rules and details</h2>
             <p>
-              Players should quickly understand that prizes may be based on
-              leaderboard results, random drawings, or a mix of both depending
-              on the promotion.
+              Publish your full official rules page so players can clearly
+              understand prize eligibility, timing, winner selection, and other
+              contest terms.
             </p>
 
-            <div className="card-list">
-              <div className="info-card">
-                <div className="info-card-title">Performance can matter</div>
-                <div className="info-card-text">
-                  Some promotions may reward top players or top streaks.
-                </div>
-              </div>
-
-              <div className="info-card">
-                <div className="info-card-title">Random winners may be chosen</div>
-                <div className="info-card-text">
-                  Certain prizes may be awarded randomly from eligible entries.
-                </div>
-              </div>
-
-              <div className="info-card">
-                <div className="info-card-title">Official rules still matter</div>
-                <div className="info-card-text">
-                  You should still publish a full official rules page covering
-                  eligibility, prize details, timing, and required legal terms.
-                </div>
-              </div>
+            <div className="section-actions">
+              <Link href="/rules" className="primary-btn">
+                View Rules Page
+              </Link>
             </div>
-          </section>
-
-          <section className="panel full-width">
-            <div className="panel-label">Previous Winners</div>
-            <h2>Past prize winners</h2>
-            <p>
-              Showing previous winners helps build trust and proves the contest
-              is active.
-            </p>
-
-            {previousWinners.length === 0 ? (
-              <div className="empty-state">
-                No winners have been added yet. Once you post winners, they will
-                show up here.
-              </div>
-            ) : (
-              <div className="winner-grid">
-                {previousWinners.map((winner) => (
-                  <div className="winner-card" key={winner.id}>
-                    <div className="winner-name">{winner.winner_name}</div>
-                    <div className="winner-prize">{winner.prize_name}</div>
-                    <div className="winner-date">
-                      {formatDate(winner.announced_at)}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
           </section>
         </section>
       </div>
@@ -646,31 +521,8 @@ export default function LeaderboardPage() {
           gap: 24px;
         }
 
-        .full-width {
-          grid-column: 1 / -1;
-        }
-
-        .card-list {
-          display: grid;
-          gap: 12px;
-          margin-top: 18px;
-        }
-
-        .info-card {
-          background: rgba(255, 255, 255, 0.05);
-          border: 1px solid rgba(255, 255, 255, 0.08);
-          border-radius: 18px;
-          padding: 16px;
-        }
-
-        .info-card-title {
-          font-weight: 700;
-          margin-bottom: 6px;
-        }
-
-        .info-card-text {
-          color: rgba(255, 255, 255, 0.8);
-          line-height: 1.65;
+        .section-actions .primary-btn {
+          width: auto;
         }
 
         .product-card {
@@ -706,37 +558,6 @@ export default function LeaderboardPage() {
           font-weight: 700;
         }
 
-        .winner-grid {
-          display: grid;
-          grid-template-columns: repeat(3, minmax(0, 1fr));
-          gap: 16px;
-          margin-top: 18px;
-        }
-
-        .winner-card {
-          background: rgba(255, 255, 255, 0.05);
-          border: 1px solid rgba(255, 255, 255, 0.08);
-          border-radius: 18px;
-          padding: 18px;
-        }
-
-        .winner-name {
-          font-size: 1.08rem;
-          font-weight: 700;
-          margin-bottom: 6px;
-        }
-
-        .winner-prize {
-          color: rgba(255, 255, 255, 0.82);
-          margin-bottom: 8px;
-        }
-
-        .winner-date {
-          color: #8dc7ff;
-          font-size: 0.92rem;
-          font-weight: 700;
-        }
-
         .empty-state {
           padding: 18px;
           border-radius: 16px;
@@ -747,10 +568,6 @@ export default function LeaderboardPage() {
 
         @media (max-width: 960px) {
           .content-grid {
-            grid-template-columns: 1fr;
-          }
-
-          .winner-grid {
             grid-template-columns: 1fr;
           }
 
