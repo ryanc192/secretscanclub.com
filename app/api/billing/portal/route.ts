@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
-import { stripe } from "@/lib/stripe/server";
+import { createServerSupabaseClient } from "../../../../lib/supabase/server";
+import { stripe } from "../../../../lib/stripe/server";
 
 export async function POST(req: NextRequest) {
   try {
-    const supabase = createClient();
+    const supabase = createServerSupabaseClient();
 
     const {
       data: { user },
@@ -20,7 +20,6 @@ export async function POST(req: NextRequest) {
 
     let stripeCustomerId: string | null = null;
 
-    // 1) First try your profiles table
     const { data: profile } = await supabase
       .from("profiles")
       .select("stripe_customer_id")
@@ -31,7 +30,6 @@ export async function POST(req: NextRequest) {
       stripeCustomerId = profile.stripe_customer_id;
     }
 
-    // 2) Fallback: try Stripe sync table if you are using it
     if (!stripeCustomerId) {
       const { data: customerRow } = await supabase
         .from("stripe_customers")
@@ -68,7 +66,7 @@ export async function POST(req: NextRequest) {
 
     const session = await stripe.billingPortal.sessions.create({
       customer: stripeCustomerId,
-      return_url: `${origin}/account/billing`,
+      return_url: `${origin}/account`,
     });
 
     return NextResponse.json({ url: session.url });
