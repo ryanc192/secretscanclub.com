@@ -696,7 +696,7 @@ export default function DashboardPage() {
             <div style={{ display: "grid", gap: "12px" }}>
               <DashboardLink href="/scan" label="Play Today’s Puzzle" />
               <DashboardLink href="/leaderboard" label="See the Leaderboard" />
-              <DashboardLink href="/account" label="Manage Account" />
+              <DashboardLink href="/manage" label="Manage Account" />
               <DashboardLink
                 href={stats.plan === "Free" ? "/subscribe" : "/account"}
                 label={stats.plan === "Free" ? "Upgrade Membership" : "Manage Membership"}
