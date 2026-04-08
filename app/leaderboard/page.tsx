@@ -250,7 +250,7 @@ export default function LeaderboardPage() {
             <Link href="/winners" className="cta-pill-link">
               Winners
             </Link>
-            <Link href="/prizes" className="cta-pill-link">
+            <Link href="/prize" className="cta-pill-link">
               Prizes
             </Link>
           </div>
