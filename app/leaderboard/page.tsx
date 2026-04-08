@@ -318,9 +318,11 @@ export default function LeaderboardPage() {
           ) : isLoggedIn ? (
             <>
               <div className="user-chip">Hi, {currentUserName}</div>
+
               <Link href="/dashboard" className="topbar-btn primary-topbar-btn">
                 Dashboard
               </Link>
+
               <button
                 type="button"
                 onClick={handleLogout}
@@ -433,7 +435,7 @@ export default function LeaderboardPage() {
           display: flex;
           align-items: center;
           justify-content: flex-end;
-          gap: 10px;
+          gap: 12px;
           flex-wrap: wrap;
         }
 
@@ -442,15 +444,18 @@ export default function LeaderboardPage() {
           align-items: center;
           justify-content: center;
           min-height: 44px;
-          padding: 0 16px;
+          padding: 0 18px;
           border-radius: 999px;
           background: rgba(255, 255, 255, 0.08);
           border: 1px solid rgba(255, 255, 255, 0.16);
           color: #ffffff;
           font-weight: 700;
+          backdrop-filter: blur(10px);
         }
 
+        :global(.topbar-btn),
         .topbar-btn,
+        :global(.cta-pill-btn),
         .cta-pill-btn {
           display: inline-flex;
           align-items: center;
@@ -464,18 +469,25 @@ export default function LeaderboardPage() {
           cursor: pointer;
         }
 
+        :global(.primary-topbar-btn),
         .primary-topbar-btn {
-          background: #ffffff;
-          color: #08111f;
-          border: 1px solid #ffffff;
+          background: rgba(255, 255, 255, 0.08);
+          color: #ffffff;
+          border: 1px solid rgba(255, 255, 255, 0.16);
+          backdrop-filter: blur(10px);
+          box-shadow: 0 8px 22px rgba(0, 0, 0, 0.2);
         }
 
+        :global(.secondary-topbar-btn),
         .secondary-topbar-btn {
           background: transparent;
           color: #ffffff;
-          border: 1px solid rgba(255, 255, 255, 0.2);
+          border: 1px solid rgba(255, 255, 255, 0.18);
+          backdrop-filter: blur(10px);
+          box-shadow: 0 8px 22px rgba(0, 0, 0, 0.2);
         }
 
+        :global(.cta-pill-btn),
         .cta-pill-btn {
           background: linear-gradient(135deg, #7a8cff 0%, #35d6ff 100%);
           color: #06111d;
@@ -483,7 +495,9 @@ export default function LeaderboardPage() {
           box-shadow: 0 8px 22px rgba(0, 0, 0, 0.28);
         }
 
+        :global(.topbar-btn:hover),
         .topbar-btn:hover,
+        :global(.cta-pill-btn:hover),
         .cta-pill-btn:hover {
           transform: translateY(-1px);
         }
@@ -632,7 +646,9 @@ export default function LeaderboardPage() {
           }
 
           .user-chip,
+          :global(.topbar-btn),
           .topbar-btn,
+          :global(.cta-pill-btn),
           .cta-pill-btn {
             width: 100%;
           }
