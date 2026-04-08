@@ -27,16 +27,6 @@ type LeaderboardRow = {
   last_activity: string | null;
 };
 
-type WinnerRow = {
-  id: string;
-  winner_name: string;
-  prize_name: string;
-  announced_at: string | null;
-};
-
-const AMWAY_PRODUCT_URL =
-  process.env.NEXT_PUBLIC_AMWAY_PRODUCT_URL || "https://www.amway.com/";
-
 function formatDate(dateString: string | null) {
   if (!dateString) return "—";
 
@@ -67,12 +57,121 @@ function getSafeDisplayName(profile?: ProfileRow | null, userId?: string | null)
   return "Player";
 }
 
+function getUserLabel(user: any, profile?: ProfileRow | null) {
+  const preferredProfileName =
+    profile?.display_name?.trim() ||
+    profile?.full_name?.trim();
+
+  if (preferredProfileName) return preferredProfileName.slice(0, 24);
+
+  const metadataName =
+    user?.user_metadata?.display_name ||
+    user?.user_metadata?.full_name ||
+    user?.user_metadata?.first_name;
+
+  if (metadataName && String(metadataName).trim()) {
+    return String(metadataName).trim().slice(0, 24);
+  }
+
+  if (user?.email) {
+    return String(user.email).split("@")[0].slice(0, 24);
+  }
+
+  return "Member";
+}
+
 export default function LeaderboardPage() {
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
 
   const [leaderboard, setLeaderboard] = useState<LeaderboardRow[]>([]);
-  const [previousWinners, setPreviousWinners] = useState<WinnerRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [authLoading, setAuthLoading] = useState(true);
+  const [currentUserName, setCurrentUserName] = useState<string>("");
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadCurrentUser() {
+      setAuthLoading(true);
+
+      const {
+        data: { user },
+        error: userError,
+      } = await supabase.auth.getUser();
+
+      if (userError) {
+        console.error("Auth user load error:", userError);
+      }
+
+      if (!active) return;
+
+      if (!user) {
+        setIsLoggedIn(false);
+        setCurrentUserName("");
+        setAuthLoading(false);
+        return;
+      }
+
+      let profile: ProfileRow | null = null;
+
+      const { data: profileRow, error: profileError } = await supabase
+        .from("profiles")
+        .select("id, display_name, full_name")
+        .eq("id", user.id)
+        .maybeSingle();
+
+      if (profileError) {
+        console.error("Current user profile load error:", profileError);
+      } else {
+        profile = (profileRow as ProfileRow | null) || null;
+      }
+
+      if (!active) return;
+
+      setIsLoggedIn(true);
+      setCurrentUserName(getUserLabel(user, profile));
+      setAuthLoading(false);
+    }
+
+    loadCurrentUser();
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      if (!active) return;
+
+      const user = session?.user;
+
+      if (!user) {
+        setIsLoggedIn(false);
+        setCurrentUserName("");
+        setAuthLoading(false);
+        return;
+      }
+
+      let profile: ProfileRow | null = null;
+
+      const { data: profileRow } = await supabase
+        .from("profiles")
+        .select("id, display_name, full_name")
+        .eq("id", user.id)
+        .maybeSingle();
+
+      profile = (profileRow as ProfileRow | null) || null;
+
+      if (!active) return;
+
+      setIsLoggedIn(true);
+      setCurrentUserName(getUserLabel(user, profile));
+      setAuthLoading(false);
+    });
+
+    return () => {
+      active = false;
+      subscription.unsubscribe();
+    };
+  }, [supabase]);
 
   useEffect(() => {
     let active = true;
@@ -140,8 +239,7 @@ export default function LeaderboardPage() {
         const profile = profileMap.get(userId);
 
         const current =
-          grouped.get(userId) ||
-          {
+          grouped.get(userId) || {
             user_id: userId,
             display_name: getSafeDisplayName(profile, userId),
             points: 0,
@@ -185,20 +283,9 @@ export default function LeaderboardPage() {
           rank: index + 1,
         }));
 
-      const { data: winnersRows, error: winnersError } = await supabase
-        .from("monthly_leaderboard_winners")
-        .select("id, winner_name, prize_name, announced_at")
-        .order("announced_at", { ascending: false })
-        .limit(12);
-
-      if (winnersError) {
-        console.error("Previous winners error:", winnersError);
-      }
-
       if (!active) return;
 
       setLeaderboard(ranked);
-      setPreviousWinners(((winnersRows as WinnerRow[] | null) || []));
       setLoading(false);
     }
 
@@ -209,228 +296,64 @@ export default function LeaderboardPage() {
     };
   }, [supabase]);
 
+  async function handleLogout() {
+    const { error } = await supabase.auth.signOut();
+
+    if (error) {
+      console.error("Logout error:", error);
+      return;
+    }
+
+    window.location.href = "/scan";
+  }
+
   return (
     <main className="leaderboard-page">
+      <div className="topbar">
+        <div className="topbar-spacer" />
+
+        <div className="topbar-actions">
+          {authLoading ? (
+            <div className="user-chip">Loading...</div>
+          ) : isLoggedIn ? (
+            <>
+              <div className="user-chip">Hi, {currentUserName}</div>
+              <Link href="/dashboard" className="topbar-btn primary-topbar-btn">
+                Dashboard
+              </Link>
+              <button
+                type="button"
+                onClick={handleLogout}
+                className="topbar-btn secondary-topbar-btn"
+              >
+                Log Out
+              </button>
+            </>
+          ) : null}
+        </div>
+      </div>
+
       <div className="leaderboard-shell">
-        <section className="hero-card">
-          <div className="hero-copy-wrap">
-            <div className="eyebrow">Secret Scan Club</div>
-            <h1>Leaderboard, prizes, perks, and how it all works</h1>
-            <p className="hero-copy">
-              See where players stand, learn how prizes are awarded, explore
-              subscription perks like bonus hints, and check out featured offers
-              tied to the game.
-            </p>
-
-            <div className="hero-actions">
-              <Link href="/scan" className="primary-btn">
-                Play today&apos;s puzzle
-              </Link>
-              <Link href="/signup" className="secondary-btn">
-                Create account
-              </Link>
-            </div>
+        <section className="panel leaderboard-panel">
+          <div className="link-pill-row">
+            <Link href="/rules" className="cta-pill-btn">
+              Rules
+            </Link>
+            <Link href="/winners" className="cta-pill-btn">
+              Winners
+            </Link>
+            <Link href="/prizes" className="cta-pill-btn">
+              Prizes
+            </Link>
           </div>
-        </section>
 
-        <section className="content-grid">
-          <section className="panel">
-            <div className="panel-label">Prizes</div>
-            <h2>What players can win</h2>
-            <p>
-              The leaderboard gives players something visible to compete for,
-              while prize promotions give them another reason to keep coming
-              back. You can award prizes for high performance, random drawings,
-              or both.
-            </p>
-
-            <div className="card-list">
-              <div className="info-card">
-                <div className="info-card-title">Top leaderboard prizes</div>
-                <div className="info-card-text">
-                  Reward your strongest players with featured prizes based on
-                  rank, points, or streak performance.
-                </div>
-              </div>
-
-              <div className="info-card">
-                <div className="info-card-title">Random winner drawings</div>
-                <div className="info-card-text">
-                  Random winners keep the experience open to more people so it
-                  is not only the top few users who feel like they have a shot.
-                </div>
-              </div>
-
-              <div className="info-card">
-                <div className="info-card-title">Bonus promotional prizes</div>
-                <div className="info-card-text">
-                  You can also feature surprise rewards, member-only bonuses, or
-                  sponsor-backed giveaways.
-                </div>
-              </div>
-            </div>
-
-            <div className="section-actions">
-              <Link href="/prize" className="cta-pill-btn">
-                View Prize Page
-              </Link>
-            </div>
-          </section>
-
-          <section className="panel">
-            <div className="panel-label">Subscription</div>
-            <h2>What subscribers get</h2>
-            <p>
-              The subscription should feel like an upgrade, not just a payment
-              wall. Give players more help, more content, and a better
-              experience inside the game.
-            </p>
-
-            <div className="card-list">
-              <div className="info-card">
-                <div className="info-card-title">Bonus hints</div>
-                <div className="info-card-text">
-                  Extra help on tough puzzles when players need a little push.
-                </div>
-              </div>
-
-              <div className="info-card">
-                <div className="info-card-title">Extra clue access</div>
-                <div className="info-card-text">
-                  More support for solving puzzles faster and keeping streaks
-                  alive.
-                </div>
-              </div>
-
-              <div className="info-card">
-                <div className="info-card-title">Members-only content</div>
-                <div className="info-card-text">
-                  Bonus puzzle material, special drops, and premium unlocks.
-                </div>
-              </div>
-
-              <div className="info-card">
-                <div className="info-card-title">Better progress tracking</div>
-                <div className="info-card-text">
-                  A stronger account experience with more visibility into their
-                  activity.
-                </div>
-              </div>
-            </div>
-
-            <div className="section-actions">
-              <Link href="/signup" className="primary-btn">
-                Unlock subscription perks
-              </Link>
-            </div>
-          </section>
-
-          <section className="panel">
-            <div className="panel-label">Featured Offer</div>
-            <h2>Recommended product</h2>
-            <p>
-              This section gives you a clean place to promote your featured
-              product without cluttering the puzzle experience.
-            </p>
-
-            <a
-              href={AMWAY_PRODUCT_URL}
-              target="_blank"
-              rel="noreferrer"
-              className="product-card"
-            >
-              <div className="product-card-title">View featured product</div>
-              <div className="product-card-text">
-                Send traffic directly to your promoted Amway product, product
-                stack, or landing page.
-              </div>
-              <div className="product-card-link">Open product page</div>
-            </a>
-          </section>
-
-          <section className="panel">
-            <div className="panel-label">Rules</div>
-            <h2>Contest rules at a glance</h2>
-            <p>
-              Players should quickly understand that prizes may be based on
-              leaderboard results, random drawings, or a mix of both depending
-              on the promotion.
-            </p>
-
-            <div className="card-list">
-              <div className="info-card">
-                <div className="info-card-title">Performance can matter</div>
-                <div className="info-card-text">
-                  Some promotions may reward top players or top streaks.
-                </div>
-              </div>
-
-              <div className="info-card">
-                <div className="info-card-title">Random winners may be chosen</div>
-                <div className="info-card-text">
-                  Certain prizes may be awarded randomly from eligible entries.
-                </div>
-              </div>
-
-              <div className="info-card">
-                <div className="info-card-title">Official rules still matter</div>
-                <div className="info-card-text">
-                  You should still publish a full official rules page covering
-                  eligibility, prize details, timing, and required legal terms.
-                </div>
-              </div>
-            </div>
-
-            <div className="section-actions">
-              <Link href="/rules" className="cta-pill-btn">
-                View Rules Page
-              </Link>
-            </div>
-          </section>
-
-          <section className="panel full-width">
-            <div className="panel-label">Previous Winners</div>
-            <h2>Past prize winners</h2>
-            <p>
-              Showing previous winners helps build trust and proves the contest
-              is active.
-            </p>
-
-            {previousWinners.length === 0 ? (
-              <div className="empty-state">
-                No winners have been added yet. Once you post winners, they will
-                show up here.
-              </div>
-            ) : (
-              <div className="winner-grid">
-                {previousWinners.map((winner) => (
-                  <div className="winner-card" key={winner.id}>
-                    <div className="winner-name">{winner.winner_name}</div>
-                    <div className="winner-prize">{winner.prize_name}</div>
-                    <div className="winner-date">
-                      {formatDate(winner.announced_at)}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            <div className="section-actions">
-              <Link href="/winners" className="cta-pill-btn">
-                View Winners Page
-              </Link>
-            </div>
-          </section>
-        </section>
-
-        <section className="panel leaderboard-panel top-panel leaderboard-bottom">
           <div className="panel-head">
             <div>
               <div className="panel-label">Top Players</div>
-              <h2>All-Time Leaderboard</h2>
+              <h1>All-Time Leaderboard</h1>
               <p className="panel-subcopy">
                 This board shows overall player performance across all recorded
-                puzzles. It is not tied to a specific month.
+                puzzles.
               </p>
             </div>
             <div className="leaderboard-badge">Live rankings</div>
@@ -494,89 +417,60 @@ export default function LeaderboardPage() {
           padding: 24px 16px 56px;
         }
 
-        .leaderboard-shell {
+        .topbar {
           max-width: 1200px;
-          margin: 0 auto;
-        }
-
-        .hero-card,
-        .panel {
-          background: rgba(255, 255, 255, 0.06);
-          border: 1px solid rgba(255, 255, 255, 0.12);
-          border-radius: 24px;
-          backdrop-filter: blur(8px);
-          box-shadow: 0 20px 50px rgba(0, 0, 0, 0.22);
-        }
-
-        .hero-card {
-          padding: 28px;
-          margin-bottom: 24px;
-        }
-
-        .hero-copy-wrap {
-          max-width: 760px;
-        }
-
-        .eyebrow,
-        .panel-label {
-          display: inline-block;
-          margin-bottom: 10px;
-          font-size: 12px;
-          text-transform: uppercase;
-          letter-spacing: 0.14em;
-          font-weight: 700;
-          color: #8dc7ff;
-        }
-
-        h1 {
-          margin: 0 0 12px;
-          font-size: clamp(2rem, 4vw, 3.25rem);
-          line-height: 1.05;
-        }
-
-        h2 {
-          margin: 0 0 10px;
-          font-size: clamp(1.4rem, 2.4vw, 2rem);
-          line-height: 1.15;
-        }
-
-        .hero-copy,
-        .panel p,
-        .panel-subcopy {
-          margin: 0;
-          color: rgba(255, 255, 255, 0.84);
-          line-height: 1.7;
-        }
-
-        .hero-actions,
-        .section-actions {
+          margin: 0 auto 20px;
           display: flex;
-          flex-wrap: wrap;
-          gap: 12px;
-          margin-top: 22px;
+          justify-content: space-between;
+          align-items: center;
         }
 
-        .primary-btn,
-        .secondary-btn,
+        .topbar-spacer {
+          flex: 1;
+        }
+
+        .topbar-actions {
+          display: flex;
+          align-items: center;
+          justify-content: flex-end;
+          gap: 10px;
+          flex-wrap: wrap;
+        }
+
+        .user-chip {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          min-height: 44px;
+          padding: 0 16px;
+          border-radius: 999px;
+          background: rgba(255, 255, 255, 0.08);
+          border: 1px solid rgba(255, 255, 255, 0.16);
+          color: #ffffff;
+          font-weight: 700;
+        }
+
+        .topbar-btn,
         .cta-pill-btn {
           display: inline-flex;
           align-items: center;
           justify-content: center;
-          min-height: 48px;
+          min-height: 44px;
           padding: 0 18px;
           border-radius: 999px;
           text-decoration: none;
           font-weight: 700;
           transition: 0.2s ease;
+          cursor: pointer;
         }
 
-        .primary-btn {
+        .primary-topbar-btn {
           background: #ffffff;
           color: #08111f;
           border: 1px solid #ffffff;
         }
 
-        .secondary-btn {
+        .secondary-topbar-btn {
           background: transparent;
           color: #ffffff;
           border: 1px solid rgba(255, 255, 255, 0.2);
@@ -589,24 +483,34 @@ export default function LeaderboardPage() {
           box-shadow: 0 8px 22px rgba(0, 0, 0, 0.28);
         }
 
-        .primary-btn:hover,
-        .secondary-btn:hover,
-        .cta-pill-btn:hover,
-        .product-card:hover {
+        .topbar-btn:hover,
+        .cta-pill-btn:hover {
           transform: translateY(-1px);
         }
 
-        .top-panel {
-          margin-bottom: 24px;
-        }
-
-        .leaderboard-bottom {
-          margin-top: 24px;
-          margin-bottom: 0;
+        .leaderboard-shell {
+          max-width: 1200px;
+          margin: 0 auto;
         }
 
         .panel {
+          background: rgba(255, 255, 255, 0.06);
+          border: 1px solid rgba(255, 255, 255, 0.12);
+          border-radius: 24px;
+          backdrop-filter: blur(8px);
+          box-shadow: 0 20px 50px rgba(0, 0, 0, 0.22);
           padding: 28px;
+        }
+
+        .leaderboard-panel {
+          margin-top: 8px;
+        }
+
+        .link-pill-row {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 12px;
+          margin-bottom: 22px;
         }
 
         .panel-head {
@@ -615,6 +519,28 @@ export default function LeaderboardPage() {
           gap: 16px;
           align-items: flex-start;
           margin-bottom: 18px;
+        }
+
+        .panel-label {
+          display: inline-block;
+          margin-bottom: 10px;
+          font-size: 12px;
+          text-transform: uppercase;
+          letter-spacing: 0.14em;
+          font-weight: 700;
+          color: #8dc7ff;
+        }
+
+        h1 {
+          margin: 0 0 10px;
+          font-size: clamp(1.9rem, 4vw, 3rem);
+          line-height: 1.08;
+        }
+
+        .panel-subcopy {
+          margin: 0;
+          color: rgba(255, 255, 255, 0.84);
+          line-height: 1.7;
         }
 
         .leaderboard-badge {
@@ -672,103 +598,6 @@ export default function LeaderboardPage() {
           color: #08111f;
         }
 
-        .content-grid {
-          display: grid;
-          grid-template-columns: repeat(2, minmax(0, 1fr));
-          gap: 24px;
-        }
-
-        .full-width {
-          grid-column: 1 / -1;
-        }
-
-        .card-list {
-          display: grid;
-          gap: 12px;
-          margin-top: 18px;
-        }
-
-        .info-card {
-          background: rgba(255, 255, 255, 0.05);
-          border: 1px solid rgba(255, 255, 255, 0.08);
-          border-radius: 18px;
-          padding: 16px;
-        }
-
-        .info-card-title {
-          font-weight: 700;
-          margin-bottom: 6px;
-        }
-
-        .info-card-text {
-          color: rgba(255, 255, 255, 0.8);
-          line-height: 1.65;
-        }
-
-        .product-card {
-          display: block;
-          margin-top: 18px;
-          padding: 18px;
-          border-radius: 20px;
-          text-decoration: none;
-          color: inherit;
-          background: linear-gradient(
-            135deg,
-            rgba(255, 255, 255, 0.08),
-            rgba(141, 199, 255, 0.16)
-          );
-          border: 1px solid rgba(255, 255, 255, 0.12);
-          transition: 0.2s ease;
-        }
-
-        .product-card-title {
-          font-size: 1.1rem;
-          font-weight: 700;
-          margin-bottom: 8px;
-        }
-
-        .product-card-text {
-          color: rgba(255, 255, 255, 0.82);
-          line-height: 1.65;
-          margin-bottom: 10px;
-        }
-
-        .product-card-link {
-          color: #8dc7ff;
-          font-weight: 700;
-        }
-
-        .winner-grid {
-          display: grid;
-          grid-template-columns: repeat(3, minmax(0, 1fr));
-          gap: 16px;
-          margin-top: 18px;
-        }
-
-        .winner-card {
-          background: rgba(255, 255, 255, 0.05);
-          border: 1px solid rgba(255, 255, 255, 0.08);
-          border-radius: 18px;
-          padding: 18px;
-        }
-
-        .winner-name {
-          font-size: 1.08rem;
-          font-weight: 700;
-          margin-bottom: 6px;
-        }
-
-        .winner-prize {
-          color: rgba(255, 255, 255, 0.82);
-          margin-bottom: 8px;
-        }
-
-        .winner-date {
-          color: #8dc7ff;
-          font-size: 0.92rem;
-          font-weight: 700;
-        }
-
         .empty-state {
           padding: 18px;
           border-radius: 16px;
@@ -778,14 +607,6 @@ export default function LeaderboardPage() {
         }
 
         @media (max-width: 960px) {
-          .content-grid {
-            grid-template-columns: 1fr;
-          }
-
-          .winner-grid {
-            grid-template-columns: 1fr;
-          }
-
           .panel-head {
             flex-direction: column;
             align-items: flex-start;
@@ -797,16 +618,27 @@ export default function LeaderboardPage() {
             padding: 18px 12px 42px;
           }
 
-          .hero-card,
+          .topbar {
+            margin-bottom: 16px;
+          }
+
+          .topbar-actions {
+            width: 100%;
+          }
+
           .panel {
             padding: 22px;
             border-radius: 20px;
           }
 
-          .primary-btn,
-          .secondary-btn,
+          .user-chip,
+          .topbar-btn,
           .cta-pill-btn {
             width: 100%;
+          }
+
+          .link-pill-row {
+            margin-bottom: 18px;
           }
         }
       `}</style>
