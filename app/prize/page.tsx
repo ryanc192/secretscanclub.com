@@ -44,15 +44,15 @@ export default function PrizePage() {
       monthly: "1st $100 • 2nd $50 • 3rd $20 • Random winners $10 each",
     },
     {
-      members: "+10,000 new monthly members",
+      members: "+3,000 new monthly members",
       monthly: "All listed prizes double",
     },
     {
-      members: "+20,000 new monthly members",
+      members: "+6,000 new monthly members",
       monthly: "All listed prizes double again",
     },
     {
-      members: "+30,000 new monthly members",
+      members: "+8,000 new monthly members",
       monthly: "All listed prizes double again",
     },
   ];
