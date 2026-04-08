@@ -258,10 +258,9 @@ export default function LeaderboardPage() {
           <div className="panel-head">
             <div>
               <div className="panel-label">Top Players</div>
-              <h1>All-Time Leaderboard</h1>
+              <h1>Monthly Leaderboard</h1>
               <p className="panel-subcopy">
-                This board shows overall player performance across all recorded
-                puzzles.
+                This board shows overall player performance across the current month.
               </p>
             </div>
             <div className="leaderboard-badge">Live rankings</div>
