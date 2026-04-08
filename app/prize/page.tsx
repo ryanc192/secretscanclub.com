@@ -214,7 +214,7 @@ export default function PrizePage() {
           <h2 style={styles.faqHeading}>Prize Growth Model</h2>
           <p style={styles.bottomCtaText}>
             As the member base grows, the prize pool grows with it. Each listed prize doubles
-            for every 10,000 new monthly members, creating a system that becomes more exciting
+            for every 3,000 new monthly members, creating a system that becomes more exciting
             as monthly traffic and engagement increase.
           </p>
 
