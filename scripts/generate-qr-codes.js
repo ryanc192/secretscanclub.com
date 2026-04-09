@@ -24,8 +24,8 @@ const CONFIG = {
   placementType: "MEN",     // examples: MEN, WOM, PUMP, DOOR, LOBBY
 
   startNumber: 1,
-  count: 250,
-  padLength: 6,
+  count: 3000,
+  padLength: 8,
 
   outputDir: "exports",
   outputFileName: "qr_codes_batch_1.csv",
