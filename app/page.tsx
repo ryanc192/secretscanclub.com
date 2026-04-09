@@ -3,8 +3,11 @@ import path from "path";
 import Link from "next/link";
 import Image from "next/image";
 import EmailSignupForm from "./components/EmailSignupForm";
-import AnswerCheckForm from "./components/AnswerCheckForm";
 import AuthStatus from "./components/AuthStatus";
+import ScanRedirect from "./ScanRedirect";
+import AnswerCheckForm from "./components/AnswerCheckForm";
+
+export const dynamic = "force-dynamic";
 
 type Drop = {
   date: string;
@@ -57,13 +60,15 @@ function loadDrop(dateStr?: string): Drop | null {
 }
 
 export default function ScanPage() {
-  const drop = loadDrop();
   const today = todayET();
+  const drop = loadDrop(today);
   const activeDate = drop?.date ?? today;
   const dateLabel = formatDateLabel(activeDate);
 
   return (
     <main className="scan-page">
+      <ScanRedirect />
+
       <div
         style={{
           position: "fixed",
@@ -95,14 +100,12 @@ export default function ScanPage() {
           <div className="pill">Today’s Brain Challenge</div>
 
           <h1 className="hero-title">
-            Scan today’s puzzle, test your brain, and come back tomorrow to keep
-            your streak alive.
+            Think You’re Smarter Than Today’s Puzzle?
           </h1>
 
           <p className="hero-text">
-            Every day brings a new challenge. Play for free, check your answer,
-            and create an account to track your progress and build your streak
-            over time.
+          Scan to play, test your brain, and check your answer.
+          <p></p>New challenge drops daily — don’t miss your streak.
           </p>
 
           <div className="meta-row">
@@ -115,7 +118,7 @@ export default function ScanPage() {
             </div>
 
             <div className="meta-box">
-              <strong>Status:</strong> Free daily puzzle
+              <strong>Status:</strong> {drop ? "Free daily puzzle" : "Not live yet"}
             </div>
           </div>
         </section>
@@ -128,7 +131,9 @@ export default function ScanPage() {
           </h2>
 
           <p className="section-text-light">
-            Solve today’s puzzle for free and check your answer below.
+            {drop
+              ? "Solve today’s puzzle for free and check your answer below."
+              : "Today’s puzzle file has not been added yet. Come back soon."}
           </p>
 
           <div className="puzzle-box">
@@ -165,12 +170,29 @@ export default function ScanPage() {
             start tracking your streak.
           </p>
 
-          <AnswerCheckForm
-            dropDate={activeDate}
-            correctAnswer={drop?.free?.answer ?? ""}
-            acceptedAnswers={drop?.free?.acceptedAnswers ?? []}
-            explanation={drop?.free?.explanation ?? ""}
+          {drop ? (
+            <AnswerCheckForm
+              dropDate={drop.date}
+              correctAnswer={drop.free.answer}
+              acceptedAnswers={drop.free.acceptedAnswers ?? []}
+              explanation={drop.free.explanation ?? ""}
           />
+          ) : (
+            <div
+              style={{
+                marginTop: 18,
+                padding: "12px 14px",
+                borderRadius: 14,
+                border: "1px solid rgba(255,255,255,0.12)",
+                background: "rgba(255,255,255,0.06)",
+                color: "#ffd6d6",
+                fontSize: 14,
+                lineHeight: 1.5,
+              }}
+            >
+              Today’s puzzle is not available yet, so answer submission is disabled.
+            </div>
+          )}
         </section>
 
         <section className="card-light" style={{ marginTop: 20 }}>
@@ -210,7 +232,12 @@ export default function ScanPage() {
                     and keep your streak alive.
                   </div>
                 </div>
-
+                 <div className="capture-point">
+                  <div className="capture-point-title">It's all FREE</div>
+                  <div className="capture-point-text">
+                    Every Puzzle. Every Day. Always FREE. 
+                  </div>
+                </div>
                 <div className="capture-point">
                   <div className="capture-point-title">Build your streak</div>
                   <div className="capture-point-text">
@@ -296,10 +323,11 @@ export default function ScanPage() {
 
             <div className="benefit-list">
               {[
-                "Fits naturally with the daily puzzle habit",
-                "Easy soft CTA at the bottom of the page",
-                "Can also be used inside daily emails",
-                "Built for repeated exposure over time",
+              "Helps you stay sharp and think faster",
+              "Designed for people who actually use their brain daily",
+              "Simple, no-friction way to level up your routine",
+              "Low effort, high impact addition",
+              "Built for daily use, not occasional effort",
               ].map((item) => (
                 <div key={item} className="benefit-item">
                   <span style={{ fontSize: 18 }}>✓</span>
@@ -328,7 +356,7 @@ export default function ScanPage() {
                 ["1", "Scan the code", "Land on today’s puzzle instantly."],
                 ["2", "Play for free", "Read the puzzle and submit your answer."],
                 ["3", "Save your streak", "Create a free account to track progress."],
-                ["4", "Come back tomorrow", "Emails bring people back to the next challenge."],
+                ["4", "Come back tomorrow", "See if your brain can handle the challlenges of tomorrow."],
               ].map(([num, title, text]) => (
                 <div key={num} className="step">
                   <div className="step-num">{num}</div>
