@@ -1,580 +1,818 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { createBrowserSupabaseClient } from "../../lib/supabase/client";
-import AuthStatus from "../components/AuthStatus";
 
-type AttemptRow = {
-  user_id: string | null;
-  is_correct: boolean | null;
+type DashboardPlan = "Free" | "Club Member" | "VIP Member";
+
+type DashboardStats = {
+  currentStreak: number;
+  longestStreak: number;
+  totalAttempts: number;
+  totalCorrect: number;
+  joinedAt: string | null;
+  plan: DashboardPlan;
+};
+
+type RecentAttempt = {
+  id: string;
+  latest_answer_text: string | null;
+  is_correct: boolean;
   submitted_at: string | null;
+  daily_puzzles: {
+    puzzle_date: string;
+  }[];
 };
 
-type LeaderboardRow = {
-  rank: number;
-  user_id: string;
-  display_name: string;
-  points: number;
-  correct_answers: number;
-  total_attempts: number;
-  current_streak: number;
-  last_activity: string | null;
+const STRIPE_PRICE_IDS = {
+  plus: {
+    monthly: "price_1TH9ClJcQiUWXawe6KLbnBu5",
+    yearly: "price_1TH9CkJcQiUWXaweFlF8JEXJ",
+  },
+  pro: {
+    monthly: "price_1TH9CkJcQiUWXawe6tmC65d5",
+    yearly: "price_1TH9ClJcQiUWXaweq1tnRM5U",
+  },
 };
 
-function formatDate(dateString: string | null) {
-  if (!dateString) return "—";
-
-  try {
-    return new Intl.DateTimeFormat("en-US", {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-      timeZone: "America/New_York",
-    }).format(new Date(dateString));
-  } catch {
-    return "—";
-  }
-}
-
-function getSafeDisplayName(userId?: string | null) {
-  if (userId) return `Player ${userId.slice(0, 6)}`;
-  return "Player";
-}
-
-export default function LeaderboardPage() {
-  const supabase = useMemo(() => createBrowserSupabaseClient(), []);
-  const [leaderboard, setLeaderboard] = useState<LeaderboardRow[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    let active = true;
-
-    async function loadLeaderboardPage() {
-      setLoading(true);
-
-      const { data: attemptRows, error } = await supabase
-        .from("puzzle_attempts")
-        .select("user_id, is_correct, submitted_at")
-        .not("user_id", "is", null)
-        .order("submitted_at", { ascending: true });
-
-      if (error) {
-        console.error("Leaderboard attempts error:", error);
-      }
-
-      const attempts = ((attemptRows as AttemptRow[] | null) || []).filter(
-        (row) => row.user_id
-      );
-
-      const grouped = new Map<
-        string,
-        {
-          user_id: string;
-          display_name: string;
-          points: number;
-          correct_answers: number;
-          total_attempts: number;
-          current_streak: number;
-          last_activity: string | null;
-        }
-      >();
-
-      for (const attempt of attempts) {
-        const userId = attempt.user_id as string;
-
-        const current = grouped.get(userId) || {
-          user_id: userId,
-          display_name: getSafeDisplayName(userId),
-          points: 0,
-          correct_answers: 0,
-          total_attempts: 0,
-          current_streak: 0,
-          last_activity: null,
-        };
-
-        current.total_attempts += 1;
-        current.last_activity = attempt.submitted_at || current.last_activity;
-
-        if (attempt.is_correct) {
-          current.correct_answers += 1;
-          current.points += 10;
-          current.current_streak += 1;
-        } else {
-          current.current_streak = 0;
-        }
-
-        grouped.set(userId, current);
-      }
-
-      const ranked: LeaderboardRow[] = Array.from(grouped.values())
-        .sort((a, b) => {
-          if (b.points !== a.points) return b.points - a.points;
-          if (b.correct_answers !== a.correct_answers) {
-            return b.correct_answers - a.correct_answers;
-          }
-          if (b.current_streak !== a.current_streak) {
-            return b.current_streak - a.current_streak;
-          }
-
-          const aTime = a.last_activity ? new Date(a.last_activity).getTime() : 0;
-          const bTime = b.last_activity ? new Date(b.last_activity).getTime() : 0;
-
-          return bTime - aTime;
-        })
-        .map((row, index) => ({
-          ...row,
-          rank: index + 1,
-        }));
-
-      if (!active) return;
-
-      setLeaderboard(ranked);
-      setLoading(false);
+function getErrorMessage(error: unknown) {
+  if (error && typeof error === "object") {
+    const maybeMessage = (error as { message?: unknown }).message;
+    if (typeof maybeMessage === "string" && maybeMessage.trim()) {
+      return maybeMessage;
     }
 
-    loadLeaderboardPage();
+    const maybeDetails = (error as { details?: unknown }).details;
+    if (typeof maybeDetails === "string" && maybeDetails.trim()) {
+      return maybeDetails;
+    }
 
-    return () => {
-      active = false;
-    };
-  }, [supabase]);
+    const maybeHint = (error as { hint?: unknown }).hint;
+    if (typeof maybeHint === "string" && maybeHint.trim()) {
+      return maybeHint;
+    }
+  }
 
-  return (
-    <main className="leaderboard-page">
-      <div
+  return "Unknown error.";
+}
+
+function getPlanFromSubscription(
+  profileTier: string | null | undefined,
+  subscriptionStatus: string | null | undefined,
+  stripePriceId: string | null | undefined
+): DashboardPlan {
+  const normalizedTier = (profileTier ?? "").toLowerCase();
+  const normalizedStatus = (subscriptionStatus ?? "").toLowerCase();
+  const activeStatuses = ["active", "trialing", "past_due"];
+
+  if (activeStatuses.includes(normalizedStatus)) {
+    if (
+      stripePriceId === STRIPE_PRICE_IDS.plus.monthly ||
+      stripePriceId === STRIPE_PRICE_IDS.plus.yearly
+    ) {
+      return "Club Member";
+    }
+
+    if (
+      stripePriceId === STRIPE_PRICE_IDS.pro.monthly ||
+      stripePriceId === STRIPE_PRICE_IDS.pro.yearly
+    ) {
+      return "VIP Member";
+    }
+
+    if (normalizedTier === "plus") return "Club Member";
+    if (normalizedTier === "pro") return "VIP Member";
+  }
+
+  if (normalizedTier === "plus") return "Club Member";
+  if (normalizedTier === "pro") return "VIP Member";
+
+  return "Free";
+}
+
+export default function DashboardPage() {
+  const router = useRouter();
+  const supabase = useMemo(() => createBrowserSupabaseClient(), []);
+
+  const [loading, setLoading] = useState(true);
+  const [signingOut, setSigningOut] = useState(false);
+  const [userEmail, setUserEmail] = useState("");
+  const [userId, setUserId] = useState("");
+  const [stats, setStats] = useState<DashboardStats>({
+    currentStreak: 0,
+    longestStreak: 0,
+    totalAttempts: 0,
+    totalCorrect: 0,
+    joinedAt: null,
+    plan: "Free",
+  });
+  const [recentAttempts, setRecentAttempts] = useState<RecentAttempt[]>([]);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    async function loadDashboard() {
+      setLoading(true);
+      setError("");
+
+      try {
+        const {
+          data: { user },
+          error: userError,
+        } = await supabase.auth.getUser();
+
+        if (userError || !user) {
+          router.replace("/login");
+          return;
+        }
+
+        setUserEmail(user.email ?? "");
+        setUserId(user.id);
+
+        let joinedAt: string | null = user.created_at ?? null;
+        let plan: DashboardPlan = "Free";
+        let currentStreak = 0;
+        let longestStreak = 0;
+        let totalAttempts = 0;
+        let totalCorrect = 0;
+        let attempts: RecentAttempt[] = [];
+        let firstError = "";
+
+        const { error: ensureProfileError } = await supabase
+          .from("profiles")
+          .upsert(
+            {
+              id: user.id,
+            },
+            {
+              onConflict: "id",
+              ignoreDuplicates: false,
+            }
+          );
+
+        if (ensureProfileError && !firstError) {
+          firstError = `Profiles upsert failed: ${getErrorMessage(ensureProfileError)}`;
+          console.error("Profiles upsert failed:", ensureProfileError);
+        }
+
+        const [
+          { data: profileData, error: profileError },
+          { data: userSubscription, error: subscriptionError },
+          { data: recentAttemptsData, error: recentAttemptsError },
+          { count: totalAttemptsCount, error: totalAttemptsError },
+          { count: totalCorrectCount, error: totalCorrectError },
+        ] = await Promise.all([
+          supabase
+            .from("profiles")
+            .select("created_at, subscription_tier, current_streak, longest_streak")
+            .eq("id", user.id)
+            .maybeSingle(),
+          supabase
+            .from("user_subscriptions")
+            .select("subscription_status, stripe_price_id")
+            .eq("user_id", user.id)
+            .maybeSingle(),
+          supabase
+            .from("puzzle_sessions")
+            .select("id, latest_answer_text, is_correct, submitted_at, daily_puzzles(puzzle_date)")
+            .eq("user_id", user.id)
+            .not("submitted_at", "is", null)
+            .order("submitted_at", { ascending: false })
+            .limit(8),
+          supabase
+            .from("puzzle_sessions")
+            .select("*", { count: "exact", head: true })
+            .eq("user_id", user.id)
+            .not("submitted_at", "is", null),
+          supabase
+            .from("puzzle_sessions")
+            .select("*", { count: "exact", head: true })
+            .eq("user_id", user.id)
+            .eq("is_correct", true)
+            .not("submitted_at", "is", null),
+        ]);
+
+        if (profileError) {
+          if (!firstError) {
+            firstError = `Profiles read failed: ${getErrorMessage(profileError)}`;
+          }
+          console.error("Profiles read failed:", profileError);
+        } else if (profileData) {
+          joinedAt = profileData.created_at ?? joinedAt;
+          currentStreak = profileData.current_streak ?? 0;
+          longestStreak = profileData.longest_streak ?? 0;
+        }
+
+        if (subscriptionError) {
+          if (!firstError) {
+            firstError = `Subscription read failed: ${getErrorMessage(subscriptionError)}`;
+          }
+          console.error("Subscription read failed:", subscriptionError);
+        }
+
+        plan = getPlanFromSubscription(
+          profileData?.subscription_tier,
+          userSubscription?.subscription_status,
+          userSubscription?.stripe_price_id
+        );
+
+        if (recentAttemptsError) {
+          if (!firstError) {
+            firstError = `Recent attempts read failed: ${getErrorMessage(recentAttemptsError)}`;
+          }
+          console.error("Recent attempts read failed:", recentAttemptsError);
+        } else {
+          attempts = (recentAttemptsData as RecentAttempt[]) ?? [];
+        }
+
+        if (totalAttemptsError) {
+          if (!firstError) {
+            firstError = `Attempts count failed: ${getErrorMessage(totalAttemptsError)}`;
+          }
+          console.error("Attempts count failed:", totalAttemptsError);
+        } else {
+          totalAttempts = totalAttemptsCount ?? 0;
+        }
+
+        if (totalCorrectError) {
+          if (!firstError) {
+            firstError = `Correct count failed: ${getErrorMessage(totalCorrectError)}`;
+          }
+          console.error("Correct count failed:", totalCorrectError);
+        } else {
+          totalCorrect = totalCorrectCount ?? 0;
+        }
+
+        setStats({
+          currentStreak,
+          longestStreak,
+          totalAttempts,
+          totalCorrect,
+          joinedAt,
+          plan,
+        });
+
+        setRecentAttempts(attempts);
+
+        if (firstError) {
+          setError(firstError);
+        }
+      } catch (err) {
+        console.error("Dashboard load crashed:", err);
+        setError(`Something went wrong loading your dashboard. ${getErrorMessage(err)}`);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    loadDashboard();
+  }, [router, supabase]);
+
+  async function handleSignOut() {
+    setSigningOut(true);
+    await supabase.auth.signOut();
+    router.replace("/login");
+  }
+
+  const accuracy =
+    stats.totalAttempts > 0
+      ? Math.round((stats.totalCorrect / stats.totalAttempts) * 100)
+      : 0;
+
+  const joinedText = stats.joinedAt
+    ? new Date(stats.joinedAt).toLocaleDateString("en-US", {
+        month: "long",
+        day: "numeric",
+        year: "numeric",
+      })
+    : "N/A";
+
+  if (loading) {
+    return (
+      <main
         style={{
-          position: "fixed",
-          top: "20px",
-          right: "20px",
-          zIndex: 999999,
+          minHeight: "100vh",
+          background:
+            "linear-gradient(180deg, #07111f 0%, #0b1728 55%, #101d31 100%)",
+          color: "#ffffff",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          padding: "24px",
         }}
       >
-        <AuthStatus />
-      </div>
+        <div style={{ fontSize: "18px", opacity: 0.9 }}>Loading dashboard...</div>
+      </main>
+    );
+  }
 
-      <div className="leaderboard-shell">
-        <section className="panel leaderboard-panel">
-          <div className="link-pill-row">
-            <Link href="/rules" className="cta-pill-link">
-              Rules
-            </Link>
-            <Link href="/winners" className="cta-pill-link">
-              Winners
-            </Link>
-            <Link href="/prize" className="cta-pill-link">
-              Prizes
-            </Link>
+  return (
+    <main
+      style={{
+        minHeight: "100vh",
+        background:
+          "linear-gradient(180deg, #07111f 0%, #0b1728 55%, #101d31 100%)",
+        color: "#ffffff",
+        padding: "32px 20px 60px",
+        overflowX: "hidden",
+      }}
+    >
+      <div
+        style={{
+          maxWidth: "1200px",
+          margin: "0 auto",
+          width: "100%",
+        }}
+      >
+        <div className="dashboard-header">
+          <div>
+            <div className="eyebrow">Secret Scan Club</div>
+            <h1 className="dashboard-title">Your Dashboard</h1>
+            <p className="dashboard-subtitle">
+              Welcome back{userEmail ? `, ${userEmail}` : ""}.
+            </p>
           </div>
 
-          <div className="panel-head">
-            <div>
-              <div className="panel-label">Top Players</div>
-              <h1>Monthly Leaderboard</h1>
-              <p className="panel-subcopy">
-                This board shows overall player performance across the current month.
-              </p>
+          <button
+            onClick={handleSignOut}
+            disabled={signingOut}
+            className="signout-button"
+          >
+            {signingOut ? "Signing out..." : "Sign Out"}
+          </button>
+        </div>
+
+        {error ? (
+          <div className="error-box">
+            {error}
+          </div>
+        ) : null}
+
+        <section className="dashboard-grid dashboard-grid-top">
+          <div className="card card-blur card-lg">
+            <div className="section-eyebrow">Today’s Puzzle</div>
+
+            <h2 className="hero-heading">Keep your streak alive.</h2>
+
+            <p className="hero-copy">
+              Jump into today’s challenge, submit your answer, and keep stacking daily
+              progress. The more often you return, the more valuable your account becomes.
+            </p>
+
+            <div className="hero-actions">
+              <Link href="/scan/member" className="btn-primary">
+                Go to Today’s Puzzle
+              </Link>
+
+              <Link href="/leaderboard" className="btn-secondary">
+                View Leaderboard
+              </Link>
             </div>
-            <div className="leaderboard-badge">Live rankings</div>
           </div>
 
-          {loading ? (
-            <div className="empty-state">Loading leaderboard...</div>
-          ) : leaderboard.length === 0 ? (
-            <div className="empty-state">
-              No leaderboard data yet. Once players start submitting answers,
-              rankings will appear here.
+          <div className="card card-blur">
+            <div className="section-eyebrow">Account</div>
+
+            <div style={{ marginBottom: "14px" }}>
+              <div className="meta-label">Plan</div>
+              <div className="meta-value">{stats.plan}</div>
             </div>
-          ) : (
-            <>
-              <div className="leaderboard-table-wrap desktop-table">
-                <table className="leaderboard-table">
-                  <thead>
-                    <tr>
-                      <th>Rank</th>
-                      <th>Player</th>
-                      <th>Points</th>
-                      <th>Correct</th>
-                      <th>Attempts</th>
-                      <th>Streak</th>
-                      <th>Last Active</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {leaderboard.map((player) => (
-                      <tr key={player.user_id}>
-                        <td>
-                          <span
-                            className={
-                              player.rank <= 3 ? "rank-pill top-rank" : "rank-pill"
-                            }
-                          >
-                            #{player.rank}
-                          </span>
-                        </td>
-                        <td className="player-name">{player.display_name}</td>
-                        <td>{player.points}</td>
-                        <td>{player.correct_answers}</td>
-                        <td>{player.total_attempts}</td>
-                        <td>{player.current_streak}</td>
-                        <td>{formatDate(player.last_activity)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+
+            <div style={{ marginBottom: "14px" }}>
+              <div className="meta-label">Member Since</div>
+              <div className="meta-value">{joinedText}</div>
+            </div>
+
+            <div style={{ marginBottom: "20px" }}>
+              <div className="meta-label">User ID</div>
+              <div
+                style={{
+                  fontSize: "13px",
+                  color: "rgba(255,255,255,0.82)",
+                  wordBreak: "break-all",
+                }}
+              >
+                {userId}
               </div>
+            </div>
 
-              <div className="mobile-cards">
-                {leaderboard.map((player) => (
-                  <div className="player-card" key={player.user_id}>
-                    <div className="player-card-top">
-                      <span
-                        className={
-                          player.rank <= 3 ? "rank-pill top-rank" : "rank-pill"
-                        }
-                      >
-                        #{player.rank}
-                      </span>
-                      <div className="player-card-name">{player.display_name}</div>
+            <Link
+              href={stats.plan === "Free" ? "/subscribe" : "/account"}
+              className="manage-button"
+            >
+              {stats.plan === "Free" ? "Upgrade Membership" : "Manage Membership"}
+            </Link>
+          </div>
+        </section>
+
+        <section className="stats-grid">
+          <StatCard label="Current Streak" value={stats.currentStreak.toString()} />
+          <StatCard label="Longest Streak" value={stats.longestStreak.toString()} />
+          <StatCard label="Attempts" value={stats.totalAttempts.toString()} />
+          <StatCard label="Accuracy" value={`${accuracy}%`} />
+        </section>
+
+        <section className="dashboard-grid dashboard-grid-bottom">
+          <div className="card">
+            <div className="section-eyebrow">Recent Activity</div>
+
+            {recentAttempts.length === 0 ? (
+              <div className="empty-copy">
+                No puzzle attempts yet. Head to today’s puzzle and make your first entry.
+              </div>
+            ) : (
+              <div style={{ display: "grid", gap: "12px" }}>
+                {recentAttempts.map((attempt) => (
+                  <div key={attempt.id} className="attempt-row">
+                    <div className="attempt-copy">
+                      <div className="attempt-title">
+                        Puzzle {attempt.daily_puzzles?.[0]?.puzzle_date ?? "Unknown"}
+                      </div>
+                      <div className="attempt-subtitle">
+                        Answer: {attempt.latest_answer_text || "No answer recorded"}
+                      </div>
                     </div>
 
-                    <div className="player-card-grid">
-                      <div className="stat-item">
-                        <span className="stat-label">Points</span>
-                        <span className="stat-value">{player.points}</span>
-                      </div>
-                      <div className="stat-item">
-                        <span className="stat-label">Correct</span>
-                        <span className="stat-value">{player.correct_answers}</span>
-                      </div>
-                      <div className="stat-item">
-                        <span className="stat-label">Attempts</span>
-                        <span className="stat-value">{player.total_attempts}</span>
-                      </div>
-                      <div className="stat-item">
-                        <span className="stat-label">Streak</span>
-                        <span className="stat-value">{player.current_streak}</span>
-                      </div>
-                    </div>
-
-                    <div className="player-card-footer">
-                      <span className="stat-label">Last Active</span>
-                      <span className="stat-value">{formatDate(player.last_activity)}</span>
+                    <div
+                      style={{
+                        padding: "8px 12px",
+                        borderRadius: "999px",
+                        fontSize: "13px",
+                        fontWeight: 700,
+                        whiteSpace: "nowrap",
+                        background: attempt.is_correct
+                          ? "rgba(34,197,94,0.16)"
+                          : "rgba(239,68,68,0.14)",
+                        color: attempt.is_correct ? "#86efac" : "#fca5a5",
+                        border: attempt.is_correct
+                          ? "1px solid rgba(34,197,94,0.28)"
+                          : "1px solid rgba(239,68,68,0.25)",
+                      }}
+                    >
+                      {attempt.is_correct ? "Correct" : "Incorrect"}
                     </div>
                   </div>
                 ))}
               </div>
-            </>
-          )}
+            )}
+          </div>
+
+          <div className="card">
+            <div className="section-eyebrow">Quick Actions</div>
+
+            <div style={{ display: "grid", gap: "12px" }}>
+              <DashboardLink href="/scan" label="Play Today’s Puzzle" />
+              <DashboardLink href="/leaderboard" label="See the Leaderboard" />
+              <DashboardLink href="/manage" label="Manage Account" />
+              <DashboardLink
+                href={stats.plan === "Free" ? "/subscribe" : "/account"}
+                label={stats.plan === "Free" ? "Upgrade Membership" : "Manage Membership"}
+              />
+            </div>
+          </div>
         </section>
       </div>
 
       <style jsx>{`
-        .leaderboard-page {
-          min-height: 100vh;
-          background:
-            radial-gradient(circle at top, rgba(72, 126, 176, 0.18), transparent 35%),
-            linear-gradient(180deg, #08111f 0%, #0d1a2d 100%);
-          color: #ffffff;
-          padding: 24px 16px 56px;
-          overflow-x: hidden;
-        }
-
-        .leaderboard-shell {
-          max-width: 1200px;
-          margin: 0 auto;
-          padding-top: 84px;
-        }
-
-        .panel {
-          background: rgba(255, 255, 255, 0.06);
-          border: 1px solid rgba(255, 255, 255, 0.12);
-          border-radius: 24px;
-          backdrop-filter: blur(8px);
-          box-shadow: 0 20px 50px rgba(0, 0, 0, 0.22);
-          padding: 32px;
-        }
-
-        .leaderboard-panel {
-          margin-top: 8px;
-        }
-
-        .link-pill-row {
+        .dashboard-header {
           display: flex;
-          justify-content: center;
+          justify-content: space-between;
           align-items: center;
-          flex-wrap: wrap;
           gap: 16px;
+          flex-wrap: wrap;
           margin-bottom: 28px;
         }
 
-        :global(a.cta-pill-link) {
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          min-width: 170px;
-          min-height: 50px;
-          padding: 0 22px;
-          border-radius: 999px;
-          text-decoration: none;
-          font-weight: 700;
-          font-size: 0.98rem;
-          color: #06111d !important;
-          background: linear-gradient(135deg, #7a8cff 0%, #35d6ff 100%);
-          box-shadow: 0 10px 25px rgba(0, 0, 0, 0.32);
-          transition: transform 0.18s ease, box-shadow 0.18s ease;
-        }
-
-        :global(a.cta-pill-link:hover) {
-          transform: translateY(-1px);
-          box-shadow: 0 14px 28px rgba(0, 0, 0, 0.38);
-        }
-
-        .panel-head {
-          display: flex;
-          justify-content: space-between;
-          gap: 16px;
-          align-items: flex-start;
-          margin-bottom: 18px;
-        }
-
-        .panel-label {
-          display: inline-block;
-          margin-bottom: 10px;
-          font-size: 12px;
+        .eyebrow,
+        .section-eyebrow {
+          font-size: 13px;
+          letter-spacing: 0.08em;
           text-transform: uppercase;
-          letter-spacing: 0.14em;
-          font-weight: 700;
-          color: #8dc7ff;
+          color: #9bbcff;
+          margin-bottom: 12px;
         }
 
-        h1 {
-          margin: 0 0 10px;
-          font-size: clamp(2rem, 4.5vw, 4rem);
-          line-height: 1.04;
+        .eyebrow {
+          font-size: 14px;
+          color: #8fb7ff;
+          margin-bottom: 8px;
         }
 
-        .panel-subcopy {
+        .dashboard-title {
+          font-size: 34px;
+          line-height: 1.1;
           margin: 0;
-          color: rgba(255, 255, 255, 0.84);
-          line-height: 1.7;
-          font-size: 1.05rem;
-          max-width: 760px;
-        }
-
-        .leaderboard-badge {
-          white-space: nowrap;
-          padding: 10px 14px;
-          border-radius: 999px;
-          background: #8dc7ff;
-          color: #08111f;
-          font-weight: 700;
-          font-size: 0.95rem;
-        }
-
-        .desktop-table {
-          display: block;
-        }
-
-        .leaderboard-table-wrap {
-          width: 100%;
-          overflow-x: auto;
-          -webkit-overflow-scrolling: touch;
-        }
-
-        .leaderboard-table {
-          width: 100%;
-          border-collapse: collapse;
-        }
-
-        .leaderboard-table th,
-        .leaderboard-table td {
-          padding: 14px 12px;
-          border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-          text-align: left;
-          white-space: nowrap;
-        }
-
-        .leaderboard-table th {
-          color: #8dc7ff;
-          font-size: 0.88rem;
-          font-weight: 700;
-          text-transform: uppercase;
-          letter-spacing: 0.06em;
-        }
-
-        .player-name {
-          font-weight: 700;
-        }
-
-        .rank-pill {
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          min-width: 54px;
-          min-height: 34px;
-          border-radius: 999px;
-          background: rgba(255, 255, 255, 0.08);
-          font-weight: 700;
-        }
-
-        .top-rank {
-          background: #ffffff;
-          color: #08111f;
-        }
-
-        .mobile-cards {
-          display: none;
-        }
-
-        .player-card {
-          background: rgba(255, 255, 255, 0.05);
-          border: 1px solid rgba(255, 255, 255, 0.09);
-          border-radius: 18px;
-          padding: 16px;
-        }
-
-        .player-card + .player-card {
-          margin-top: 12px;
-        }
-
-        .player-card-top {
-          display: flex;
-          align-items: center;
-          gap: 12px;
-          margin-bottom: 14px;
-        }
-
-        .player-card-name {
           font-weight: 800;
-          font-size: 1rem;
-          line-height: 1.3;
+        }
+
+        .dashboard-subtitle {
+          margin-top: 10px;
+          margin-bottom: 0;
+          color: rgba(255,255,255,0.78);
+          font-size: 15px;
           word-break: break-word;
         }
 
-        .player-card-grid {
-          display: grid;
-          grid-template-columns: repeat(2, minmax(0, 1fr));
-          gap: 12px;
+        .signout-button {
+          background: transparent;
+          color: #ffffff;
+          border: 1px solid rgba(255,255,255,0.2);
+          border-radius: 12px;
+          padding: 12px 18px;
+          font-size: 14px;
+          font-weight: 600;
+          cursor: pointer;
+          opacity: 1;
         }
 
-        .stat-item {
-          display: flex;
-          flex-direction: column;
-          gap: 4px;
-          padding: 12px;
+        .signout-button:disabled {
+          cursor: not-allowed;
+          opacity: 0.7;
+        }
+
+        .error-box {
+          background: rgba(255, 87, 87, 0.12);
+          border: 1px solid rgba(255, 87, 87, 0.35);
+          color: #ffd5d5;
           border-radius: 14px;
-          background: rgba(255, 255, 255, 0.04);
-          border: 1px solid rgba(255, 255, 255, 0.06);
+          padding: 14px 16px;
+          margin-bottom: 20px;
+          white-space: pre-wrap;
+        }
+
+        .dashboard-grid {
+          display: grid;
+          gap: 20px;
+        }
+
+        .dashboard-grid-top {
+          grid-template-columns: 1.6fr 1fr;
+          margin-bottom: 20px;
+        }
+
+        .dashboard-grid-bottom {
+          grid-template-columns: 1.4fr 1fr;
+        }
+
+        .stats-grid {
+          display: grid;
+          grid-template-columns: repeat(4, 1fr);
+          gap: 16px;
+          margin-bottom: 20px;
+        }
+
+        .card {
+          background: rgba(255,255,255,0.06);
+          border: 1px solid rgba(255,255,255,0.10);
+          border-radius: 22px;
+          padding: 24px;
           min-width: 0;
         }
 
-        .player-card-footer {
-          margin-top: 12px;
-          padding: 12px;
-          border-radius: 14px;
-          background: rgba(255, 255, 255, 0.04);
-          border: 1px solid rgba(255, 255, 255, 0.06);
+        .card-lg {
+          padding: 28px;
+        }
+
+        .card-blur {
+          backdrop-filter: blur(8px);
+        }
+
+        .hero-heading {
+          font-size: 30px;
+          margin: 0 0 12px;
+          line-height: 1.15;
+        }
+
+        .hero-copy {
+          font-size: 16px;
+          line-height: 1.6;
+          color: rgba(255,255,255,0.8);
+          max-width: 700px;
+          margin-bottom: 24px;
+        }
+
+        .hero-actions {
           display: flex;
-          justify-content: space-between;
-          align-items: center;
           gap: 12px;
           flex-wrap: wrap;
         }
 
-        .stat-label {
-          font-size: 0.78rem;
-          text-transform: uppercase;
-          letter-spacing: 0.08em;
-          color: #8dc7ff;
+        .btn-primary,
+        .btn-secondary,
+        .manage-button {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          text-decoration: none;
+          border-radius: 14px;
+          font-size: 15px;
+          padding: 14px 20px;
         }
 
-        .stat-value {
-          font-size: 1rem;
+        .btn-primary {
+          background: #ffffff;
+          color: #07111f;
           font-weight: 800;
+        }
+
+        .btn-secondary {
+          background: transparent;
           color: #ffffff;
+          border: 1px solid rgba(255,255,255,0.18);
+          font-weight: 700;
+        }
+
+        .manage-button {
+          width: 100%;
+          text-align: center;
+          background: #1c4ed8;
+          color: #ffffff;
+          font-weight: 800;
+          padding: 14px 18px;
+          box-sizing: border-box;
+        }
+
+        .meta-label {
+          color: rgba(255,255,255,0.65);
+          font-size: 13px;
+        }
+
+        .meta-value {
+          font-size: 18px;
+          font-weight: 700;
+        }
+
+        .empty-copy {
+          color: rgba(255,255,255,0.72);
+          font-size: 15px;
+          line-height: 1.6;
+        }
+
+        .attempt-row {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          gap: 16px;
+          padding: 14px 16px;
+          border-radius: 16px;
+          background: rgba(255,255,255,0.045);
+          border: 1px solid rgba(255,255,255,0.08);
+        }
+
+        .attempt-copy {
           min-width: 0;
+          flex: 1;
+        }
+
+        .attempt-title {
+          font-weight: 700;
+          font-size: 15px;
+          margin-bottom: 4px;
           word-break: break-word;
         }
 
-        .empty-state {
-          padding: 18px;
-          border-radius: 16px;
-          background: rgba(255, 255, 255, 0.05);
-          color: rgba(255, 255, 255, 0.84);
-          line-height: 1.65;
+        .attempt-subtitle {
+          font-size: 13px;
+          color: rgba(255,255,255,0.68);
+          word-break: break-word;
         }
 
-        @media (max-width: 960px) {
-          .panel-head {
+        @media (max-width: 980px) {
+          .dashboard-grid-top,
+          .dashboard-grid-bottom {
+            grid-template-columns: 1fr;
+          }
+
+          .stats-grid {
+            grid-template-columns: repeat(2, 1fr);
+          }
+        }
+
+        @media (max-width: 700px) {
+          .dashboard-title {
+            font-size: 28px;
+          }
+
+          .hero-heading {
+            font-size: 24px;
+          }
+
+          .dashboard-header {
+            align-items: stretch;
+          }
+
+          .signout-button {
+            width: 100%;
+          }
+
+          .card,
+          .card-lg {
+            padding: 20px 16px;
+            border-radius: 20px;
+          }
+
+          .hero-copy {
+            font-size: 15px;
+            margin-bottom: 18px;
+          }
+
+          .hero-actions {
+            flex-direction: column;
+          }
+
+          .btn-primary,
+          .btn-secondary {
+            width: 100%;
+            box-sizing: border-box;
+          }
+
+          .attempt-row {
             flex-direction: column;
             align-items: flex-start;
           }
         }
 
-        @media (max-width: 700px) {
-          .desktop-table {
-            display: none;
-          }
-
-          .mobile-cards {
-            display: block;
-          }
-
-          .leaderboard-page {
-            padding: 16px 12px 40px;
-          }
-
-          .leaderboard-shell {
-            padding-top: 88px;
-          }
-
-          .panel {
-            padding: 20px 16px;
-            border-radius: 20px;
-          }
-
-          .panel-subcopy {
-            font-size: 0.96rem;
-            line-height: 1.6;
-          }
-
-          .leaderboard-badge {
-            font-size: 0.88rem;
-            padding: 9px 12px;
-          }
-
-          :global(a.cta-pill-link) {
-            width: 100%;
-            min-width: 0;
-            min-height: 48px;
-          }
-        }
-
-        @media (max-width: 480px) {
-          .leaderboard-shell {
-            padding-top: 96px;
-          }
-
-          h1 {
-            font-size: 1.9rem;
-          }
-
-          .panel-label {
-            font-size: 11px;
-          }
-
-          .player-card-grid {
+        @media (max-width: 520px) {
+          .stats-grid {
             grid-template-columns: 1fr;
           }
 
-          .rank-pill {
-            min-width: 50px;
-            min-height: 32px;
-            font-size: 0.9rem;
+          .dashboard-title {
+            font-size: 24px;
+          }
+
+          .dashboard-subtitle {
+            font-size: 14px;
+          }
+
+          .eyebrow,
+          .section-eyebrow {
+            font-size: 12px;
           }
         }
       `}</style>
     </main>
+  );
+}
+
+function StatCard({ label, value }: { label: string; value: string }) {
+  return (
+    <div
+      style={{
+        background: "rgba(255,255,255,0.06)",
+        border: "1px solid rgba(255,255,255,0.10)",
+        borderRadius: "20px",
+        padding: "22px",
+        minWidth: 0,
+      }}
+    >
+      <div
+        style={{
+          fontSize: "13px",
+          color: "rgba(255,255,255,0.65)",
+          marginBottom: "10px",
+        }}
+      >
+        {label}
+      </div>
+      <div
+        style={{
+          fontSize: "30px",
+          fontWeight: 800,
+          lineHeight: 1,
+          wordBreak: "break-word",
+        }}
+      >
+        {value}
+      </div>
+    </div>
+  );
+}
+
+function DashboardLink({
+  href,
+  label,
+}: {
+  href: string;
+  label: string;
+}) {
+  return (
+    <Link
+      href={href}
+      style={{
+        display: "block",
+        textDecoration: "none",
+        color: "#ffffff",
+        background: "rgba(255,255,255,0.045)",
+        border: "1px solid rgba(255,255,255,0.08)",
+        padding: "14px 16px",
+        borderRadius: "14px",
+        fontWeight: 700,
+        wordBreak: "break-word",
+      }}
+    >
+      {label}
+    </Link>
   );
 }
