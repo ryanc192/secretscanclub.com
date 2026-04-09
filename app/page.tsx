@@ -2,10 +2,10 @@ import fs from "fs";
 import path from "path";
 import Link from "next/link";
 import Image from "next/image";
-import EmailSignupForm from "./scan/components/EmailSignupForm";
-import AuthStatus from "./scan/components/AuthStatus";
+import EmailSignupForm from "./components/EmailSignupForm";
+import AuthStatus from "./components/AuthStatus";
 import ScanRedirect from "./scan/ScanRedirect";
-import AnswerCheckForm from "./scan/components/AnswerCheckForm";
+import AnswerCheckForm from "./components/AnswerCheckForm";
 
 export const dynamic = "force-dynamic";
 
