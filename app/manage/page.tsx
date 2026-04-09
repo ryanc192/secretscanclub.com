@@ -223,24 +223,24 @@ export default function ManagePage() {
       <div style={styles.backgroundGlowTop} />
       <div style={styles.backgroundGlowBottom} />
 
-      <div style={styles.shell}>
-        <header style={styles.topBar}>
-          <Link href="/dashboard" style={styles.logoWrap}>
+      <div style={styles.shell} className="manage-shell">
+        <header style={styles.topBar} className="top-bar">
+          <Link href="/dashboard" style={styles.logoWrap} className="logo-wrap">
             <div style={styles.logoMark}>SSC</div>
-            <div>
+            <div style={{ minWidth: 0 }}>
               <div style={styles.logoTitle}>Secret Scan Club</div>
               <div style={styles.logoSub}>Manage your account settings</div>
             </div>
           </Link>
 
-          <div style={styles.topLinks}>
-            <Link href="/scan" style={styles.topLink}>
+          <div style={styles.topLinks} className="top-links">
+            <Link href="/scan" style={styles.topLink} className="top-link">
               Daily Puzzle
             </Link>
-            <Link href="/dashboard" style={styles.topLink}>
+            <Link href="/dashboard" style={styles.topLink} className="top-link">
               Dashboard
             </Link>
-            <Link href="/account" style={styles.topLink}>
+            <Link href="/account" style={styles.topLink} className="top-link">
               Billing
             </Link>
             <button
@@ -250,37 +250,38 @@ export default function ManagePage() {
                 ...styles.topButton,
                 ...(signingOut ? styles.disabledButton : {}),
               }}
+              className="top-link signout-mobile"
             >
               {signingOut ? "Signing out..." : "Sign Out"}
             </button>
           </div>
         </header>
 
-        <section style={styles.hero}>
-          <div style={styles.heroText}>
+        <section style={styles.hero} className="hero-grid">
+          <div style={styles.heroText} className="hero-text-card">
             <div style={styles.kicker}>Account Center</div>
-            <h1 style={styles.heroTitle}>Manage your profile, login, and account settings.</h1>
+            <h1 style={styles.heroTitle} className="hero-title">Manage your profile, login, and account settings.</h1>
             <p style={styles.heroBody}>
               Update your personal details, change your username, manage your email
               preferences, update your password, and jump into billing whenever you
               need to manage your membership.
             </p>
 
-            <div style={styles.heroUserBox}>
+            <div style={styles.heroUserBox} className="hero-user-box">
               <div>
                 <div style={styles.userLabel}>Signed in as</div>
-                <div style={styles.userValue}>{userEmail || "Unknown User"}</div>
+                <div style={styles.userValue} className="user-value">{userEmail || "Unknown User"}</div>
               </div>
               <div>
                 <div style={styles.userLabel}>Current membership</div>
-                <div style={styles.userValue}>{membership}</div>
+                <div style={styles.userValue} className="user-value">{membership}</div>
               </div>
             </div>
 
             {pageMessage ? <div style={styles.errorBox}>{pageMessage}</div> : null}
           </div>
 
-          <div style={styles.heroCard}>
+          <div style={styles.heroCard} className="hero-side-card">
             <div style={styles.heroCardTitle}>Quick actions</div>
             <div style={styles.heroCardList}>
               <Link href="/dashboard" style={styles.quickActionLink}>
@@ -299,10 +300,10 @@ export default function ManagePage() {
           </div>
         </section>
 
-        <section style={styles.infoGridTwo}>
-          <div style={styles.infoCard}>
+        <section style={styles.infoGridTwo} className="info-grid-two">
+          <div style={styles.infoCard} className="info-card">
             <div style={styles.sectionKicker}>Profile Details</div>
-            <h2 style={styles.infoTitle}>Your identity on the platform</h2>
+            <h2 style={styles.infoTitle} className="info-title">Your identity on the platform</h2>
             <p style={styles.infoText}>
               Update the basic information attached to your account so your profile
               stays current and clean.
@@ -358,15 +359,16 @@ export default function ManagePage() {
                   ...styles.primaryButton,
                   ...(savingProfile ? styles.disabledButton : {}),
                 }}
+                className="full-width-mobile"
               >
                 {savingProfile ? "Saving..." : "Save Profile Changes"}
               </button>
             </form>
           </div>
 
-          <div style={styles.infoCard}>
+          <div style={styles.infoCard} className="info-card">
             <div style={styles.sectionKicker}>Personal Info</div>
-            <h2 style={styles.infoTitle}>Account details at a glance</h2>
+            <h2 style={styles.infoTitle} className="info-title">Account details at a glance</h2>
             <p style={styles.infoText}>
               Review the core details tied to your account and where important
               updates are sent.
@@ -396,23 +398,23 @@ export default function ManagePage() {
               </div>
             </div>
 
-            <Link href="/account" style={styles.secondaryCta}>
+            <Link href="/account" style={styles.secondaryCta} className="full-width-mobile cta-link-mobile">
               Billing Account
             </Link>
           </div>
         </section>
 
-        <section style={styles.infoGridTwo}>
-          <div style={styles.infoCard}>
+        <section style={styles.infoGridTwo} className="info-grid-two">
+          <div style={styles.infoCard} className="info-card">
             <div style={styles.sectionKicker}>Email Preferences</div>
-            <h2 style={styles.infoTitle}>Control inbox updates</h2>
+            <h2 style={styles.infoTitle} className="info-title">Control inbox updates</h2>
             <p style={styles.infoText}>
               Decide whether you want account-related emails, reminders, and helpful
               update messages sent to your inbox.
             </p>
 
             <form onSubmit={handleEmailPreferencesSave} style={styles.formGrid}>
-              <label style={styles.checkboxCard}>
+              <label style={styles.checkboxCard} className="checkbox-card">
                 <input
                   type="checkbox"
                   checked={emailNotifications}
@@ -437,15 +439,16 @@ export default function ManagePage() {
                   ...styles.primaryButton,
                   ...(savingEmailPrefs ? styles.disabledButton : {}),
                 }}
+                className="full-width-mobile"
               >
                 {savingEmailPrefs ? "Saving..." : "Save Email Preferences"}
               </button>
             </form>
           </div>
 
-          <div style={styles.infoCard}>
+          <div style={styles.infoCard} className="info-card">
             <div style={styles.sectionKicker}>Change Email</div>
-            <h2 style={styles.infoTitle}>Update your login email</h2>
+            <h2 style={styles.infoTitle} className="info-title">Update your login email</h2>
             <p style={styles.infoText}>
               Change the email address connected to your account access and login.
             </p>
@@ -471,6 +474,7 @@ export default function ManagePage() {
                   ...styles.primaryButton,
                   ...(savingEmail ? styles.disabledButton : {}),
                 }}
+                className="full-width-mobile"
               >
                 {savingEmail ? "Updating..." : "Update Email"}
               </button>
@@ -478,10 +482,10 @@ export default function ManagePage() {
           </div>
         </section>
 
-        <section style={styles.infoGridTwo}>
-          <div style={styles.infoCard}>
+        <section style={styles.infoGridTwo} className="info-grid-two">
+          <div style={styles.infoCard} className="info-card">
             <div style={styles.sectionKicker}>Password</div>
-            <h2 style={styles.infoTitle}>Keep your account secure</h2>
+            <h2 style={styles.infoTitle} className="info-title">Keep your account secure</h2>
             <p style={styles.infoText}>
               Set a new password to protect your account and keep your member access secure.
             </p>
@@ -518,15 +522,16 @@ export default function ManagePage() {
                   ...styles.primaryButton,
                   ...(savingPassword ? styles.disabledButton : {}),
                 }}
+                className="full-width-mobile"
               >
                 {savingPassword ? "Updating..." : "Update Password"}
               </button>
             </form>
           </div>
 
-          <div style={styles.infoCard}>
+          <div style={styles.infoCard} className="info-card">
             <div style={styles.sectionKicker}>Membership</div>
-            <h2 style={styles.infoTitle}>Manage billing and subscription access</h2>
+            <h2 style={styles.infoTitle} className="info-title">Manage billing and subscription access</h2>
             <p style={styles.infoText}>
               Need to upgrade, downgrade, update billing details, or review your
               membership? Use your billing account page.
@@ -539,12 +544,106 @@ export default function ManagePage() {
               <div style={styles.heroListItem}>Access your membership controls</div>
             </div>
 
-            <Link href="/account" style={styles.primaryCtaLink}>
+            <Link href="/account" style={styles.primaryCtaLink} className="full-width-mobile cta-link-mobile">
               Billing Account
             </Link>
           </div>
         </section>
       </div>
+
+      <style jsx>{`
+        @media (max-width: 1100px) {
+          .hero-grid,
+          .info-grid-two {
+            grid-template-columns: 1fr !important;
+          }
+        }
+
+        @media (max-width: 780px) {
+          .manage-shell {
+            padding: 18px 14px 44px !important;
+          }
+
+          .top-bar {
+            margin-bottom: 24px !important;
+            align-items: stretch !important;
+          }
+
+          .logo-wrap {
+            width: 100%;
+            min-width: 0;
+          }
+
+          .top-links {
+            width: 100%;
+            display: grid !important;
+            grid-template-columns: 1fr;
+            gap: 10px !important;
+          }
+
+          .top-link {
+            width: 100%;
+            box-sizing: border-box;
+            text-align: center;
+            justify-content: center;
+          }
+
+          .signout-mobile {
+            width: 100%;
+          }
+
+          .hero-text-card,
+          .hero-side-card,
+          .info-card {
+            padding: 20px !important;
+            border-radius: 22px !important;
+          }
+
+          .hero-title,
+          .info-title {
+            font-size: 2rem !important;
+            line-height: 1.08 !important;
+          }
+
+          .hero-user-box {
+            grid-template-columns: 1fr !important;
+          }
+
+          .user-value {
+            word-break: break-word;
+          }
+
+          .checkbox-card {
+            flex-direction: column;
+          }
+
+          .cta-link-mobile,
+          .full-width-mobile {
+            width: 100% !important;
+            box-sizing: border-box;
+            text-align: center;
+            justify-content: center;
+          }
+        }
+
+        @media (max-width: 520px) {
+          .manage-shell {
+            padding: 14px 12px 36px !important;
+          }
+
+          .hero-text-card,
+          .hero-side-card,
+          .info-card {
+            padding: 18px !important;
+            border-radius: 20px !important;
+          }
+
+          .hero-title,
+          .info-title {
+            font-size: 1.72rem !important;
+          }
+        }
+      `}</style>
     </main>
   );
 }
@@ -602,6 +701,7 @@ const styles: Record<string, React.CSSProperties> = {
     gap: 14,
     color: "#ffffff",
     textDecoration: "none",
+    minWidth: 0,
   },
   logoMark: {
     width: 48,
@@ -614,6 +714,7 @@ const styles: Record<string, React.CSSProperties> = {
     background: "linear-gradient(135deg, #7a8cff 0%, #35d6ff 100%)",
     color: "#07111f",
     boxShadow: "0 12px 28px rgba(0,0,0,0.25)",
+    flexShrink: 0,
   },
   logoTitle: {
     fontSize: 18,
@@ -664,6 +765,7 @@ const styles: Record<string, React.CSSProperties> = {
     borderRadius: 28,
     padding: 32,
     boxShadow: "0 22px 60px rgba(0,0,0,0.28)",
+    minWidth: 0,
   },
   kicker: {
     display: "inline-flex",
@@ -714,6 +816,7 @@ const styles: Record<string, React.CSSProperties> = {
     border: "1px solid rgba(255,255,255,0.08)",
     borderRadius: 16,
     padding: "14px 16px",
+    wordBreak: "break-word",
   },
   errorBox: {
     marginTop: 18,
@@ -732,6 +835,7 @@ const styles: Record<string, React.CSSProperties> = {
     borderRadius: 28,
     padding: 28,
     boxShadow: "0 22px 60px rgba(0,0,0,0.28)",
+    minWidth: 0,
   },
   heroCardTitle: {
     fontSize: 22,
@@ -774,6 +878,7 @@ const styles: Record<string, React.CSSProperties> = {
     background: "rgba(255,255,255,0.05)",
     border: "1px solid rgba(255,255,255,0.08)",
     boxShadow: "0 20px 48px rgba(0,0,0,0.25)",
+    minWidth: 0,
   },
   sectionKicker: {
     display: "inline-flex",
@@ -823,6 +928,7 @@ const styles: Record<string, React.CSSProperties> = {
     color: "#ffffff",
     outline: "none",
     fontSize: 15,
+    boxSizing: "border-box",
   },
   checkboxCard: {
     display: "flex",
