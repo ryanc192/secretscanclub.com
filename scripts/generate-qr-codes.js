@@ -3,25 +3,18 @@ const path = require("path");
 
 /*
   STEP 2: QR CODE BULK GENERATOR
-
-  WHAT THIS DOES:
-  - Creates public short codes like: 000001
-  - Creates internal tracking codes like: NC-DUR-GAS-MEN-000001
-  - Builds redirect URLs like: https://secretscanclub.com/q/000001
-  - Exports everything to a CSV file
-
-  HOW TO RUN:
-  node scripts/generate-qr-codes.js
+  - Creates public short codes like: 00000001
+  - Creates internal tracking codes like: NC-DUR-GAS-MEN-00000001
+  - Exports everything to a CSV that matches your Supabase qr_codes table
 */
 
 const CONFIG = {
-  domain: "https://secretscanclub.com",
   batchName: "launch_batch_1",
 
   state: "NC",
   city: "DUR",
-  venueType: "GAS",         // examples: GAS, APT, DAY, CHR, REST
-  placementType: "MEN",     // examples: MEN, WOM, PUMP, DOOR, LOBBY
+  venueType: "GAS",
+  placementType: "MEN",
 
   startNumber: 1,
   count: 3000,
@@ -57,10 +50,6 @@ function buildInternalCode({ state, city, venueType, placementType, shortCode })
   ].join("-");
 }
 
-function buildQrUrl(domain, shortCode) {
-  return `${domain}/q/${shortCode}`;
-}
-
 function buildRows(config) {
   const rows = [];
 
@@ -77,7 +66,6 @@ function buildRows(config) {
       placementType: config.placementType,
       shortCode,
     });
-    const qrUrl = buildQrUrl(config.domain, shortCode);
 
     rows.push({
       short_code: shortCode,
@@ -94,7 +82,6 @@ function buildRows(config) {
       longitude: "",
       placed_at: "",
       notes: "",
-      qr_url: qrUrl,
     });
   }
 
@@ -142,7 +129,6 @@ function main() {
   console.log(`Saved CSV to: ${outputPath}`);
   console.log(`Example short code: ${rows[0]?.short_code}`);
   console.log(`Example internal code: ${rows[0]?.internal_code}`);
-  console.log(`Example QR URL: ${rows[0]?.qr_url}`);
 }
 
 main();
