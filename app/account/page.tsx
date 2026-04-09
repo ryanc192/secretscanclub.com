@@ -275,46 +275,48 @@ export default function AccountPage() {
       <div style={styles.backgroundGlowTop} />
       <div style={styles.backgroundGlowBottom} />
 
-      <div style={styles.shell}>
-        <header style={styles.topBar}>
-          <Link href="/scan" style={styles.logoWrap}>
+      <div style={styles.shell} className="account-shell">
+        <header style={styles.topBar} className="top-bar">
+          <Link href="/scan" style={styles.logoWrap} className="logo-wrap">
             <div style={styles.logoMark}>SSC</div>
-            <div>
+            <div style={{ minWidth: 0 }}>
               <div style={styles.logoTitle}>Secret Scan Club</div>
               <div style={styles.logoSub}>Billing and membership management</div>
             </div>
           </Link>
 
-          <div style={styles.topLinks}>
-            <Link href="/scan" style={styles.topLink}>Daily Puzzle</Link>
-            <Link href="/dashboard" style={styles.topLink}>Dashboard</Link>
-            <Link href="/account/billing" style={styles.topLink}>Membership</Link>
+          <div style={styles.topLinks} className="top-links">
+            <Link href="/scan" style={styles.topLink} className="top-link">Daily Puzzle</Link>
+            <Link href="/dashboard" style={styles.topLink} className="top-link">Dashboard</Link>
+            <Link href="/account/billing" style={styles.topLink} className="top-link">Membership</Link>
           </div>
         </header>
 
-        <section style={styles.hero}>
-          <div style={styles.heroText}>
+        <section style={styles.hero} className="hero-grid">
+          <div style={styles.heroText} className="hero-text-card">
             <div style={styles.kicker}>Manage your membership</div>
-            <h1 style={styles.heroTitle}>Billing, upgrades, downgrades, and account control in one place.</h1>
+            <h1 style={styles.heroTitle} className="hero-title">
+              Billing, upgrades, downgrades, and account control in one place.
+            </h1>
             <p style={styles.heroBody}>
               Review your current plan, upgrade when you want more access, or open the Stripe billing portal to downgrade, cancel, or update your payment method.
             </p>
 
-            <div style={styles.heroUserBox}>
+            <div style={styles.heroUserBox} className="hero-user-box">
               <div>
                 <div style={styles.userLabel}>Signed in as</div>
-                <div style={styles.userValue}>{userEmail || "Member"}</div>
+                <div style={styles.userValue} className="user-value">{userEmail || "Member"}</div>
               </div>
               <div>
                 <div style={styles.userLabel}>Current membership</div>
-                <div style={styles.userValue}>{getTierLabel(currentTier)}</div>
+                <div style={styles.userValue} className="user-value">{getTierLabel(currentTier)}</div>
               </div>
             </div>
 
             {errorMessage ? <div style={styles.errorBox}>{errorMessage}</div> : null}
           </div>
 
-          <div style={styles.accountCard}>
+          <div style={styles.accountCard} className="account-card">
             <div style={styles.accountTitle}>Billing Summary</div>
 
             <div style={styles.summaryItem}>
@@ -347,18 +349,20 @@ export default function AccountPage() {
                 ...styles.portalButton,
                 ...(portalLoading ? styles.disabledButton : {}),
               }}
+              className="full-width-mobile"
             >
               {portalLoading ? "Opening billing portal..." : "Manage Billing in Stripe"}
             </button>
           </div>
         </section>
 
-        <section style={styles.planGrid}>
+        <section style={styles.planGrid} className="plan-grid">
           <article
             style={{
               ...styles.planCard,
               ...(currentTier === "free" ? styles.planCardCurrent : {}),
             }}
+            className="plan-card"
           >
             <h2 style={styles.planName}>Free</h2>
             <div style={styles.planPrice}>$0<span style={styles.planTerm}> / month</span></div>
@@ -376,6 +380,7 @@ export default function AccountPage() {
                 ...styles.planButton,
                 ...styles.planButtonCurrent,
               }}
+              className="full-width-mobile"
             >
               {currentTier === "free" ? "Current Plan" : "Use Billing Portal to Downgrade"}
             </button>
@@ -386,6 +391,7 @@ export default function AccountPage() {
               ...styles.planCard,
               ...(currentTier === "plus" ? styles.planCardCurrent : {}),
             }}
+            className="plan-card"
           >
             <h2 style={styles.planName}>Club Member</h2>
             <div style={styles.planPrice}>$4.99<span style={styles.planTerm}> / month</span></div>
@@ -407,6 +413,7 @@ export default function AccountPage() {
                   ...styles.planButton,
                   ...(portalLoading ? styles.disabledButton : {}),
                 }}
+                className="full-width-mobile"
               >
                 {portalLoading ? "Opening..." : "Manage or Downgrade"}
               </button>
@@ -419,6 +426,7 @@ export default function AccountPage() {
                   ...styles.planButton,
                   ...(checkoutLoading !== null ? styles.disabledButton : {}),
                 }}
+                className="full-width-mobile"
               >
                 {checkoutLoading === "plus" ? "Redirecting..." : "Choose Club Member"}
               </button>
@@ -430,6 +438,7 @@ export default function AccountPage() {
               ...styles.planCard,
               ...(currentTier === "pro" ? styles.planCardCurrent : {}),
             }}
+            className="plan-card"
           >
             <h2 style={styles.planName}>VIP Member</h2>
             <div style={styles.planPrice}>$9.99<span style={styles.planTerm}> / month</span></div>
@@ -451,6 +460,7 @@ export default function AccountPage() {
                   ...styles.planButton,
                   ...(portalLoading ? styles.disabledButton : {}),
                 }}
+                className="full-width-mobile"
               >
                 {portalLoading ? "Opening..." : "Manage or Downgrade"}
               </button>
@@ -463,6 +473,7 @@ export default function AccountPage() {
                   ...styles.planButton,
                   ...(checkoutLoading !== null ? styles.disabledButton : {}),
                 }}
+                className="full-width-mobile"
               >
                 {checkoutLoading === "pro" ? "Redirecting..." : currentTier === "plus" ? "Upgrade to VIP" : "Choose VIP"}
               </button>
@@ -470,13 +481,13 @@ export default function AccountPage() {
           </article>
         </section>
 
-        <section style={styles.bottomCta}>
-          <h2 style={styles.bottomCtaTitle}>Need to change your billing?</h2>
+        <section style={styles.bottomCta} className="bottom-cta">
+          <h2 style={styles.bottomCtaTitle} className="bottom-cta-title">Need to change your billing?</h2>
           <p style={styles.bottomCtaText}>
             Use the Stripe billing portal for cancellations, downgrades, payment method updates, and invoice management.
           </p>
-          <div style={styles.bottomCtaButtons}>
-            <Link href="/dashboard" style={styles.secondaryCta}>Back to Dashboard</Link>
+          <div style={styles.bottomCtaButtons} className="bottom-cta-buttons">
+            <Link href="/dashboard" style={styles.secondaryCta} className="cta-link-mobile">Back to Dashboard</Link>
             <button
               type="button"
               onClick={openBillingPortal}
@@ -485,12 +496,112 @@ export default function AccountPage() {
                 ...styles.primaryCta,
                 ...(portalLoading ? styles.disabledButton : {}),
               }}
+              className="cta-link-mobile"
             >
               {portalLoading ? "Opening..." : "Open Billing Portal"}
             </button>
           </div>
         </section>
       </div>
+
+      <style jsx>{`
+        @media (max-width: 1100px) {
+          .hero-grid {
+            grid-template-columns: 1fr !important;
+          }
+
+          .plan-grid {
+            grid-template-columns: 1fr !important;
+          }
+
+          .plan-card {
+            min-height: auto !important;
+          }
+        }
+
+        @media (max-width: 780px) {
+          .account-shell {
+            padding: 18px 14px 44px !important;
+          }
+
+          .top-bar {
+            margin-bottom: 24px !important;
+            align-items: stretch !important;
+          }
+
+          .logo-wrap {
+            width: 100%;
+          }
+
+          .top-links {
+            width: 100%;
+            display: grid !important;
+            grid-template-columns: 1fr;
+            gap: 10px !important;
+          }
+
+          .top-link {
+            width: 100%;
+            box-sizing: border-box;
+            text-align: center;
+          }
+
+          .hero-text-card,
+          .account-card,
+          .plan-card,
+          .bottom-cta {
+            padding: 20px !important;
+            border-radius: 22px !important;
+          }
+
+          .hero-title {
+            font-size: 2rem !important;
+            line-height: 1.08 !important;
+          }
+
+          .hero-user-box {
+            grid-template-columns: 1fr !important;
+          }
+
+          .user-value {
+            word-break: break-word;
+          }
+
+          .bottom-cta-title {
+            font-size: 24px !important;
+          }
+
+          .bottom-cta-buttons {
+            flex-direction: column !important;
+          }
+
+          .cta-link-mobile,
+          .full-width-mobile {
+            width: 100% !important;
+            box-sizing: border-box;
+            text-align: center;
+            justify-content: center;
+          }
+        }
+
+        @media (max-width: 520px) {
+          .account-shell {
+            padding: 14px 12px 36px !important;
+          }
+
+          .hero-text-card,
+          .account-card,
+          .plan-card,
+          .bottom-cta {
+            padding: 18px !important;
+            border-radius: 20px !important;
+          }
+
+          .hero-title {
+            font-size: 1.72rem !important;
+          }
+        }
+      `}</style>
     </main>
   );
 }
@@ -548,6 +659,7 @@ const styles: Record<string, React.CSSProperties> = {
     gap: 14,
     color: "#ffffff",
     textDecoration: "none",
+    minWidth: 0,
   },
   logoMark: {
     width: 48,
@@ -560,6 +672,7 @@ const styles: Record<string, React.CSSProperties> = {
     background: "linear-gradient(135deg, #7a8cff 0%, #35d6ff 100%)",
     color: "#07111f",
     boxShadow: "0 12px 28px rgba(0,0,0,0.25)",
+    flexShrink: 0,
   },
   logoTitle: {
     fontSize: 18,
@@ -600,6 +713,7 @@ const styles: Record<string, React.CSSProperties> = {
     borderRadius: 28,
     padding: 32,
     boxShadow: "0 22px 60px rgba(0,0,0,0.28)",
+    minWidth: 0,
   },
   kicker: {
     display: "inline-flex",
@@ -668,6 +782,7 @@ const styles: Record<string, React.CSSProperties> = {
     borderRadius: 28,
     padding: 28,
     boxShadow: "0 22px 60px rgba(0,0,0,0.28)",
+    minWidth: 0,
   },
   accountTitle: {
     fontSize: 22,
@@ -690,6 +805,7 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: 700,
     color: "#ffffff",
     lineHeight: 1.5,
+    wordBreak: "break-word",
   },
   portalButton: {
     marginTop: 16,
@@ -718,6 +834,7 @@ const styles: Record<string, React.CSSProperties> = {
     border: "1px solid rgba(255,255,255,0.08)",
     boxShadow: "0 20px 48px rgba(0,0,0,0.25)",
     minHeight: 420,
+    minWidth: 0,
   },
   planCardCurrent: {
     boxShadow: "0 0 0 1px rgba(78, 227, 174, 0.35), 0 20px 48px rgba(0,0,0,0.25)",
