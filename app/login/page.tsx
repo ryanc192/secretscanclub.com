@@ -165,6 +165,27 @@ export default function LoginPage() {
             </button>
           </form>
 
+          <p
+            style={{
+              marginTop: 14,
+              marginBottom: 0,
+              color: "#0f172a",
+              fontWeight: 500,
+            }}
+          >
+            Forgot your password?{" "}
+            <Link
+              href="/reset-password"
+              style={{
+                color: "#0f172a",
+                fontWeight: 700,
+                textDecoration: "underline",
+              }}
+            >
+              Reset it here
+            </Link>
+          </p>
+
           {message ? (
             <div className="share-box" style={{ marginTop: 20 }}>
               {message}
