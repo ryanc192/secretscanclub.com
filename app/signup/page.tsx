@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { createBrowserSupabaseClient } from "../../lib/supabase/client";
 
@@ -21,9 +21,12 @@ function getGuestToken(): string {
 
 export default function SignupPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const emailFromQuery = searchParams.get("email") || "";
+
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState(emailFromQuery);
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -59,7 +62,7 @@ export default function SignupPage() {
       const supabase = createBrowserSupabaseClient();
 
       const { data, error } = await supabase.auth.signUp({
-        email: email.trim(),
+        email: email.trim().toLowerCase(),
         password,
         options: {
           data: {
@@ -212,7 +215,6 @@ export default function SignupPage() {
             </div>
           ) : null}
 
-          {/* ✅ FIXED COLOR (matches login page) */}
           <p
             style={{
               marginTop: 18,
