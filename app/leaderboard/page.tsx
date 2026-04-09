@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { createBrowserSupabaseClient } from "../../lib/supabase/client";
+import AuthStatus from "../components/AuthStatus";
 
 type AttemptRow = {
   user_id: string | null;
@@ -46,70 +47,6 @@ export default function LeaderboardPage() {
 
   const [leaderboard, setLeaderboard] = useState<LeaderboardRow[]>([]);
   const [loading, setLoading] = useState(true);
-  const [authLoading, setAuthLoading] = useState(true);
-  const [currentUserName, setCurrentUserName] = useState("");
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-
-  useEffect(() => {
-    let mounted = true;
-
-    supabase.auth.getSession().then(({ data }) => {
-      if (!mounted) return;
-
-      const user = data.session?.user;
-
-      if (!user) {
-        setIsLoggedIn(false);
-        setCurrentUserName("");
-        setAuthLoading(false);
-        return;
-      }
-
-      setIsLoggedIn(true);
-
-      const name =
-        user.user_metadata?.first_name ||
-        user.user_metadata?.full_name ||
-        user.user_metadata?.display_name ||
-        user.email?.split("@")[0] ||
-        "Member";
-
-      setCurrentUserName(String(name).slice(0, 24));
-      setAuthLoading(false);
-    });
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (!mounted) return;
-
-      const user = session?.user;
-
-      if (!user) {
-        setIsLoggedIn(false);
-        setCurrentUserName("");
-        setAuthLoading(false);
-        return;
-      }
-
-      setIsLoggedIn(true);
-
-      const name =
-        user.user_metadata?.first_name ||
-        user.user_metadata?.full_name ||
-        user.user_metadata?.display_name ||
-        user.email?.split("@")[0] ||
-        "Member";
-
-      setCurrentUserName(String(name).slice(0, 24));
-      setAuthLoading(false);
-    });
-
-    return () => {
-      mounted = false;
-      subscription.unsubscribe();
-    };
-  }, [supabase]);
 
   useEffect(() => {
     let active = true;
@@ -204,41 +141,17 @@ export default function LeaderboardPage() {
     };
   }, [supabase]);
 
-  async function handleLogout() {
-    const { error } = await supabase.auth.signOut();
-    if (error) {
-      console.error("Logout error:", error);
-      return;
-    }
-    window.location.href = "/scan";
-  }
-
   return (
     <main className="leaderboard-page">
-      <div className="topbar">
-        <div className="topbar-spacer" />
-
-        <div className="topbar-actions">
-          {authLoading ? (
-            <div className="user-chip">Loading...</div>
-          ) : isLoggedIn ? (
-            <>
-              <div className="user-chip">Hi, {currentUserName}</div>
-
-              <Link href="/dashboard" className="topbar-link-btn topbar-primary-btn">
-                Dashboard
-              </Link>
-
-              <button
-                type="button"
-                onClick={handleLogout}
-                className="topbar-button-btn topbar-secondary-btn"
-              >
-                Log Out
-              </button>
-            </>
-          ) : null}
-        </div>
+      <div
+        style={{
+          position: "fixed",
+          top: "20px",
+          right: "20px",
+          zIndex: 999999,
+        }}
+      >
+        <AuthStatus />
       </div>
 
       <div className="leaderboard-shell">
@@ -324,90 +237,10 @@ export default function LeaderboardPage() {
           padding: 24px 16px 56px;
         }
 
-        .topbar {
-          max-width: 1200px;
-          margin: 0 auto 22px;
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-        }
-
-        .topbar-spacer {
-          flex: 1;
-        }
-
-        .topbar-actions {
-          display: flex;
-          align-items: center;
-          justify-content: flex-end;
-          gap: 14px;
-          flex-wrap: wrap;
-        }
-
-        .user-chip {
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          min-height: 58px;
-          padding: 0 24px;
-          border-radius: 999px;
-          background: rgba(255, 255, 255, 0.08);
-          border: 1px solid rgba(255, 255, 255, 0.12);
-          color: #ffffff;
-          font-weight: 700;
-          font-size: 1rem;
-          backdrop-filter: blur(10px);
-          box-shadow: 0 10px 24px rgba(0, 0, 0, 0.22);
-        }
-
-        .topbar-button-btn {
-          appearance: none;
-          border: none;
-          outline: none;
-        }
-
-        :global(a.topbar-link-btn),
-        .topbar-button-btn {
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          min-height: 58px;
-          padding: 0 28px;
-          border-radius: 999px;
-          font-weight: 700;
-          font-size: 1rem;
-          text-decoration: none;
-          cursor: pointer;
-          transition: transform 0.18s ease, box-shadow 0.18s ease,
-            background 0.18s ease, border-color 0.18s ease;
-          box-sizing: border-box;
-          white-space: nowrap;
-        }
-
-        :global(a.topbar-link-btn:hover),
-        .topbar-button-btn:hover {
-          transform: translateY(-1px);
-        }
-
-        :global(a.topbar-primary-btn) {
-          background: rgba(255, 255, 255, 0.08);
-          color: #ffffff !important;
-          border: 1px solid rgba(255, 255, 255, 0.12);
-          backdrop-filter: blur(10px);
-          box-shadow: 0 10px 24px rgba(0, 0, 0, 0.22);
-        }
-
-        .topbar-secondary-btn {
-          background: transparent;
-          color: #ffffff;
-          border: 1px solid rgba(255, 255, 255, 0.22);
-          backdrop-filter: blur(10px);
-          box-shadow: 0 10px 24px rgba(0, 0, 0, 0.18);
-        }
-
         .leaderboard-shell {
           max-width: 1200px;
           margin: 0 auto;
+          padding-top: 72px;
         }
 
         .panel {
@@ -560,13 +393,8 @@ export default function LeaderboardPage() {
             padding: 18px 12px 42px;
           }
 
-          .topbar {
-            margin-bottom: 16px;
-          }
-
-          .topbar-actions {
-            width: 100%;
-            gap: 10px;
+          .leaderboard-shell {
+            padding-top: 84px;
           }
 
           .panel {
@@ -574,9 +402,6 @@ export default function LeaderboardPage() {
             border-radius: 20px;
           }
 
-          .user-chip,
-          :global(a.topbar-link-btn),
-          .topbar-button-btn,
           :global(a.cta-pill-link) {
             width: 100%;
           }
