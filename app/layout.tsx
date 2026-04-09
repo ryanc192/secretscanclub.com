@@ -1,25 +1,22 @@
-import type { Metadata, Viewport } from "next";
+import "./styles/scan.css";
+import type { Metadata } from "next";
+import type { ReactNode } from "react";
 
 export const metadata: Metadata = {
   title: "Secret Scan Club",
-  description: "Daily puzzle and membership site",
-};
-
-export const viewport: Viewport = {
-  width: "device-width",
-  initialScale: 1,
-  maximumScale: 1,
-  viewportFit: "cover",
+  description: "Daily drops, one QR, always new.",
 };
 
 export default function RootLayout({
   children,
 }: {
-  children: React.ReactNode;
+  children: ReactNode;
 }) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body style={{ margin: 0, fontFamily: "Arial, sans-serif" }}>
+        {children}
+      </body>
     </html>
   );
 }
