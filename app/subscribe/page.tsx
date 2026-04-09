@@ -263,53 +263,53 @@ export default function SubscribePage() {
       <div style={styles.backgroundGlowTop} />
       <div style={styles.backgroundGlowBottom} />
 
-      <div style={styles.shell}>
-        <header style={styles.topBar}>
-          <Link href="/scan" style={styles.logoWrap}>
+      <div style={styles.shell} className="subscribe-shell">
+        <header style={styles.topBar} className="top-bar">
+          <Link href="/scan" style={styles.logoWrap} className="logo-wrap">
             <div style={styles.logoMark}>SSC</div>
-            <div>
+            <div style={{ minWidth: 0 }}>
               <div style={styles.logoTitle}>Secret Scan Club</div>
               <div style={styles.logoSub}>Subscribe or upgrade your membership</div>
             </div>
           </Link>
 
-          <div style={styles.topLinks}>
-            <Link href="/scan" style={styles.topLink}>
+          <div style={styles.topLinks} className="top-links">
+            <Link href="/scan" style={styles.topLink} className="top-link">
               Daily Puzzle
             </Link>
-            <Link href="/dashboard" style={styles.topLink}>
+            <Link href="/dashboard" style={styles.topLink} className="top-link">
               Dashboard
             </Link>
-            <Link href="/member" style={styles.topLink}>
+            <Link href="/member" style={styles.topLink} className="top-link">
               Member Area
             </Link>
           </div>
         </header>
 
-        <section style={styles.hero}>
-          <div style={styles.heroText}>
+        <section style={styles.hero} className="hero-grid">
+          <div style={styles.heroText} className="hero-text-card">
             <div style={styles.kicker}>Unlock more than the daily scan</div>
-            <h1 style={styles.heroTitle}>Choose the membership that fits how you play.</h1>
+            <h1 style={styles.heroTitle} className="hero-title">Choose the membership that fits how you play.</h1>
             <p style={styles.heroBody}>
               Get bonus hints, premium answer access, more contest entries, streak tools, and
               member-only extras designed to keep people coming back every day.
             </p>
 
-            <div style={styles.heroUserBox}>
+            <div style={styles.heroUserBox} className="hero-user-box">
               <div>
                 <div style={styles.userLabel}>Signed in as</div>
-                <div style={styles.userValue}>{userName || userEmail || "Guest User"}</div>
+                <div style={styles.userValue} className="user-value">{userName || userEmail || "Guest User"}</div>
               </div>
               <div>
                 <div style={styles.userLabel}>Current membership</div>
-                <div style={styles.userValue}>{labelTier(currentTier)}</div>
+                <div style={styles.userValue} className="user-value">{labelTier(currentTier)}</div>
               </div>
             </div>
 
             {errorMessage ? <div style={styles.errorBox}>{errorMessage}</div> : null}
           </div>
 
-          <div style={styles.heroCard}>
+          <div style={styles.heroCard} className="hero-side-card">
             <div style={styles.heroCardTitle}>What membership includes</div>
             <div style={styles.heroCardList}>
               <div style={styles.heroListItem}>Bonus hints to keep players engaged</div>
@@ -322,7 +322,7 @@ export default function SubscribePage() {
         </section>
 
         <section style={styles.billingToggleWrap}>
-          <div style={styles.billingToggle}>
+          <div style={styles.billingToggle} className="billing-toggle">
             <button
               type="button"
               onClick={() => setBillingMode("monthly")}
@@ -330,6 +330,7 @@ export default function SubscribePage() {
                 ...styles.billingButton,
                 ...(billingMode === "monthly" ? styles.billingButtonActive : {}),
               }}
+              className="billing-button"
             >
               Monthly
             </button>
@@ -340,13 +341,14 @@ export default function SubscribePage() {
                 ...styles.billingButton,
                 ...(billingMode === "yearly" ? styles.billingButtonActive : {}),
               }}
+              className="billing-button"
             >
               Yearly <span style={styles.yearlySave}>Save more</span>
             </button>
           </div>
         </section>
 
-        <section style={styles.planGrid}>
+        <section style={styles.planGrid} className="plan-grid">
           {plans.map((plan) => {
             const isCurrent = plan.key === currentTier;
             const price = billingMode === "monthly" ? plan.priceMonthly : plan.priceYearly;
@@ -360,14 +362,15 @@ export default function SubscribePage() {
                   ...(plan.popular ? styles.planCardPopular : {}),
                   ...(isCurrent ? styles.planCardCurrent : {}),
                 }}
+                className={`plan-card ${plan.popular ? "plan-card-popular" : ""}`}
               >
                 <div style={styles.planTop}>
-                  <div style={styles.planHeaderRow}>
+                  <div style={styles.planHeaderRow} className="plan-header-row">
                     <h2 style={styles.planName}>{plan.name}</h2>
                     {plan.badge ? <span style={styles.planBadge}>{plan.badge}</span> : null}
                   </div>
 
-                  <div style={styles.planPriceRow}>
+                  <div style={styles.planPriceRow} className="plan-price-row">
                     <span style={styles.planPrice}>{price}</span>
                     <span style={styles.planTerm}>
                       /{billingMode === "monthly" ? "month" : "year"}
@@ -395,6 +398,7 @@ export default function SubscribePage() {
                     ...(isCurrent ? styles.planButtonCurrent : {}),
                     ...(isBusy ? styles.planButtonDisabled : {}),
                   }}
+                  className="full-width-mobile"
                 >
                   {getPlanButtonLabel(plan)}
                 </button>
@@ -403,8 +407,8 @@ export default function SubscribePage() {
           })}
         </section>
 
-        <section style={styles.infoGrid}>
-          <div style={styles.infoCard}>
+        <section style={styles.infoGrid} className="info-grid">
+          <div style={styles.infoCard} className="info-card">
             <h3 style={styles.infoTitle}>Why upgrade?</h3>
             <p style={styles.infoText}>
               Membership turns a quick daily scan into a fuller experience. Instead of only seeing
@@ -413,7 +417,7 @@ export default function SubscribePage() {
             </p>
           </div>
 
-          <div style={styles.infoCard}>
+          <div style={styles.infoCard} className="info-card">
             <h3 style={styles.infoTitle}>Good for retention</h3>
             <p style={styles.infoText}>
               Bonus hints, answer access, streak tools, and exclusive drops help keep users active
@@ -421,7 +425,7 @@ export default function SubscribePage() {
             </p>
           </div>
 
-          <div style={styles.infoCard}>
+          <div style={styles.infoCard} className="info-card">
             <h3 style={styles.infoTitle}>Flexible anytime</h3>
             <p style={styles.infoText}>
               Users can start on Free, upgrade when they want more perks, and manage their billing
@@ -430,11 +434,11 @@ export default function SubscribePage() {
           </div>
         </section>
 
-        <section style={styles.faqSection}>
-          <h2 style={styles.faqHeading}>Membership FAQ</h2>
+        <section style={styles.faqSection} className="faq-section">
+          <h2 style={styles.faqHeading} className="faq-heading">Membership FAQ</h2>
 
           <div style={styles.faqList}>
-            <div style={styles.faqItem}>
+            <div style={styles.faqItem} className="faq-item">
               <div style={styles.faqQuestion}>Do I still get to play for free?</div>
               <div style={styles.faqAnswer}>
                 Yes. The free plan still lets you participate in the daily puzzle. Paid membership
@@ -442,7 +446,7 @@ export default function SubscribePage() {
               </div>
             </div>
 
-            <div style={styles.faqItem}>
+            <div style={styles.faqItem} className="faq-item">
               <div style={styles.faqQuestion}>What changes when I upgrade?</div>
               <div style={styles.faqAnswer}>
                 Upgraded members can unlock extra hints, answer access, more contest benefits, and
@@ -450,7 +454,7 @@ export default function SubscribePage() {
               </div>
             </div>
 
-            <div style={styles.faqItem}>
+            <div style={styles.faqItem} className="faq-item">
               <div style={styles.faqQuestion}>Can I manage my subscription later?</div>
               <div style={styles.faqAnswer}>
                 Yes. Once your billing portal is connected, users can update or cancel their plan
@@ -458,7 +462,7 @@ export default function SubscribePage() {
               </div>
             </div>
 
-            <div style={styles.faqItem}>
+            <div style={styles.faqItem} className="faq-item">
               <div style={styles.faqQuestion}>Will more features be added?</div>
               <div style={styles.faqAnswer}>
                 Yes. This page is designed so you can keep layering in new member perks like bonus
@@ -468,13 +472,13 @@ export default function SubscribePage() {
           </div>
         </section>
 
-        <section style={styles.bottomCta}>
-          <h2 style={styles.bottomCtaTitle}>Ready to unlock more from Secret Scan Club?</h2>
+        <section style={styles.bottomCta} className="bottom-cta">
+          <h2 style={styles.bottomCtaTitle} className="bottom-cta-title">Ready to unlock more from Secret Scan Club?</h2>
           <p style={styles.bottomCtaText}>
             Start free, upgrade when you want more perks, and keep building daily engagement.
           </p>
-          <div style={styles.bottomCtaButtons}>
-            <Link href="/scan" style={styles.secondaryCta}>
+          <div style={styles.bottomCtaButtons} className="bottom-cta-buttons">
+            <Link href="/scan" style={styles.secondaryCta} className="cta-link-mobile">
               Back to Today’s Puzzle
             </Link>
             <button
@@ -485,6 +489,7 @@ export default function SubscribePage() {
                 ...styles.primaryCta,
                 ...(checkoutLoading !== null ? styles.planButtonDisabled : {}),
               }}
+              className="cta-link-mobile"
             >
               {checkoutLoading !== null
                 ? "Redirecting..."
@@ -495,6 +500,137 @@ export default function SubscribePage() {
           </div>
         </section>
       </div>
+
+      <style jsx>{`
+        @media (max-width: 1100px) {
+          .hero-grid,
+          .plan-grid,
+          .info-grid {
+            grid-template-columns: 1fr !important;
+          }
+
+          .plan-card {
+            min-height: auto !important;
+            transform: none !important;
+          }
+        }
+
+        @media (max-width: 780px) {
+          .subscribe-shell {
+            padding: 18px 14px 44px !important;
+          }
+
+          .top-bar {
+            margin-bottom: 24px !important;
+            align-items: stretch !important;
+          }
+
+          .logo-wrap {
+            width: 100%;
+            min-width: 0;
+          }
+
+          .top-links {
+            width: 100%;
+            display: grid !important;
+            grid-template-columns: 1fr;
+            gap: 10px !important;
+          }
+
+          .top-link {
+            width: 100%;
+            box-sizing: border-box;
+            text-align: center;
+          }
+
+          .hero-text-card,
+          .hero-side-card,
+          .plan-card,
+          .info-card,
+          .faq-section,
+          .faq-item,
+          .bottom-cta {
+            padding: 20px !important;
+            border-radius: 22px !important;
+          }
+
+          .hero-title {
+            font-size: 2rem !important;
+            line-height: 1.08 !important;
+          }
+
+          .hero-user-box {
+            grid-template-columns: 1fr !important;
+          }
+
+          .user-value {
+            word-break: break-word;
+          }
+
+          .billing-toggle {
+            width: 100%;
+            display: grid !important;
+            grid-template-columns: 1fr 1fr;
+          }
+
+          .billing-button {
+            width: 100%;
+            text-align: center;
+            justify-content: center;
+          }
+
+          .plan-header-row {
+            flex-direction: column;
+            align-items: flex-start !important;
+          }
+
+          .plan-price-row {
+            flex-wrap: wrap;
+          }
+
+          .faq-heading,
+          .bottom-cta-title {
+            font-size: 24px !important;
+          }
+
+          .bottom-cta-buttons {
+            flex-direction: column !important;
+          }
+
+          .cta-link-mobile,
+          .full-width-mobile {
+            width: 100% !important;
+            box-sizing: border-box;
+            text-align: center;
+            justify-content: center;
+          }
+        }
+
+        @media (max-width: 520px) {
+          .subscribe-shell {
+            padding: 14px 12px 36px !important;
+          }
+
+          .hero-text-card,
+          .hero-side-card,
+          .plan-card,
+          .info-card,
+          .faq-section,
+          .faq-item,
+          .bottom-cta {
+            padding: 18px !important;
+            border-radius: 20px !important;
+          }
+
+          .hero-title {
+            font-size: 1.72rem !important;
+          }
+
+          .billing-toggle {
+            grid-template-columns: 1fr !important;
+          }
+        }
+      `}</style>
     </main>
   );
 }
@@ -563,6 +699,7 @@ const styles: Record<string, React.CSSProperties> = {
     gap: 14,
     color: "#ffffff",
     textDecoration: "none",
+    minWidth: 0,
   },
   logoMark: {
     width: 48,
@@ -575,6 +712,7 @@ const styles: Record<string, React.CSSProperties> = {
     background: "linear-gradient(135deg, #7a8cff 0%, #35d6ff 100%)",
     color: "#07111f",
     boxShadow: "0 12px 28px rgba(0,0,0,0.25)",
+    flexShrink: 0,
   },
   logoTitle: {
     fontSize: 18,
@@ -615,6 +753,7 @@ const styles: Record<string, React.CSSProperties> = {
     borderRadius: 28,
     padding: 32,
     boxShadow: "0 22px 60px rgba(0,0,0,0.28)",
+    minWidth: 0,
   },
   kicker: {
     display: "inline-flex",
@@ -665,6 +804,7 @@ const styles: Record<string, React.CSSProperties> = {
     border: "1px solid rgba(255,255,255,0.08)",
     borderRadius: 16,
     padding: "14px 16px",
+    wordBreak: "break-word",
   },
   errorBox: {
     marginTop: 18,
@@ -683,6 +823,7 @@ const styles: Record<string, React.CSSProperties> = {
     borderRadius: 28,
     padding: 28,
     boxShadow: "0 22px 60px rgba(0,0,0,0.28)",
+    minWidth: 0,
   },
   heroCardTitle: {
     fontSize: 22,
@@ -750,6 +891,7 @@ const styles: Record<string, React.CSSProperties> = {
     border: "1px solid rgba(255,255,255,0.08)",
     boxShadow: "0 20px 48px rgba(0,0,0,0.25)",
     minHeight: 520,
+    minWidth: 0,
   },
   planCardPopular: {
     transform: "translateY(-4px)",
@@ -858,6 +1000,7 @@ const styles: Record<string, React.CSSProperties> = {
     padding: 24,
     background: "rgba(255,255,255,0.05)",
     border: "1px solid rgba(255,255,255,0.08)",
+    minWidth: 0,
   },
   infoTitle: {
     margin: "0 0 10px",
