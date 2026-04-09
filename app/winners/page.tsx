@@ -215,33 +215,33 @@ export default function WinnersPage() {
       <div style={styles.backgroundGlowTop} />
       <div style={styles.backgroundGlowBottom} />
 
-      <div style={styles.shell}>
-        <header style={styles.topBar}>
-          <Link href="/leaderboard" style={styles.logoWrap}>
+      <div style={styles.shell} className="winners-shell">
+        <header style={styles.topBar} className="top-bar">
+          <Link href="/leaderboard" style={styles.logoWrap} className="logo-wrap">
             <div style={styles.logoMark}>SSC</div>
-            <div>
+            <div style={{ minWidth: 0 }}>
               <div style={styles.logoTitle}>Secret Scan Club</div>
               <div style={styles.logoSub}>Winner history and monthly prize results</div>
             </div>
           </Link>
 
-          <div style={styles.topLinks}>
-            <Link href="/leaderboard" style={styles.topLink}>
+          <div style={styles.topLinks} className="top-links">
+            <Link href="/leaderboard" style={styles.topLink} className="top-link">
               Leaderboard
             </Link>
-            <Link href="/prize" style={styles.topLink}>
+            <Link href="/prize" style={styles.topLink} className="top-link">
               Prize Details
             </Link>
-            <Link href="/scan" style={styles.topLink}>
+            <Link href="/scan" style={styles.topLink} className="top-link">
               Daily Puzzle
             </Link>
           </div>
         </header>
 
-        <section style={styles.hero}>
-          <div style={styles.heroText}>
+        <section style={styles.hero} className="hero-grid">
+          <div style={styles.heroText} className="hero-text-card">
             <div style={styles.kicker}>Winners Archive</div>
-            <h1 style={styles.heroTitle}>See this month’s winners and the recent winner history.</h1>
+            <h1 style={styles.heroTitle} className="hero-title">See this month’s winners and the recent winner history.</h1>
             <p style={styles.heroBody}>
               This page is built to show the current month’s winners and roll older winners
               down as each new month begins. Right now it is set to show this month and last
@@ -250,7 +250,7 @@ export default function WinnersPage() {
             </p>
           </div>
 
-          <div style={styles.heroCard}>
+          <div style={styles.heroCard} className="hero-side-card">
             <div style={styles.heroCardTitle}>How this page works</div>
             <div style={styles.heroCardList}>
               <div style={styles.heroListItem}>This month’s winners stay at the top</div>
@@ -268,11 +268,11 @@ export default function WinnersPage() {
             const rows = winnerMap[month.monthKey] ?? [];
 
             return (
-              <article key={month.monthKey} style={styles.monthCard}>
-                <div style={styles.monthHeader}>
+              <article key={month.monthKey} style={styles.monthCard} className="month-card">
+                <div style={styles.monthHeader} className="month-header">
                   <div>
                     <div style={styles.monthKicker}>Winner Results</div>
-                    <h2 style={styles.monthTitle}>{month.monthLabel}</h2>
+                    <h2 style={styles.monthTitle} className="month-title">{month.monthLabel}</h2>
                   </div>
                 </div>
 
@@ -288,18 +288,19 @@ export default function WinnersPage() {
                       <div
                         key={isPlaceholder ? `${month.monthKey}-${item.key}` : item.id}
                         style={styles.winnerRow}
+                        className="winner-row"
                       >
-                        <div style={styles.winnerLeft}>
+                        <div style={styles.winnerLeft} className="winner-left">
                           <div style={styles.rankBadge}>{index + 1}</div>
-                          <div>
+                          <div style={{ minWidth: 0 }}>
                             <div style={styles.winnerCategory}>{category}</div>
-                            <div style={styles.winnerMeta}>
+                            <div style={styles.winnerMeta} className="winner-meta">
                               Winner: {winnerName} • Tier: {membershipTier}
                             </div>
                           </div>
                         </div>
 
-                        <div style={styles.prizePill}>{prizeAmount}</div>
+                        <div style={styles.prizePill} className="prize-pill">{prizeAmount}</div>
                       </div>
                     );
                   })}
@@ -309,6 +310,97 @@ export default function WinnersPage() {
           })}
         </section>
       </div>
+
+      <style jsx>{`
+        @media (max-width: 1100px) {
+          .hero-grid {
+            grid-template-columns: 1fr !important;
+          }
+        }
+
+        @media (max-width: 780px) {
+          .winners-shell {
+            padding: 18px 14px 44px !important;
+          }
+
+          .top-bar {
+            margin-bottom: 24px !important;
+            align-items: stretch !important;
+          }
+
+          .logo-wrap {
+            width: 100%;
+            min-width: 0;
+          }
+
+          .top-links {
+            width: 100%;
+            display: grid !important;
+            grid-template-columns: 1fr;
+            gap: 10px !important;
+          }
+
+          .top-link {
+            width: 100%;
+            box-sizing: border-box;
+            text-align: center;
+          }
+
+          .hero-text-card,
+          .hero-side-card,
+          .month-card {
+            padding: 20px !important;
+            border-radius: 22px !important;
+          }
+
+          .hero-title,
+          .month-title {
+            font-size: 2rem !important;
+            line-height: 1.08 !important;
+          }
+
+          .winner-row {
+            flex-direction: column;
+            align-items: flex-start !important;
+          }
+
+          .winner-left {
+            width: 100%;
+          }
+
+          .winner-meta {
+            word-break: break-word;
+          }
+
+          .prize-pill {
+            width: 100%;
+            box-sizing: border-box;
+            text-align: center;
+          }
+        }
+
+        @media (max-width: 520px) {
+          .winners-shell {
+            padding: 14px 12px 36px !important;
+          }
+
+          .hero-text-card,
+          .hero-side-card,
+          .month-card {
+            padding: 18px !important;
+            border-radius: 20px !important;
+          }
+
+          .hero-title,
+          .month-title {
+            font-size: 1.72rem !important;
+          }
+
+          .month-header {
+            margin-bottom: 16px !important;
+          }
+        }
+      `}</style>
     </main>
   );
 }
@@ -366,6 +458,7 @@ const styles: Record<string, React.CSSProperties> = {
     gap: 14,
     color: "#ffffff",
     textDecoration: "none",
+    minWidth: 0,
   },
   logoMark: {
     width: 48,
@@ -378,6 +471,7 @@ const styles: Record<string, React.CSSProperties> = {
     background: "linear-gradient(135deg, #7a8cff 0%, #35d6ff 100%)",
     color: "#07111f",
     boxShadow: "0 12px 28px rgba(0,0,0,0.25)",
+    flexShrink: 0,
   },
   logoTitle: {
     fontSize: 18,
@@ -418,6 +512,7 @@ const styles: Record<string, React.CSSProperties> = {
     borderRadius: 28,
     padding: 32,
     boxShadow: "0 22px 60px rgba(0,0,0,0.28)",
+    minWidth: 0,
   },
   kicker: {
     display: "inline-flex",
@@ -452,6 +547,7 @@ const styles: Record<string, React.CSSProperties> = {
     borderRadius: 28,
     padding: 28,
     boxShadow: "0 22px 60px rgba(0,0,0,0.28)",
+    minWidth: 0,
   },
   heroCardTitle: {
     fontSize: 22,
