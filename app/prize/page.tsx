@@ -62,52 +62,54 @@ export default function PrizePage() {
       <div style={styles.backgroundGlowTop} />
       <div style={styles.backgroundGlowBottom} />
 
-      <div style={styles.shell}>
-        <header style={styles.topBar}>
-          <Link href="/leaderboard" style={styles.logoWrap}>
+      <div style={styles.shell} className="prize-shell">
+        <header style={styles.topBar} className="top-bar">
+          <Link href="/leaderboard" style={styles.logoWrap} className="logo-wrap">
             <div style={styles.logoMark}>SSC</div>
-            <div>
+            <div style={{ minWidth: 0 }}>
               <div style={styles.logoTitle}>Secret Scan Club</div>
               <div style={styles.logoSub}>Prize details and membership multipliers</div>
             </div>
           </Link>
 
-          <div style={styles.topLinks}>
-            <Link href="/scan" style={styles.topLink}>
+          <div style={styles.topLinks} className="top-links">
+            <Link href="/scan" style={styles.topLink} className="top-link">
               Daily Puzzle
             </Link>
-            <Link href="/leaderboard" style={styles.topLink}>
+            <Link href="/leaderboard" style={styles.topLink} className="top-link">
               Leaderboard
             </Link>
-            <Link href="/subscribe" style={styles.topLink}>
+            <Link href="/subscribe" style={styles.topLink} className="top-link">
               Membership
             </Link>
           </div>
         </header>
 
-        <section style={styles.hero}>
-          <div style={styles.heroText}>
+        <section style={styles.hero} className="hero-grid">
+          <div style={styles.heroText} className="hero-text-card">
             <div style={styles.kicker}>Prize Center</div>
-            <h1 style={styles.heroTitle}>Compete for monthly prizes, random rewards, and VIP-only extras.</h1>
+            <h1 style={styles.heroTitle} className="hero-title">
+              Compete for monthly prizes, random rewards, and VIP-only extras.
+            </h1>
             <p style={styles.heroBody}>
               The Secret Scan Club prize system is built to reward consistency, accuracy,
               and fast performance. Show up daily, answer well, protect your streak,
               and climb the leaderboard before the month resets.
             </p>
 
-            <div style={styles.heroUserBox}>
+            <div style={styles.heroUserBox} className="hero-user-box">
               <div>
                 <div style={styles.userLabel}>Monthly leaderboard resets</div>
-                <div style={styles.userValue}>Beginning of every month</div>
+                <div style={styles.userValue} className="user-value">Beginning of every month</div>
               </div>
               <div>
                 <div style={styles.userLabel}>Prize multipliers</div>
-                <div style={styles.userValue}>Free 1x • Club 2x • VIP 3x</div>
+                <div style={styles.userValue} className="user-value">Free 1x • Club 2x • VIP 3x</div>
               </div>
             </div>
           </div>
 
-          <div style={styles.heroCard}>
+          <div style={styles.heroCard} className="hero-side-card">
             <div style={styles.heroCardTitle}>How the leaderboard is ranked</div>
             <div style={styles.heroCardList}>
               {leaderboardFactors.map((item) => (
@@ -119,12 +121,12 @@ export default function PrizePage() {
           </div>
         </section>
 
-        <section style={styles.infoGrid}>
-          <div style={styles.infoCard}>
+        <section style={styles.infoGrid} className="info-grid">
+          <div style={styles.infoCard} className="info-card">
             <h3 style={styles.infoTitle}>Monthly Placement Prizes</h3>
             <div style={styles.prizeList}>
               {monthlyPrizes.map((item) => (
-                <div key={item.place} style={styles.prizeRow}>
+                <div key={item.place} style={styles.prizeRow} className="prize-row">
                   <span style={styles.prizeLabel}>{item.place}</span>
                   <span style={styles.prizeAmount}>{item.prize}</span>
                 </div>
@@ -132,7 +134,7 @@ export default function PrizePage() {
             </div>
           </div>
 
-          <div style={styles.infoCard}>
+          <div style={styles.infoCard} className="info-card">
             <h3 style={styles.infoTitle}>Random Monthly Winners</h3>
             <p style={styles.infoText}>
               In addition to leaderboard placement prizes, five random winners are selected
@@ -140,7 +142,7 @@ export default function PrizePage() {
             </p>
             <div style={styles.prizeList}>
               {randomWinners.map((item) => (
-                <div key={item.label} style={styles.prizeRow}>
+                <div key={item.label} style={styles.prizeRow} className="prize-row">
                   <span style={styles.prizeLabel}>{item.label}</span>
                   <span style={styles.prizeAmount}>{item.prize}</span>
                 </div>
@@ -148,7 +150,7 @@ export default function PrizePage() {
             </div>
           </div>
 
-          <div style={styles.infoCard}>
+          <div style={styles.infoCard} className="info-card">
             <h3 style={styles.infoTitle}>VIP Weekly Prize Access</h3>
             <p style={styles.infoText}>
               VIP members also qualify for weekly prize opportunities. These weekly rewards
@@ -158,12 +160,12 @@ export default function PrizePage() {
           </div>
         </section>
 
-        <section style={styles.faqSection}>
-          <h2 style={styles.faqHeading}>Membership Prize Multipliers</h2>
+        <section style={styles.faqSection} className="faq-section">
+          <h2 style={styles.faqHeading} className="faq-heading">Membership Prize Multipliers</h2>
 
-          <div style={styles.multiplierGrid}>
+          <div style={styles.multiplierGrid} className="multiplier-grid">
             {multipliers.map((item) => (
-              <div key={item.tier} style={styles.multiplierCard}>
+              <div key={item.tier} style={styles.multiplierCard} className="multiplier-card">
                 <div style={styles.multiplierTier}>{item.tier}</div>
                 <div style={styles.multiplierValue}>{item.multiplier}</div>
                 <div style={styles.multiplierText}>{item.detail}</div>
@@ -172,11 +174,11 @@ export default function PrizePage() {
           </div>
         </section>
 
-        <section style={styles.faqSection}>
-          <h2 style={styles.faqHeading}>How Winners Are Determined</h2>
+        <section style={styles.faqSection} className="faq-section">
+          <h2 style={styles.faqHeading} className="faq-heading">How Winners Are Determined</h2>
 
           <div style={styles.faqList}>
-            <div style={styles.faqItem}>
+            <div style={styles.faqItem} className="faq-item">
               <div style={styles.faqQuestion}>Longest daily streak for the month</div>
               <div style={styles.faqAnswer}>
                 The leaderboard rewards members who keep showing up. A stronger streak gives
@@ -184,7 +186,7 @@ export default function PrizePage() {
               </div>
             </div>
 
-            <div style={styles.faqItem}>
+            <div style={styles.faqItem} className="faq-item">
               <div style={styles.faqQuestion}>Accuracy of answers</div>
               <div style={styles.faqAnswer}>
                 Correct answers matter. Better accuracy helps separate consistent solvers
@@ -192,7 +194,7 @@ export default function PrizePage() {
               </div>
             </div>
 
-            <div style={styles.faqItem}>
+            <div style={styles.faqItem} className="faq-item">
               <div style={styles.faqQuestion}>Total time it took to answer</div>
               <div style={styles.faqAnswer}>
                 Faster correct performance helps strengthen ranking. Speed matters once
@@ -200,7 +202,7 @@ export default function PrizePage() {
               </div>
             </div>
 
-            <div style={styles.faqItem}>
+            <div style={styles.faqItem} className="faq-item">
               <div style={styles.faqQuestion}>Monthly leaderboard reset</div>
               <div style={styles.faqAnswer}>
                 Every leaderboard resets at the beginning of the month so everyone gets a
@@ -210,17 +212,17 @@ export default function PrizePage() {
           </div>
         </section>
 
-        <section style={styles.faqSection}>
-          <h2 style={styles.faqHeading}>Prize Growth Model</h2>
+        <section style={styles.faqSection} className="faq-section">
+          <h2 style={styles.faqHeading} className="faq-heading">Prize Growth Model</h2>
           <p style={styles.bottomCtaText}>
             As the member base grows, the prize pool grows with it. Each listed prize doubles
             for every 3,000 new monthly members, creating a system that becomes more exciting
             as monthly traffic and engagement increase.
           </p>
 
-          <div style={styles.growthGrid}>
+          <div style={styles.growthGrid} className="growth-grid">
             {growthExamples.map((item) => (
-              <div key={item.members} style={styles.growthCard}>
+              <div key={item.members} style={styles.growthCard} className="growth-card">
                 <div style={styles.growthMembers}>{item.members}</div>
                 <div style={styles.growthText}>{item.monthly}</div>
               </div>
@@ -228,24 +230,130 @@ export default function PrizePage() {
           </div>
         </section>
 
-        <section style={styles.bottomCta}>
-          <h2 style={styles.bottomCtaTitle}>More members means bigger prizes.</h2>
+        <section style={styles.bottomCta} className="bottom-cta">
+          <h2 style={styles.bottomCtaTitle} className="bottom-cta-title">More members means bigger prizes.</h2>
           <p style={styles.bottomCtaText}>
             The structure is designed to reward repeat visits, strengthen competition, and
             scale prize excitement as the audience grows. More engagement means a bigger
             leaderboard, bigger incentives, and more reasons to come back daily.
           </p>
 
-          <div style={styles.bottomCtaButtons}>
-            <Link href="/leaderboard" style={styles.secondaryCta}>
+          <div style={styles.bottomCtaButtons} className="bottom-cta-buttons">
+            <Link href="/leaderboard" style={styles.secondaryCta} className="cta-link-mobile">
               Back to Leaderboard
             </Link>
-            <Link href="/subscribe" style={styles.primaryCta}>
+            <Link href="/subscribe" style={styles.primaryCta} className="cta-link-mobile">
               Upgrade for Higher Multiplier
             </Link>
           </div>
         </section>
       </div>
+
+      <style jsx>{`
+        @media (max-width: 1100px) {
+          .hero-grid,
+          .info-grid,
+          .multiplier-grid,
+          .growth-grid {
+            grid-template-columns: 1fr !important;
+          }
+        }
+
+        @media (max-width: 780px) {
+          .prize-shell {
+            padding: 18px 14px 44px !important;
+          }
+
+          .top-bar {
+            margin-bottom: 24px !important;
+            align-items: stretch !important;
+          }
+
+          .logo-wrap {
+            width: 100%;
+            min-width: 0;
+          }
+
+          .top-links {
+            width: 100%;
+            display: grid !important;
+            grid-template-columns: 1fr;
+            gap: 10px !important;
+          }
+
+          .top-link {
+            width: 100%;
+            box-sizing: border-box;
+            text-align: center;
+          }
+
+          .hero-text-card,
+          .hero-side-card,
+          .info-card,
+          .faq-section,
+          .multiplier-card,
+          .growth-card,
+          .faq-item,
+          .bottom-cta {
+            padding: 20px !important;
+            border-radius: 22px !important;
+          }
+
+          .hero-title,
+          .faq-heading,
+          .bottom-cta-title {
+            font-size: 2rem !important;
+            line-height: 1.08 !important;
+          }
+
+          .hero-user-box {
+            grid-template-columns: 1fr !important;
+          }
+
+          .user-value {
+            word-break: break-word;
+          }
+
+          .prize-row {
+            flex-direction: column;
+            align-items: flex-start !important;
+          }
+
+          .bottom-cta-buttons {
+            flex-direction: column !important;
+          }
+
+          .cta-link-mobile {
+            width: 100%;
+            box-sizing: border-box;
+            text-align: center;
+          }
+        }
+
+        @media (max-width: 520px) {
+          .prize-shell {
+            padding: 14px 12px 36px !important;
+          }
+
+          .hero-text-card,
+          .hero-side-card,
+          .info-card,
+          .faq-section,
+          .multiplier-card,
+          .growth-card,
+          .faq-item,
+          .bottom-cta {
+            padding: 18px !important;
+            border-radius: 20px !important;
+          }
+
+          .hero-title,
+          .faq-heading,
+          .bottom-cta-title {
+            font-size: 1.72rem !important;
+          }
+        }
+      `}</style>
     </main>
   );
 }
@@ -303,6 +411,7 @@ const styles: Record<string, React.CSSProperties> = {
     gap: 14,
     color: "#ffffff",
     textDecoration: "none",
+    minWidth: 0,
   },
   logoMark: {
     width: 48,
@@ -315,6 +424,7 @@ const styles: Record<string, React.CSSProperties> = {
     background: "linear-gradient(135deg, #7a8cff 0%, #35d6ff 100%)",
     color: "#07111f",
     boxShadow: "0 12px 28px rgba(0,0,0,0.25)",
+    flexShrink: 0,
   },
   logoTitle: {
     fontSize: 18,
@@ -355,6 +465,7 @@ const styles: Record<string, React.CSSProperties> = {
     borderRadius: 28,
     padding: 32,
     boxShadow: "0 22px 60px rgba(0,0,0,0.28)",
+    minWidth: 0,
   },
   kicker: {
     display: "inline-flex",
@@ -405,6 +516,7 @@ const styles: Record<string, React.CSSProperties> = {
     border: "1px solid rgba(255,255,255,0.08)",
     borderRadius: 16,
     padding: "14px 16px",
+    wordBreak: "break-word",
   },
   heroCard: {
     background: "linear-gradient(180deg, rgba(57,95,194,0.22), rgba(255,255,255,0.05))",
@@ -412,6 +524,7 @@ const styles: Record<string, React.CSSProperties> = {
     borderRadius: 28,
     padding: 28,
     boxShadow: "0 22px 60px rgba(0,0,0,0.28)",
+    minWidth: 0,
   },
   heroCardTitle: {
     fontSize: 22,
@@ -442,6 +555,7 @@ const styles: Record<string, React.CSSProperties> = {
     padding: 24,
     background: "rgba(255,255,255,0.05)",
     border: "1px solid rgba(255,255,255,0.08)",
+    minWidth: 0,
   },
   infoTitle: {
     margin: "0 0 12px",
@@ -476,6 +590,7 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: 900,
     fontSize: 18,
     color: "#7ef0d1",
+    flexShrink: 0,
   },
   faqSection: {
     borderRadius: 28,
@@ -549,6 +664,7 @@ const styles: Record<string, React.CSSProperties> = {
     padding: 20,
     background: "rgba(255,255,255,0.04)",
     border: "1px solid rgba(255,255,255,0.07)",
+    minWidth: 0,
   },
   growthMembers: {
     fontSize: 16,
