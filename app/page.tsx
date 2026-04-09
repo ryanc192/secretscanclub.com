@@ -377,9 +377,7 @@ export default function HomePage() {
           <div>© {new Date().getFullYear()} Secret Scan Club</div>
 
           <div className="footer-links">
-            <span>Daily rotating content</span>
-            <span>Free puzzle experience</span>
-            <span>Account-based streak tracking</span>
+           <span></span>
           </div>
         </footer>
       </div>
