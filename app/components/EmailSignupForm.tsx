@@ -2,11 +2,13 @@
 
 import { useState } from "react";
 import { supabase } from "../../lib/supabase";
+import { useRouter } from "next/navigation";
 
 export default function EmailSignupForm() {
   const [email, setEmail] = useState("");
   const [status, setStatus] = useState("");
   const [loading, setLoading] = useState(false);
+  const router = useRouter();
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -36,19 +38,15 @@ export default function EmailSignupForm() {
         },
       ]);
 
-    if (error) {
-      if (error.code === "23505") {
-        setStatus("You're already on the list.");
-      } else {
-        setStatus("Something went wrong. Please try again.");
-      }
+    // Even if duplicate, still redirect (important for UX)
+    if (error && error.code !== "23505") {
+      setStatus("Something went wrong. Please try again.");
       setLoading(false);
       return;
     }
 
-    setStatus("You're on the list.");
-    setEmail("");
-    setLoading(false);
+    // 🔥 Redirect to signup with email pre-filled
+    router.push(`/signup?email=${encodeURIComponent(cleanedEmail)}`);
   }
 
   return (
