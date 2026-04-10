@@ -421,15 +421,18 @@ export default function VipMemberScanPage() {
               </div>
 
               <div
-                style={{
-                  fontSize: 16,
-                  lineHeight: 1.7,
-                  color: "#ffffff",
-                }}
-              >
-                {drop?.member?.bonusHint ??
-                  "Add a bonusHint value under the member object in your daily drop JSON to control what appears here."}
-              </div>
+  style={{
+    fontSize: 16,
+    lineHeight: 1.7,
+    color:
+      drop?.member?.bonusHint
+        ? "#ffffff"
+        : "#000000",
+  }}
+>
+  {drop?.member?.bonusHint ??
+    "Add a bonusHint value under the member object in your daily drop JSON to control what appears here."}
+</div>
             </div>
           </div>
         </section>
