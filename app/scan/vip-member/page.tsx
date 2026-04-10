@@ -83,7 +83,8 @@ function computeTrackedAccuracy(rows: PuzzleSessionRow[]): number {
 
   const grouped = new Map<string, PuzzleSessionRow[]>();
 
-  for (const row of submittedRows) {
+  for (let i = 0; i < submittedRows.length; i += 1) {
+    const row = submittedRows[i];
     const key = row.puzzle_date;
     const existing = grouped.get(key) ?? [];
     existing.push(row);
@@ -93,7 +94,7 @@ function computeTrackedAccuracy(rows: PuzzleSessionRow[]): number {
   let trackedAttempts = 0;
   let trackedCorrect = 0;
 
-  for (const [, attempts] of grouped) {
+  grouped.forEach((attempts) => {
     attempts.sort((a, b) => {
       const aTime = new Date(a.created_at ?? a.submitted_at ?? 0).getTime();
       const bTime = new Date(b.created_at ?? b.submitted_at ?? 0).getTime();
@@ -104,7 +105,7 @@ function computeTrackedAccuracy(rows: PuzzleSessionRow[]): number {
 
     trackedAttempts += firstThree.length;
     trackedCorrect += firstThree.filter((item) => item.is_correct === true).length;
-  }
+  });
 
   return trackedAttempts > 0
     ? Math.round((trackedCorrect / trackedAttempts) * 100)
