@@ -39,6 +39,8 @@ type PuzzleSessionRow = {
   created_at?: string | null;
 };
 
+type MembershipTier = "free" | "club" | "vip";
+
 function loadDrop(date: string): Drop | null {
   try {
     return require(`../../../content/drops/${date}.json`);
@@ -194,6 +196,28 @@ export default function VipMemberScanPage() {
         return;
       }
 
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("membership_tier")
+        .eq("id", user.id)
+        .maybeSingle();
+
+      const membershipTier: MembershipTier =
+        profile?.membership_tier === "vip"
+          ? "vip"
+          : profile?.membership_tier === "club"
+          ? "club"
+          : "free";
+
+      if (membershipTier !== "vip") {
+        if (membershipTier === "club") {
+          router.replace("/scan/club-member");
+        } else {
+          router.replace("/scan/member");
+        }
+        return;
+      }
+
       if (!isMounted) return;
 
       setUserId(user.id);
@@ -208,6 +232,28 @@ export default function VipMemberScanPage() {
     } = supabase.auth.onAuthStateChange(async (_event, session) => {
       if (!session?.user) {
         router.replace("/scan");
+        return;
+      }
+
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("membership_tier")
+        .eq("id", session.user.id)
+        .maybeSingle();
+
+      const membershipTier: MembershipTier =
+        profile?.membership_tier === "vip"
+          ? "vip"
+          : profile?.membership_tier === "club"
+          ? "club"
+          : "free";
+
+      if (membershipTier !== "vip") {
+        if (membershipTier === "club") {
+          router.replace("/scan/club-member");
+        } else {
+          router.replace("/scan/member");
+        }
       }
     });
 
@@ -421,18 +467,15 @@ export default function VipMemberScanPage() {
               </div>
 
               <div
-  style={{
-    fontSize: 16,
-    lineHeight: 1.7,
-    color:
-      drop?.member?.bonusHint
-        ? "#ffffff"
-        : "#000000",
-  }}
->
-  {drop?.member?.bonusHint ??
-    "Add a bonusHint value under the member object in your daily drop JSON to control what appears here."}
-</div>
+                style={{
+                  fontSize: 16,
+                  lineHeight: 1.7,
+                  color: drop?.member?.bonusHint ? "#ffffff" : "#000000",
+                }}
+              >
+                {drop?.member?.bonusHint ??
+                  "Add a bonusHint value under the member object in your daily drop JSON to control what appears here."}
+              </div>
             </div>
           </div>
         </section>
