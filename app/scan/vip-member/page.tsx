@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { createBrowserSupabaseClient } from "../../../lib/supabase/client";
 import AuthStatus from "../../components/AuthStatus";
 
@@ -114,16 +115,12 @@ function computeTrackedAccuracy(rows: PuzzleSessionRow[]): number {
     : 0;
 }
 
-function redirectTo(path: string) {
-  if (typeof window !== "undefined") {
-    window.location.replace(path);
-  }
-}
-
 export default function VipMemberScanPage() {
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
+  const router = useRouter();
 
   const [authReady, setAuthReady] = useState(false);
+  const [redirectPath, setRedirectPath] = useState<string | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
 
   const [stats, setStats] = useState<MemberStats>({
@@ -187,7 +184,7 @@ export default function VipMemberScanPage() {
       } = await supabase.auth.getSession();
 
       if (!session?.user) {
-        redirectTo("/scan");
+        if (isMounted) setRedirectPath("/scan");
         return;
       }
 
@@ -196,7 +193,7 @@ export default function VipMemberScanPage() {
       } = await supabase.auth.getUser();
 
       if (!user) {
-        redirectTo("/scan");
+        if (isMounted) setRedirectPath("/scan");
         return;
       }
 
@@ -214,10 +211,12 @@ export default function VipMemberScanPage() {
           : "free";
 
       if (membershipTier !== "vip") {
+        if (!isMounted) return;
+
         if (membershipTier === "club") {
-          redirectTo("/scan/club-member");
+          setRedirectPath("/club-member");
         } else {
-          redirectTo("/scan/member");
+          setRedirectPath("/member");
         }
         return;
       }
@@ -235,7 +234,7 @@ export default function VipMemberScanPage() {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (_event, session) => {
       if (!session?.user) {
-        redirectTo("/scan");
+        setRedirectPath("/scan");
         return;
       }
 
@@ -254,9 +253,9 @@ export default function VipMemberScanPage() {
 
       if (membershipTier !== "vip") {
         if (membershipTier === "club") {
-          redirectTo("/scan/club-member");
+          setRedirectPath("/club-member");
         } else {
-          redirectTo("/scan/member");
+          setRedirectPath("/member");
         }
       }
     });
@@ -266,6 +265,11 @@ export default function VipMemberScanPage() {
       subscription.unsubscribe();
     };
   }, [supabase, today]);
+
+  useEffect(() => {
+    if (!redirectPath) return;
+    router.replace(redirectPath);
+  }, [redirectPath, router]);
 
   async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -340,7 +344,7 @@ export default function VipMemberScanPage() {
           fontWeight: 600,
         }}
       >
-        Loading...
+        Redirecting...
       </main>
     );
   }
