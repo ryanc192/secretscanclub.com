@@ -67,6 +67,9 @@ export default function ClubMemberScanPage() {
   const router = useRouter();
 
   const [authReady, setAuthReady] = useState(false);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [isClubAccess, setIsClubAccess] = useState(false);
+
   const [stats, setStats] = useState<MemberStats>({
     currentStreak: 0,
     longestStreak: 0,
@@ -92,7 +95,10 @@ export default function ClubMemberScanPage() {
       } = await supabase.auth.getSession();
 
       if (!session?.user) {
-        router.replace("/scan");
+        if (!isMounted) return;
+        setIsLoggedIn(false);
+        setIsClubAccess(false);
+        setAuthReady(true);
         return;
       }
 
@@ -101,10 +107,14 @@ export default function ClubMemberScanPage() {
       } = await supabase.auth.getUser();
 
       if (!user) {
-        router.replace("/scan");
+        if (!isMounted) return;
+        setIsLoggedIn(false);
+        setIsClubAccess(false);
+        setAuthReady(true);
         return;
       }
 
+      setIsLoggedIn(true);
       setUserId(user.id);
 
       const { data: profile } = await supabase
@@ -114,10 +124,7 @@ export default function ClubMemberScanPage() {
         .maybeSingle();
 
       const tier = String(profile?.subscription_tier ?? "").toLowerCase();
-      if (tier !== "plus" && tier !== "pro") {
-        router.replace("/subscribe");
-        return;
-      }
+      const hasClubAccess = tier === "plus" || tier === "pro";
 
       const { count: attemptsCount } = await supabase
         .from("puzzle_sessions")
@@ -132,12 +139,18 @@ export default function ClubMemberScanPage() {
         .eq("is_correct", true)
         .not("submitted_at", "is", null);
 
-      const { data: streakProtectorRow } = await supabase
-        .from("club_streak_protectors")
-        .select("id, user_id, month_key, used_count")
-        .eq("user_id", user.id)
-        .eq("month_key", currentMonthKey)
-        .maybeSingle<StreakProtectorRow>();
+      let streakProtectorRow: StreakProtectorRow | null = null;
+
+      if (hasClubAccess) {
+        const { data } = await supabase
+          .from("club_streak_protectors")
+          .select("id, user_id, month_key, used_count")
+          .eq("user_id", user.id)
+          .eq("month_key", currentMonthKey)
+          .maybeSingle<StreakProtectorRow>();
+
+        streakProtectorRow = data ?? null;
+      }
 
       const attempts = attemptsCount ?? 0;
       const correct = correctCount ?? 0;
@@ -152,6 +165,7 @@ export default function ClubMemberScanPage() {
         accuracy,
       });
 
+      setIsClubAccess(hasClubAccess);
       setStreakProtectorsUsed(streakProtectorRow?.used_count ?? 0);
       setAuthReady(true);
     }
@@ -162,7 +176,8 @@ export default function ClubMemberScanPage() {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
       if (!session?.user) {
-        router.replace("/scan");
+        setIsLoggedIn(false);
+        setIsClubAccess(false);
       }
     });
 
@@ -170,10 +185,10 @@ export default function ClubMemberScanPage() {
       isMounted = false;
       subscription.unsubscribe();
     };
-  }, [currentMonthKey, router, supabase]);
+  }, [currentMonthKey, supabase]);
 
   async function handleUseStreakProtector() {
-    if (!userId) return;
+    if (!userId || !isClubAccess) return;
 
     if (streakProtectorsUsed >= 1) {
       setStreakProtectorMessage("You already used your 1 Club Member streak protector this month.");
@@ -213,6 +228,7 @@ export default function ClubMemberScanPage() {
   }
 
   const streakProtectorsRemaining = Math.max(0, 1 - streakProtectorsUsed);
+  const showLockedOverlay = !isClubAccess;
 
   return (
     <main className="scan-page">
@@ -243,7 +259,7 @@ export default function ClubMemberScanPage() {
 
       <div className="scan-wrap">
         <section className="card">
-          <div className="pill">Club Member Mode</div>
+          <div className="pill">Club Member Preview</div>
 
           <h1 className="hero-title">Keep your streak moving.</h1>
 
@@ -324,6 +340,19 @@ export default function ClubMemberScanPage() {
               clue turns your attention twice before it resolves.
             </div>
           </div>
+
+          {showLockedOverlay ? (
+            <div className="locked-cta-box">
+              <div className="locked-cta-title">Unlock Club Member bonus hints</div>
+              <div className="locked-cta-copy">
+                Free users can preview this area, but Club Members unlock the real hint,
+                streak protection, and other member perks.
+              </div>
+              <Link href="/subscribe" className="btn-primary locked-cta-button">
+                Upgrade Membership
+              </Link>
+            </div>
+          ) : null}
         </section>
 
         <section className="card" style={{ marginTop: 20 }}>
@@ -336,7 +365,7 @@ export default function ClubMemberScanPage() {
             this section keeps a running tally so you can see whether yours is still available.
           </p>
 
-          <div className="streak-protector-wrap">
+          <div className={`streak-protector-wrap ${showLockedOverlay ? "locked-area" : ""}`}>
             <div className="streak-protector-card">
               <div className="streak-protector-top">
                 <div>
@@ -344,7 +373,7 @@ export default function ClubMemberScanPage() {
                   <div className="streak-protector-title">Monthly Streak Protector</div>
                 </div>
                 <div className="streak-protector-pill">
-                  {streakProtectorsRemaining} left this month
+                  {isClubAccess ? `${streakProtectorsRemaining} left this month` : "1 per month"}
                 </div>
               </div>
 
@@ -353,42 +382,78 @@ export default function ClubMemberScanPage() {
                 carefully — once it is used, you do not get another one until next month.
               </div>
 
-              <button
-                type="button"
-                onClick={handleUseStreakProtector}
-                disabled={streakProtectorsLoading || streakProtectorsRemaining === 0}
-                className="btn-primary streak-protector-btn"
-                style={{
-                  opacity:
-                    streakProtectorsLoading || streakProtectorsRemaining === 0 ? 0.65 : 1,
-                  cursor:
-                    streakProtectorsLoading || streakProtectorsRemaining === 0
-                      ? "not-allowed"
-                      : "pointer",
-                }}
-              >
-                {streakProtectorsLoading
-                  ? "Applying..."
-                  : streakProtectorsRemaining === 0
-                  ? "Streak Protector Used"
-                  : "Use Streak Protector"}
-              </button>
+              {isClubAccess ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={handleUseStreakProtector}
+                    disabled={streakProtectorsLoading || streakProtectorsRemaining === 0}
+                    className="btn-primary streak-protector-btn"
+                    style={{
+                      opacity:
+                        streakProtectorsLoading || streakProtectorsRemaining === 0 ? 0.65 : 1,
+                      cursor:
+                        streakProtectorsLoading || streakProtectorsRemaining === 0
+                          ? "not-allowed"
+                          : "pointer",
+                    }}
+                  >
+                    {streakProtectorsLoading
+                      ? "Applying..."
+                      : streakProtectorsRemaining === 0
+                      ? "Streak Protector Used"
+                      : "Use Streak Protector"}
+                  </button>
 
-              <div className="streak-protector-tally">
-                Used this month: {streakProtectorsUsed} / 1
-              </div>
+                  <div className="streak-protector-tally">
+                    Used this month: {streakProtectorsUsed} / 1
+                  </div>
 
-              {streakProtectorMessage ? (
-                <div className="streak-protector-message">{streakProtectorMessage}</div>
-              ) : null}
+                  {streakProtectorMessage ? (
+                    <div className="streak-protector-message">{streakProtectorMessage}</div>
+                  ) : null}
+                </>
+              ) : (
+                <div className="locked-cta-box tight-lock">
+                  <div className="locked-cta-title">Streak protection is locked</div>
+                  <div className="locked-cta-copy">
+                    Upgrade to Club Member to activate your 1 monthly streak protector.
+                  </div>
+                  <Link href="/subscribe" className="btn-primary locked-cta-button">
+                    Upgrade Membership
+                  </Link>
+                </div>
+              )}
             </div>
           </div>
 
           {drop ? (
-            <DailyPuzzle
-              puzzleDate={drop.date}
-              acceptedAnswers={drop.free.acceptedAnswers ?? [drop.free.answer]}
-            />
+            isClubAccess ? (
+              <DailyPuzzle
+                puzzleDate={drop.date}
+                acceptedAnswers={drop.free.acceptedAnswers ?? [drop.free.answer]}
+              />
+            ) : (
+              <div className="locked-answer-preview">
+                <div className="locked-answer-blur">
+                  <DailyPuzzle
+                    puzzleDate={drop.date}
+                    acceptedAnswers={drop.free.acceptedAnswers ?? [drop.free.answer]}
+                  />
+                </div>
+
+                <div className="locked-answer-overlay">
+                  <div className="locked-cta-title">Club answer tools are locked</div>
+                  <div className="locked-cta-copy">
+                    Free users can preview this section. Upgrade your membership to unlock
+                    Club perks and streak protection.
+                  </div>
+                  <Link href="/subscribe" className="btn-primary locked-cta-button">
+                    Upgrade Membership
+                  </Link>
+                </div>
+              </div>
+            )
           ) : (
             <div
               style={{
@@ -463,7 +528,9 @@ export default function ClubMemberScanPage() {
               `Best streak: ${stats.longestStreak}`,
               `Total puzzle plays: ${stats.attempts}`,
               `Accuracy: ${stats.accuracy}%`,
-              `Streak protectors left this month: ${streakProtectorsRemaining}`,
+              isClubAccess
+                ? `Streak protectors left this month: ${streakProtectorsRemaining}`
+                : "Upgrade to unlock 1 monthly streak protector",
             ].map((item) => (
               <div key={item} className="benefit-item">
                 <span style={{ fontSize: 18 }}>✓</span>
@@ -741,6 +808,35 @@ export default function ClubMemberScanPage() {
           line-height: 1.75;
         }
 
+        .locked-cta-box {
+          margin-top: 18px;
+          padding: 18px;
+          border-radius: 18px;
+          background: rgba(255, 255, 255, 0.06);
+          border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        .tight-lock {
+          margin-top: 0;
+        }
+
+        .locked-cta-title {
+          font-size: 18px;
+          font-weight: 900;
+          margin-bottom: 8px;
+        }
+
+        .locked-cta-copy {
+          color: rgba(255, 255, 255, 0.8);
+          line-height: 1.65;
+          margin-bottom: 14px;
+        }
+
+        .locked-cta-button {
+          width: 100%;
+          box-sizing: border-box;
+        }
+
         .streak-protector-wrap {
           margin: 20px 0 22px;
         }
@@ -811,6 +907,31 @@ export default function ClubMemberScanPage() {
           color: #e8f3ff;
           font-size: 14px;
           line-height: 1.5;
+        }
+
+        .locked-answer-preview {
+          position: relative;
+          margin-top: 10px;
+        }
+
+        .locked-answer-blur {
+          filter: blur(7px);
+          pointer-events: none;
+          user-select: none;
+          opacity: 0.7;
+        }
+
+        .locked-answer-overlay {
+          position: absolute;
+          inset: 0;
+          display: flex;
+          flex-direction: column;
+          justify-content: center;
+          align-items: center;
+          text-align: center;
+          padding: 20px;
+          background: rgba(8, 17, 31, 0.45);
+          border-radius: 20px;
         }
 
         .benefit-list {
