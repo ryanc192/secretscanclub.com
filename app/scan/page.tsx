@@ -1,11 +1,12 @@
-import fs from "fs";
-import path from "path";
-import Link from "next/link";
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
-import EmailSignupForm from "../components/EmailSignupForm";
-import AuthStatus from "../components/AuthStatus";
-import ScanRedirect from "./ScanRedirect";
-import AnswerCheckForm from "../components/AnswerCheckForm";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { createBrowserSupabaseClient } from "../../../lib/supabase/client";
+import AuthStatus from "../../components/AuthStatus";
+import DailyPuzzle from "../../components/DailyPuzzle";
 
 export const dynamic = "force-dynamic";
 
@@ -15,20 +16,26 @@ type Drop = {
   title: string;
   free: {
     puzzle: string;
-    sharePrompt?: string;
     answer: string;
     acceptedAnswers?: string[];
     explanation?: string;
   };
-  paid?: {
-    answerKey?: string;
-    funFact?: string;
-  };
-  subscriber?: {
-    bonus?: string;
-    emailTeaser?: string;
-  };
 };
+
+type MemberStats = {
+  currentStreak: number;
+  longestStreak: number;
+  attempts: number;
+  accuracy: number;
+};
+
+function loadDrop(date: string): Drop | null {
+  try {
+    return require(`../../../content/drops/${date}.json`);
+  } catch {
+    return null;
+  }
+}
 
 function todayET(): string {
   return new Intl.DateTimeFormat("en-CA", {
@@ -39,36 +46,101 @@ function todayET(): string {
   }).format(new Date());
 }
 
-function formatDateLabel(dateStr: string) {
-  const [year, month, day] = dateStr.split("-").map(Number);
-  const date = new Date(year, month - 1, day);
+export default function MemberScanPage() {
+  const supabase = useMemo(() => createBrowserSupabaseClient(), []);
+  const router = useRouter();
 
-  return new Intl.DateTimeFormat("en-US", {
-    month: "long",
-    day: "numeric",
-    year: "numeric",
-  }).format(date);
-}
+  const [authReady, setAuthReady] = useState(false);
+  const [stats, setStats] = useState<MemberStats>({
+    currentStreak: 0,
+    longestStreak: 0,
+    attempts: 0,
+    accuracy: 0,
+  });
 
-function loadDrop(dateStr?: string): Drop | null {
-  const date = dateStr ?? todayET();
-  const filePath = path.join(process.cwd(), "content", "drops", `${date}.json`);
-
-  if (!fs.existsSync(filePath)) return null;
-
-  return JSON.parse(fs.readFileSync(filePath, "utf8")) as Drop;
-}
-
-export default function ScanPage() {
   const today = todayET();
   const drop = loadDrop(today);
-  const activeDate = drop?.date ?? today;
-  const dateLabel = formatDateLabel(activeDate);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function load() {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (!session?.user) {
+        router.replace("/scan");
+        return;
+      }
+
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user) {
+        router.replace("/scan");
+        return;
+      }
+
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("current_streak, longest_streak")
+        .eq("id", user.id)
+        .maybeSingle();
+
+      const { count: attemptsCount } = await supabase
+        .from("puzzle_sessions")
+        .select("*", { count: "exact", head: true })
+        .eq("user_id", user.id)
+        .not("submitted_at", "is", null);
+
+      const { count: correctCount } = await supabase
+        .from("puzzle_sessions")
+        .select("*", { count: "exact", head: true })
+        .eq("user_id", user.id)
+        .eq("is_correct", true)
+        .not("submitted_at", "is", null);
+
+      const attempts = attemptsCount ?? 0;
+      const correct = correctCount ?? 0;
+      const accuracy =
+        attempts > 0 ? Math.round((correct / attempts) * 100) : 0;
+
+      if (!isMounted) return;
+
+      setStats({
+        currentStreak: profile?.current_streak ?? 0,
+        longestStreak: profile?.longest_streak ?? 0,
+        attempts,
+        accuracy,
+      });
+
+      setAuthReady(true);
+    }
+
+    load();
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (!session?.user) {
+        router.replace("/scan");
+      }
+    });
+
+    return () => {
+      isMounted = false;
+      subscription.unsubscribe();
+    };
+  }, [router, supabase]);
+
+  if (!authReady) {
+    return null;
+  }
 
   return (
     <main className="scan-page">
-      <ScanRedirect />
-
       <div
         style={{
           position: "fixed",
@@ -92,39 +164,45 @@ export default function ScanPage() {
             priority
           />
         </div>
-        <div className="scroll-cue">↓ Scroll for today’s puzzle ↓</div>
       </section>
 
       <div className="scan-wrap">
         <section className="card">
-          <div className="pill">Today’s Brain Challenge</div>
+          <div className="pill">Member Mode</div>
 
-          <h1 className="hero-title">
-            Think You’re Smarter Than Today’s Puzzle?
-          </h1>
+          <h1 className="hero-title">Keep your streak moving.</h1>
 
-          <p className="hero-text">
-          Scan to play, test your brain, and check your answer.
-          <p></p>New challenge drops daily — don’t miss your streak.
-          </p>
+          <div className="hero-text">
+            <p>Let’s be real — consistency breaks most people.</p>
+            <p>Not because it’s hard… but because they stop showing up.</p>
+            <p>So here’s the test:</p>
+            <p>
+              Solve today’s puzzle. Keep your streak alive. Then take another
+              shot — bonus challenge, locked content, whatever’s below.
+            </p>
+            <p>Or prove you’re no different from the rest of them.</p>
+          </div>
 
           <div className="meta-row">
             <div className="meta-box">
-              <strong>Date:</strong> {dateLabel}
+              <strong>Current Streak:</strong> {stats.currentStreak}
             </div>
-
             <div className="meta-box">
-              <strong>Drop:</strong> #{drop?.number ?? "—"}
+              <strong>Best Streak:</strong> {stats.longestStreak}
             </div>
-
             <div className="meta-box">
-              <strong>Status:</strong> {drop ? "Free daily puzzle" : "Not live yet"}
+              <strong>Total Plays:</strong> {stats.attempts}
+            </div>
+            <div className="meta-box">
+              <strong>Accuracy:</strong> {stats.accuracy}%
             </div>
           </div>
         </section>
 
         <section className="card-light" style={{ marginTop: 20 }}>
-          <div className="pill-light">Today’s Puzzle</div>
+          <div className="pill-light">
+            Today’s Puzzle: You Get One Shot and One Shot Only
+          </div>
 
           <h2 className="section-title">
             {drop?.title ?? "Today’s puzzle is not live yet"}
@@ -132,7 +210,7 @@ export default function ScanPage() {
 
           <p className="section-text-light">
             {drop
-              ? "Solve today’s puzzle for free and check your answer below."
+              ? "Today’s challenge is live. Solve it, protect your streak, and keep your momentum going before tomorrow’s drop resets the pressure. And remember, don't mess up. You only get one try."
               : "Today’s puzzle file has not been added yet. Come back soon."}
           </p>
 
@@ -152,12 +230,6 @@ export default function ScanPage() {
               <div>{drop?.free?.puzzle ?? "Come back soon for today’s puzzle."}</div>
             </div>
           </div>
-
-          {drop?.free?.sharePrompt ? (
-            <div className="share-box">
-              <strong>Need a hint?</strong> {drop.free.sharePrompt}
-            </div>
-          ) : null}
         </section>
 
         <section className="card" style={{ marginTop: 20 }}>
@@ -166,17 +238,16 @@ export default function ScanPage() {
           <h2 className="section-title">Submit your answer</h2>
 
           <p className="section-text-dark">
-            Enter your answer, check how you did, and then create an account to
-            start tracking your streak.
+            Lock in your answer now. Every correct play strengthens your stats,
+            extends your streak, and keeps you moving toward a stronger member
+            profile.
           </p>
 
           {drop ? (
-            <AnswerCheckForm
-              dropDate={drop.date}
-              correctAnswer={drop.free.answer}
-              acceptedAnswers={drop.free.acceptedAnswers ?? []}
-              explanation={drop.free.explanation ?? ""}
-          />
+            <DailyPuzzle
+              puzzleDate={drop.date}
+              acceptedAnswers={drop.free.acceptedAnswers ?? [drop.free.answer]}
+            />
           ) : (
             <div
               style={{
@@ -196,102 +267,143 @@ export default function ScanPage() {
         </section>
 
         <section className="card-light" style={{ marginTop: 20 }}>
-          <div className="pill-light">Stay in the Loop</div>
+          <div className="pill-light">Keep Going</div>
 
-          <div className="capture-wrap">
-            <div className="capture-main">
-              <h2 className="capture-title">
-                Enter your email for daily puzzle reminders
-              </h2>
+          <h2 className="section-title">One click doesn’t prove anything</h2>
 
-              <p className="capture-subtext">
-                Get tomorrow’s challenge in your inbox, stay connected to Secret
-                Scan Club, and never miss a day.
-              </p>
+          <div className="section-text-light">
+            <p>Anyone can do that.</p>
+            <p>
+              Try it again. Hit another puzzle. See where you stack up on the
+              leaderboard.
+            </p>
+            <p>That’s where it starts to count.</p>
+          </div>
 
-              <div className="entry-badge-row">
-                <div className="entry-badge">Daily Reminders</div>
-                <div className="entry-badge">New Puzzle Alerts</div>
-                <div className="entry-badge">Free to Join</div>
+          <div
+            style={{
+              display: "flex",
+              gap: 12,
+              flexWrap: "wrap",
+              marginTop: 20,
+            }}
+          >
+            <Link href="/scan/yesterday" className="btn-primary">
+              Try Yesterday’s Puzzle
+            </Link>
+
+            <Link href="/scan/bonus" className="btn-primary">
+              Play Bonus Puzzle
+            </Link>
+
+            <Link href="/leaderboard" className="btn-primary">
+              View Leaderboard
+            </Link>
+          </div>
+        </section>
+
+        <section className="card" style={{ marginTop: 20 }}>
+          <div className="pill">Your Progress</div>
+
+          <h2 className="section-title" style={{ color: "#ffffff" }}>
+            Your Streak is Your Leverage
+          </h2>
+
+          <div className="section-text-dark">
+            <p>This is where consistency shows.</p>
+            <p>Every correct answer adds up. Your streak grows. Progress compounds.</p>
+            <p>Miss a day, and the chain breaks.</p>
+            <p>It’s that simple.</p>
+          </div>
+
+          <div className="benefit-list">
+            {[
+              `Current streak: ${stats.currentStreak}`,
+              `Best streak: ${stats.longestStreak}`,
+              `Total puzzle plays: ${stats.attempts}`,
+              `Accuracy: ${stats.accuracy}%`,
+              "Come back tomorrow to protect your streak",
+            ].map((item) => (
+              <div key={item} className="benefit-item">
+                <span style={{ fontSize: 18 }}>✓</span>
+                <span>{item}</span>
               </div>
+            ))}
+          </div>
+        </section>
 
-              <EmailSignupForm />
+        <section className="card-light" style={{ marginTop: 20 }}>
+          <div className="pill-light">Member Extras</div>
 
-              <div className="capture-note">
-                By signing up, you agree to receive Secret Scan Club emails
-                including daily puzzle reminders and occasional updates.
+          <h2 className="section-title">You’re building something now</h2>
+
+          <div className="section-text-light">
+            <p>
+              This isn’t a one-time puzzle visit. Every time you show up, your
+              progress stacks, your streak grows, and the system tightens around
+              your consistency. Each return matters more than the last.
+            </p>
+            <p>Most people don’t stick with it. That’s why nothing changes for them.</p>
+          </div>
+
+          <div className="capture-points" style={{ marginTop: 20 }}>
+            <div className="capture-point">
+              <div className="capture-point-title">Your progress is tracked</div>
+              <div className="capture-point-text">
+                Every answer adds up. Your stats build over time, so each day
+                connects — or exposes when you fall off.
               </div>
             </div>
 
-            <div className="capture-side">
-              <div className="capture-points">
-                <div className="capture-point">
-                  <div className="capture-point-title">Come back daily</div>
-                  <div className="capture-point-text">
-                    Get a quick reminder each day so you never miss a challenge
-                    and keep your streak alive.
-                  </div>
-                </div>
-                 <div className="capture-point">
-                  <div className="capture-point-title">It's all FREE</div>
-                  <div className="capture-point-text">
-                    Every Puzzle. Every Day. Always FREE. 
-                  </div>
-                </div>
-                <div className="capture-point">
-                  <div className="capture-point-title">Build your streak</div>
-                  <div className="capture-point-text">
-                    Turn solving puzzles into a daily habit and watch your streak
-                    grow over time.
-                  </div>
-                </div>
+            <div className="capture-point">
+              <div className="capture-point-title">Streaks create pressure</div>
+              <div className="capture-point-text">
+                The longer your streak runs, the harder it is to lose. Miss a
+                day, and it’s gone.
+              </div>
+            </div>
 
-                <div className="capture-point">
-                  <div className="capture-point-title">Stay mentally sharp</div>
-                  <div className="capture-point-text">
-                    Short daily challenges help you stay focused, think faster,
-                    and keep your brain active.
-                  </div>
-                </div>
+            <div className="capture-point">
+              <div className="capture-point-title">More ways to stay in it</div>
+              <div className="capture-point-text">
+                Bonus challenges and past puzzles are always there — if you’re
+                willing to keep going.
+              </div>
+            </div>
 
-                <div className="capture-point">
-                  <div className="capture-point-title">
-                    Get tomorrow’s challenge first
-                  </div>
-                  <div className="capture-point-text">
-                    Be the first to see each new puzzle and get a head start on
-                    the next brain challenge.
-                  </div>
-                </div>
-
-                <div className="capture-point">
-                  <div className="capture-point-title">No spam, just value</div>
-                  <div className="capture-point-text">
-                    Simple daily emails with your puzzle, your progress, and
-                    occasional helpful extras.
-                  </div>
-                </div>
+            <div className="capture-point">
+              <div className="capture-point-title">Each visit raises the stakes</div>
+              <div className="capture-point-text">
+                The more you show up, the more it builds. Momentum compounds —
+                or disappears if you stop.
               </div>
             </div>
           </div>
         </section>
 
         <section className="card" style={{ marginTop: 20 }}>
-          <div className="pill">Create Account</div>
+          <div className="pill">Brain Boost</div>
 
-          <h2 className="section-title">Track your streak and save your progress</h2>
+          <h2 className="section-title" style={{ color: "#ffffff" }}>
+            Struggling to stay sharp?
+          </h2>
 
-          <p className="section-text-dark">
-            Want more than just today’s puzzle? Create a free account to save
-            your streak, track your history, and build consistency over time.
+          <p
+            className="section-text-dark"
+            style={{ maxWidth: "none", opacity: 0.95 }}
+          >
+            If today’s puzzle slowed you down, use that as your signal. Better
+            focus, better energy, and a stronger routine can help you show up
+            sharper for the next challenge.
           </p>
 
           <div className="benefit-list">
             {[
-              "Track your current streak",
-              "See your best streak",
-              "Save daily puzzle progress",
-              "Build a reason to come back tomorrow",
+              "Helps you stay sharp and think faster",
+              "Designed for people who actually use their brain daily",
+              "Simple, no-friction way to level up your routine",
+              "Low effort, high impact addition",
+              "Built for daily use, not occasional effort",
             ].map((item) => (
               <div key={item} className="benefit-item">
                 <span style={{ fontSize: 18 }}>✓</span>
@@ -300,83 +412,15 @@ export default function ScanPage() {
             ))}
           </div>
 
-          <div style={{ marginTop: 20 }}>
-            <Link href="/signup" className="btn-primary">
-              Create Free Account
-            </Link>
-          </div>
+          <a
+            href="YOUR-AMWAY-LINK-HERE"
+            target="_blank"
+            rel="noreferrer"
+            className="btn-primary"
+          >
+            Upgrade Your Focus
+          </a>
         </section>
-
-        <section className="offer-grid">
-          <div className="offer-main">
-            <div className="pill">Brain Boost</div>
-
-            <h2 className="section-title">Did today’s puzzle kick your butt?</h2>
-
-            <p
-              className="section-text-dark"
-              style={{ maxWidth: "none", opacity: 0.95 }}
-            >
-              Need a little extra focus for tomorrow’s challenge? Check out the
-              brain-boost option below.
-            </p>
-
-            <div className="benefit-list">
-              {[
-              "Helps you stay sharp and think faster",
-              "Designed for people who actually use their brain daily",
-              "Simple, no-friction way to level up your routine",
-              "Low effort, high impact addition",
-              "Built for daily use, not occasional effort",
-              ].map((item) => (
-                <div key={item} className="benefit-item">
-                  <span style={{ fontSize: 18 }}>✓</span>
-                  <span>{item}</span>
-                </div>
-              ))}
-            </div>
-
-            <a
-              href="YOUR-AMWAY-LINK-HERE"
-              target="_blank"
-              rel="noreferrer"
-              className="btn-primary"
-            >
-              See the Brain Boost
-            </a>
-          </div>
-
-          <div className="offer-side">
-            <h3 style={{ marginTop: 0, fontSize: 22, fontWeight: 900 }}>
-              How it works
-            </h3>
-
-            <div className="steps">
-              {[
-                ["1", "Scan the code", "Land on today’s puzzle instantly."],
-                ["2", "Play for free", "Read the puzzle and submit your answer."],
-                ["3", "Save your streak", "Create a free account to track progress."],
-                ["4", "Come back tomorrow", "See if your brain can handle the challlenges of tomorrow."],
-              ].map(([num, title, text]) => (
-                <div key={num} className="step">
-                  <div className="step-num">{num}</div>
-                  <div>
-                    <div style={{ fontWeight: 800, marginBottom: 4 }}>{title}</div>
-                    <div style={{ opacity: 0.85, lineHeight: 1.5 }}>{text}</div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        <footer className="footer">
-          <div>© {new Date().getFullYear()} Secret Scan Club</div>
-
-          <div className="footer-links">
-           <span></span>
-          </div>
-        </footer>
       </div>
     </main>
   );
