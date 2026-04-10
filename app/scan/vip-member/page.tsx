@@ -19,6 +19,9 @@ type Drop = {
     acceptedAnswers?: string[];
     explanation?: string;
   };
+  member?: {
+    bonusHint?: string;
+  };
 };
 
 type MemberStats = {
@@ -383,10 +386,60 @@ export default function VipMemberScanPage() {
           </div>
         </section>
 
+        <section className="card-light" style={{ marginTop: 20 }}>
+          <div className="pill-light">Bonus Hint</div>
+
+          <h2 className="section-title">VIP Bonus Hint</h2>
+
+          <p className="section-text-light">
+            VIP members get the extra edge. Use the hint, spot the pattern
+            faster, and keep the pressure where it belongs.
+          </p>
+
+          <div style={{ position: "relative", marginTop: 18 }}>
+            <div
+              style={{
+                padding: "22px",
+                borderRadius: 20,
+                border: "1px solid rgba(255,255,255,0.12)",
+                background: "rgba(255,255,255,0.06)",
+                overflow: "hidden",
+              }}
+            >
+              <div
+                style={{
+                  fontSize: 13,
+                  fontWeight: 800,
+                  textTransform: "uppercase",
+                  letterSpacing: "0.08em",
+                  opacity: 0.7,
+                  marginBottom: 10,
+                  color: "#ffffff",
+                }}
+              >
+                Today’s VIP Hint
+              </div>
+
+              <div
+                style={{
+                  fontSize: 16,
+                  lineHeight: 1.7,
+                  color: "#ffffff",
+                }}
+              >
+                {drop?.member?.bonusHint ??
+                  "Add a bonusHint value under the member object in your daily drop JSON to control what appears here."}
+              </div>
+            </div>
+          </div>
+        </section>
+
         <section className="card" style={{ marginTop: 20 }}>
           <div className="pill">Answer Check</div>
 
-          <h2 className="section-title">Submit your answer</h2>
+          <h2 className="section-title" style={{ color: "#ffffff" }}>
+            Submit your answer
+          </h2>
 
           <p className="section-text-dark">
             Lock in your answer now. Every correct play strengthens your stats,
