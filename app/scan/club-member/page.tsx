@@ -19,7 +19,9 @@ type Drop = {
     answer: string;
     acceptedAnswers?: string[];
     explanation?: string;
-    sharePrompt?: string;
+  };
+  member?: {
+    bonusHint?: string;
   };
 };
 
@@ -30,12 +32,7 @@ type MemberStats = {
   accuracy: number;
 };
 
-type StreakProtectorRow = {
-  id: string;
-  user_id: string;
-  month_key: string;
-  used_count: number;
-};
+type MembershipTier = "free" | "club" | "vip";
 
 function loadDrop(date: string): Drop | null {
   try {
@@ -54,7 +51,7 @@ function todayET(): string {
   }).format(new Date());
 }
 
-function monthKeyET(): string {
+function getMonthKey() {
   return new Intl.DateTimeFormat("en-CA", {
     timeZone: "America/New_York",
     year: "numeric",
@@ -67,8 +64,7 @@ export default function ClubMemberScanPage() {
   const router = useRouter();
 
   const [authReady, setAuthReady] = useState(false);
-  const [isClubAccess, setIsClubAccess] = useState(false);
-
+  const [membershipTier, setMembershipTier] = useState<MembershipTier>("free");
   const [stats, setStats] = useState<MemberStats>({
     currentStreak: 0,
     longestStreak: 0,
@@ -76,13 +72,8 @@ export default function ClubMemberScanPage() {
     accuracy: 0,
   });
 
-  const [userId, setUserId] = useState("");
-  const [streakProtectorsUsed, setStreakProtectorsUsed] = useState(0);
-  const [streakProtectorsLoading, setStreakProtectorsLoading] = useState(false);
-  const [streakProtectorMessage, setStreakProtectorMessage] = useState("");
-
   const today = todayET();
-  const currentMonthKey = monthKeyET();
+  const monthKey = getMonthKey();
   const drop = loadDrop(today);
 
   useEffect(() => {
@@ -107,16 +98,11 @@ export default function ClubMemberScanPage() {
         return;
       }
 
-      setUserId(user.id);
-
       const { data: profile } = await supabase
         .from("profiles")
-        .select("current_streak, longest_streak, subscription_tier")
+        .select("current_streak, longest_streak, membership_tier")
         .eq("id", user.id)
         .maybeSingle();
-
-      const tier = String(profile?.subscription_tier ?? "").toLowerCase();
-      const hasClubAccess = tier === "plus" || tier === "pro";
 
       const { count: attemptsCount } = await supabase
         .from("puzzle_sessions")
@@ -131,25 +117,21 @@ export default function ClubMemberScanPage() {
         .eq("is_correct", true)
         .not("submitted_at", "is", null);
 
-      let streakProtectorRow: StreakProtectorRow | null = null;
-
-      if (hasClubAccess) {
-        const { data } = await supabase
-          .from("club_streak_protectors")
-          .select("id, user_id, month_key, used_count")
-          .eq("user_id", user.id)
-          .eq("month_key", currentMonthKey)
-          .maybeSingle<StreakProtectorRow>();
-
-        streakProtectorRow = data ?? null;
-      }
-
       const attempts = attemptsCount ?? 0;
       const correct = correctCount ?? 0;
-      const accuracy = attempts > 0 ? Math.round((correct / attempts) * 100) : 0;
+      const accuracy =
+        attempts > 0 ? Math.round((correct / attempts) * 100) : 0;
+
+      const normalizedTier =
+        profile?.membership_tier === "vip"
+          ? "vip"
+          : profile?.membership_tier === "club"
+          ? "club"
+          : "free";
 
       if (!isMounted) return;
 
+      setMembershipTier(normalizedTier);
       setStats({
         currentStreak: profile?.current_streak ?? 0,
         longestStreak: profile?.longest_streak ?? 0,
@@ -157,8 +139,6 @@ export default function ClubMemberScanPage() {
         accuracy,
       });
 
-      setIsClubAccess(hasClubAccess);
-      setStreakProtectorsUsed(streakProtectorRow?.used_count ?? 0);
       setAuthReady(true);
     }
 
@@ -176,48 +156,24 @@ export default function ClubMemberScanPage() {
       isMounted = false;
       subscription.unsubscribe();
     };
-  }, [currentMonthKey, router, supabase]);
-
-  async function handleUseStreakProtector() {
-    if (!userId || !isClubAccess) return;
-
-    if (streakProtectorsUsed >= 1) {
-      setStreakProtectorMessage("You already used your 1 Club Member streak protector this month.");
-      return;
-    }
-
-    setStreakProtectorsLoading(true);
-    setStreakProtectorMessage("");
-
-    const { error } = await supabase.from("club_streak_protectors").upsert(
-      {
-        user_id: userId,
-        month_key: currentMonthKey,
-        used_count: 1,
-        updated_at: new Date().toISOString(),
-      },
-      {
-        onConflict: "user_id,month_key",
-        ignoreDuplicates: false,
-      }
-    );
-
-    if (error) {
-      setStreakProtectorMessage(error.message || "Could not apply streak protector right now.");
-    } else {
-      setStreakProtectorsUsed(1);
-      setStreakProtectorMessage("Streak protector marked for this month. Club Members get 1 per month.");
-    }
-
-    setStreakProtectorsLoading(false);
-  }
+  }, [router, supabase]);
 
   if (!authReady) {
     return null;
   }
 
-  const streakProtectorsRemaining = Math.max(0, 1 - streakProtectorsUsed);
-  const showLockedOverlay = !isClubAccess;
+  const showBonusHint = membershipTier === "club" || membershipTier === "vip";
+  const monthlyStreakProtectors = membershipTier === "club" ? 1 : membershipTier === "vip" ? 2 : 0;
+
+  const storedUsedCount =
+    typeof window !== "undefined"
+      ? Number(localStorage.getItem(`ssc-streak-protectors-used-${monthKey}`) ?? "0")
+      : 0;
+
+  const remainingProtectors = Math.max(
+    monthlyStreakProtectors - storedUsedCount,
+    0
+  );
 
   return (
     <main className="scan-page">
@@ -296,147 +252,272 @@ export default function ClubMemberScanPage() {
 
           <div className="puzzle-box">
             <div>
-              <div className="eyebrow-muted">Today’s Brain Tester</div>
+              <div
+                style={{
+                  fontSize: 14,
+                  fontWeight: 800,
+                  textTransform: "uppercase",
+                  opacity: 0.6,
+                  marginBottom: 10,
+                }}
+              >
+                Today’s Brain Tester
+              </div>
               <div>{drop?.free?.puzzle ?? "Come back soon for today’s puzzle."}</div>
             </div>
           </div>
         </section>
 
-        <section className="card-light" style={{ marginTop: 20 }}>
+        <section className="card-light" style={{ marginTop: 20, position: "relative" }}>
           <div className="pill-light">Bonus Hint</div>
 
-          <h2 className="section-title">Club bonus hint</h2>
+          <h2 className="section-title">A little edge, if you’ve earned it</h2>
 
           <p className="section-text-light">
-            Club Members get bonus hints and streak protection built into their monthly access.
+            Club Members can unlock an extra push when they need it. Use the hint,
+            stay alive, and keep your streak from slipping for no reason.
           </p>
 
-          <div className="hint-preview-box">
-            <div className="eyebrow-muted">Bonus Hint</div>
-            <div className={showLockedOverlay ? "blurred-content" : ""}>
-              Focus on the pattern, not the wording. The answer is hiding in the way the
-              clue redirects your attention before it resolves.
+          <div style={{ position: "relative", marginTop: 18 }}>
+            <div
+              style={{
+                padding: "22px",
+                borderRadius: 20,
+                border: "1px solid rgba(255,255,255,0.12)",
+                background: "rgba(255,255,255,0.06)",
+                position: "relative",
+                overflow: "hidden",
+              }}
+            >
+              <div
+                style={{
+                  filter: showBonusHint ? "none" : "blur(8px)",
+                  userSelect: showBonusHint ? "auto" : "none",
+                  pointerEvents: showBonusHint ? "auto" : "none",
+                  transition: "filter 0.2s ease",
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: 13,
+                    fontWeight: 800,
+                    textTransform: "uppercase",
+                    letterSpacing: "0.08em",
+                    opacity: 0.7,
+                    marginBottom: 10,
+                  }}
+                >
+                  Today’s Bonus Hint
+                </div>
+                <div
+                  style={{
+                    fontSize: 16,
+                    lineHeight: 1.7,
+                    color: "#ffffff",
+                  }}
+                >
+                  {drop?.member?.bonusHint ??
+                    "Add a bonusHint value under the member object in your daily drop JSON to control what appears here."}
+                </div>
+              </div>
+
+              {!showBonusHint && (
+                <div
+                  style={{
+                    position: "absolute",
+                    inset: 0,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    padding: 24,
+                    textAlign: "center",
+                    background:
+                      "linear-gradient(180deg, rgba(8,15,30,0.18) 0%, rgba(8,15,30,0.82) 100%)",
+                  }}
+                >
+                  <div style={{ maxWidth: 460 }}>
+                    <div
+                      style={{
+                        fontSize: 13,
+                        fontWeight: 900,
+                        textTransform: "uppercase",
+                        letterSpacing: "0.08em",
+                        color: "#89f0dd",
+                        marginBottom: 10,
+                      }}
+                    >
+                      Club Upgrade Required
+                    </div>
+
+                    <div
+                      style={{
+                        fontSize: 24,
+                        fontWeight: 800,
+                        color: "#ffffff",
+                        marginBottom: 10,
+                      }}
+                    >
+                      Unlock the bonus hint
+                    </div>
+
+                    <p
+                      style={{
+                        margin: "0 0 18px",
+                        color: "rgba(255,255,255,0.88)",
+                        lineHeight: 1.6,
+                      }}
+                    >
+                      Upgrade your account to Club Member to reveal the hint,
+                      stay in the game longer, and get access to Club-only perks.
+                    </p>
+
+                    <div
+                      style={{
+                        display: "flex",
+                        gap: 12,
+                        justifyContent: "center",
+                        flexWrap: "wrap",
+                      }}
+                    >
+                      <Link href="/subscribe" className="btn-primary">
+                        Upgrade to Club
+                      </Link>
+                      <Link href="/account" className="btn-primary">
+                        Manage Account
+                      </Link>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
-
-          {showLockedOverlay ? (
-            <div className="soft-lock-box">
-              <div className="soft-lock-title">Upgrade to unlock Club hints</div>
-              <div className="soft-lock-copy">
-                You’re viewing the Club preview. Upgrade your membership to unlock bonus hints,
-                streak protection, and the full Club experience.
-              </div>
-              <Link href="/subscribe" className="btn-primary">
-                Upgrade Membership
-              </Link>
-            </div>
-          ) : null}
         </section>
 
         <section className="card" style={{ marginTop: 20 }}>
           <div className="pill">Answer Check</div>
 
-          <h2 className="section-title" style={{ color: "#ffffff" }}>
-            Need another shot? Try one more time.
-          </h2>
+          <h2 className="section-title">Submit your answer</h2>
 
           <p className="section-text-dark">
-            Club Members get streak protection. You have 1 streak protector per month, and
-            this section keeps a running tally so you can see whether yours is still available.
+            Lock in your answer now. Every correct play strengthens your stats,
+            extends your streak, and keeps you moving toward a stronger member
+            profile.
           </p>
 
-          <div className="protector-wrap">
-            <div className="protector-card">
-              <div className="protector-top">
-                <div>
-                  <div className="protector-kicker">Club Member Perk</div>
-                  <div className="protector-title">Monthly Streak Protector</div>
-                </div>
-                <div className="protector-pill">
-                  {isClubAccess ? `${streakProtectorsRemaining} left this month` : "1 per month"}
-                </div>
-              </div>
-
-              <div className="protector-copy">
-                Club Members receive <strong>1 streak protector per month</strong>. Use it
-                carefully — once it is used, you do not get another one until next month.
-              </div>
-
-              {isClubAccess ? (
-                <>
-                  <button
-                    type="button"
-                    onClick={handleUseStreakProtector}
-                    disabled={streakProtectorsLoading || streakProtectorsRemaining === 0}
-                    className="btn-primary"
-                    style={{
-                      opacity:
-                        streakProtectorsLoading || streakProtectorsRemaining === 0 ? 0.65 : 1,
-                      cursor:
-                        streakProtectorsLoading || streakProtectorsRemaining === 0
-                          ? "not-allowed"
-                          : "pointer",
-                    }}
-                  >
-                    {streakProtectorsLoading
-                      ? "Applying..."
-                      : streakProtectorsRemaining === 0
-                      ? "Streak Protector Used"
-                      : "Use Streak Protector"}
-                  </button>
-
-                  <div className="protector-tally">
-                    Used this month: {streakProtectorsUsed} / 1
-                  </div>
-
-                  {streakProtectorMessage ? (
-                    <div className="protector-message">{streakProtectorMessage}</div>
-                  ) : null}
-                </>
-              ) : (
-                <div className="soft-lock-box">
-                  <div className="soft-lock-title">Streak protection is locked</div>
-                  <div className="soft-lock-copy">
-                    Upgrade to Club Member to activate your 1 monthly streak protector.
-                  </div>
-                  <Link href="/subscribe" className="btn-primary">
-                    Upgrade Membership
-                  </Link>
-                </div>
-              )}
-            </div>
-          </div>
-
           {drop ? (
-            isClubAccess ? (
-              <DailyPuzzle
-                puzzleDate={drop.date}
-                acceptedAnswers={drop.free.acceptedAnswers ?? [drop.free.answer]}
-              />
-            ) : (
-              <div className="locked-answer-preview">
-                <div className="locked-answer-blur">
-                  <DailyPuzzle
-                    puzzleDate={drop.date}
-                    acceptedAnswers={drop.free.acceptedAnswers ?? [drop.free.answer]}
-                  />
-                </div>
-                <div className="locked-answer-overlay">
-                  <div className="soft-lock-title">Club answer tools are locked</div>
-                  <div className="soft-lock-copy">
-                    Upgrade your membership to unlock the full Club Member answer experience.
-                  </div>
-                  <Link href="/subscribe" className="btn-primary">
-                    Upgrade Membership
-                  </Link>
-                </div>
-              </div>
-            )
+            <DailyPuzzle
+              puzzleDate={drop.date}
+              acceptedAnswers={drop.free.acceptedAnswers ?? [drop.free.answer]}
+            />
           ) : (
-            <div className="unavailable-box">
+            <div
+              style={{
+                marginTop: 18,
+                padding: "12px 14px",
+                borderRadius: 14,
+                border: "1px solid rgba(255,255,255,0.12)",
+                background: "rgba(255,255,255,0.06)",
+                color: "#ffd6d6",
+                fontSize: 14,
+                lineHeight: 1.5,
+              }}
+            >
               Today’s puzzle is not available yet, so answer submission is disabled.
             </div>
           )}
+        </section>
+
+        <section className="card" style={{ marginTop: 20 }}>
+          <div className="pill">Club Member Perk</div>
+
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 16,
+              flexWrap: "wrap",
+            }}
+          >
+            <div>
+              <h2 className="section-title" style={{ color: "#ffffff", marginBottom: 8 }}>
+                Monthly Streak Protector
+              </h2>
+              <p className="section-text-dark" style={{ maxWidth: "none" }}>
+                Club Members receive{" "}
+                <strong>
+                  {membershipTier === "vip"
+                    ? "2 streak protectors per month"
+                    : membershipTier === "club"
+                    ? "1 streak protector per month"
+                    : "no streak protectors"}
+                </strong>
+                . Use it carefully — once it is used, you do not get another one
+                until next month.
+              </p>
+            </div>
+
+            <div
+              style={{
+                padding: "10px 18px",
+                borderRadius: 999,
+                border: "1px solid rgba(137,240,221,0.28)",
+                background: "rgba(137,240,221,0.08)",
+                color: "#89f0dd",
+                fontWeight: 800,
+                whiteSpace: "nowrap",
+              }}
+            >
+              {remainingProtectors} left this month
+            </div>
+          </div>
+
+          <div
+            style={{
+              marginTop: 18,
+              padding: "18px 20px",
+              borderRadius: 20,
+              border: "1px solid rgba(255,255,255,0.1)",
+              background: "rgba(255,255,255,0.05)",
+            }}
+          >
+            <div
+              style={{
+                fontSize: 13,
+                fontWeight: 800,
+                textTransform: "uppercase",
+                opacity: 0.7,
+                marginBottom: 8,
+              }}
+            >
+              Streak Protector Status
+            </div>
+
+            <div style={{ fontSize: 16, color: "#ffffff", lineHeight: 1.7 }}>
+              {membershipTier === "free" ? (
+                <>
+                  This perk is locked on free accounts. Upgrade to Club Member to
+                  protect your streak once per month.
+                </>
+              ) : remainingProtectors > 0 ? (
+                <>
+                  You still have <strong>{remainingProtectors}</strong>{" "}
+                  streak protector{remainingProtectors === 1 ? "" : "s"} available
+                  this month.
+                </>
+              ) : (
+                <>You have already used your streak protector allocation this month.</>
+              )}
+            </div>
+
+            {membershipTier === "free" && (
+              <div style={{ marginTop: 16 }}>
+                <Link href="/subscribe" className="btn-primary">
+                  Upgrade for Streak Protection
+                </Link>
+              </div>
+            )}
+          </div>
         </section>
 
         <section className="card-light" style={{ marginTop: 20 }}>
@@ -453,7 +534,14 @@ export default function ClubMemberScanPage() {
             <p>That’s where it starts to count.</p>
           </div>
 
-          <div className="cta-row">
+          <div
+            style={{
+              display: "flex",
+              gap: 12,
+              flexWrap: "wrap",
+              marginTop: 20,
+            }}
+          >
             <Link href="/scan/yesterday" className="btn-primary">
               Try Yesterday’s Puzzle
             </Link>
@@ -478,8 +566,8 @@ export default function ClubMemberScanPage() {
           <div className="section-text-dark">
             <p>This is where consistency shows.</p>
             <p>Every correct answer adds up. Your streak grows. Progress compounds.</p>
-            <p>Club Members also get one streak protector each month.</p>
-            <p>Use it wisely.</p>
+            <p>Miss a day, and the chain breaks.</p>
+            <p>It’s that simple.</p>
           </div>
 
           <div className="benefit-list">
@@ -488,9 +576,7 @@ export default function ClubMemberScanPage() {
               `Best streak: ${stats.longestStreak}`,
               `Total puzzle plays: ${stats.attempts}`,
               `Accuracy: ${stats.accuracy}%`,
-              isClubAccess
-                ? `Streak protectors left this month: ${streakProtectorsRemaining}`
-                : "Upgrade to unlock 1 monthly streak protector",
+              "Come back tomorrow to protect your streak",
             ].map((item) => (
               <div key={item} className="benefit-item">
                 <span style={{ fontSize: 18 }}>✓</span>
@@ -526,8 +612,8 @@ export default function ClubMemberScanPage() {
             <div className="capture-point">
               <div className="capture-point-title">Streaks create pressure</div>
               <div className="capture-point-text">
-                The longer your streak runs, the harder it is to lose. Club Members
-                get one monthly streak protector.
+                The longer your streak runs, the harder it is to lose. Miss a
+                day, and it’s gone.
               </div>
             </div>
 
@@ -590,415 +676,6 @@ export default function ClubMemberScanPage() {
           </a>
         </section>
       </div>
-
-      <style jsx>{`
-        .scan-page {
-          min-height: 100vh;
-          background:
-            radial-gradient(circle at top, rgba(72, 126, 176, 0.18), transparent 35%),
-            linear-gradient(180deg, #08111f 0%, #0d1a2d 100%);
-          color: #ffffff;
-          padding-bottom: 60px;
-        }
-
-        .logo-splash {
-          position: relative;
-          height: 420px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          overflow: hidden;
-        }
-
-        .logo-splash-overlay {
-          position: absolute;
-          inset: 0;
-          background:
-            radial-gradient(circle at center, rgba(53, 214, 255, 0.12), transparent 52%),
-            linear-gradient(180deg, rgba(8, 17, 31, 0.12), rgba(8, 17, 31, 0.55));
-        }
-
-        .logo-splash-inner {
-          position: relative;
-          width: 320px;
-          height: 320px;
-          z-index: 1;
-        }
-
-        .scan-wrap {
-          width: min(1120px, calc(100% - 32px));
-          margin: 0 auto;
-        }
-
-        .card,
-        .card-light {
-          border-radius: 28px;
-          padding: 32px;
-          box-shadow: 0 22px 60px rgba(0, 0, 0, 0.28);
-        }
-
-        .card {
-          background: rgba(255, 255, 255, 0.05);
-          border: 1px solid rgba(255, 255, 255, 0.09);
-        }
-
-        .card-light {
-          background: linear-gradient(
-            180deg,
-            rgba(57, 95, 194, 0.22),
-            rgba(255, 255, 255, 0.05)
-          );
-          border: 1px solid rgba(255, 255, 255, 0.1);
-        }
-
-        .pill,
-        .pill-light {
-          display: inline-flex;
-          padding: 8px 12px;
-          border-radius: 999px;
-          font-size: 12px;
-          font-weight: 700;
-          letter-spacing: 0.4px;
-          text-transform: uppercase;
-          margin-bottom: 18px;
-        }
-
-        .pill {
-          background: rgba(74, 139, 255, 0.16);
-          border: 1px solid rgba(116, 164, 255, 0.28);
-          color: #cfe0ff;
-        }
-
-        .pill-light {
-          background: rgba(255, 255, 255, 0.1);
-          border: 1px solid rgba(255, 255, 255, 0.12);
-          color: #ffffff;
-        }
-
-        .hero-title {
-          font-size: clamp(2rem, 4vw, 3.4rem);
-          line-height: 1.04;
-          margin: 0 0 16px;
-          font-weight: 900;
-          max-width: 760px;
-        }
-
-        .hero-text,
-        .section-text-light,
-        .section-text-dark {
-          font-size: 17px;
-          line-height: 1.7;
-        }
-
-        .hero-text {
-          color: rgba(255, 255, 255, 0.86);
-        }
-
-        .hero-text p,
-        .section-text-light p,
-        .section-text-dark p {
-          margin: 0 0 10px;
-        }
-
-        .section-title {
-          font-size: 30px;
-          line-height: 1.12;
-          font-weight: 900;
-          margin: 0 0 14px;
-          color: #ffffff;
-        }
-
-        .section-text-light {
-          color: rgba(255, 255, 255, 0.82);
-        }
-
-        .section-text-dark {
-          color: rgba(255, 255, 255, 0.86);
-        }
-
-        .eyebrow-muted {
-          font-size: 14px;
-          font-weight: 800;
-          text-transform: uppercase;
-          opacity: 0.6;
-          margin-bottom: 10px;
-        }
-
-        .meta-row {
-          display: grid;
-          grid-template-columns: repeat(4, minmax(0, 1fr));
-          gap: 14px;
-          margin-top: 24px;
-        }
-
-        .meta-box {
-          padding: 16px 18px;
-          border-radius: 18px;
-          background: rgba(255, 255, 255, 0.05);
-          border: 1px solid rgba(255, 255, 255, 0.08);
-          font-size: 15px;
-          line-height: 1.5;
-        }
-
-        .puzzle-box,
-        .hint-preview-box {
-          margin-top: 18px;
-          padding: 20px 22px;
-          border-radius: 20px;
-          background: rgba(255, 255, 255, 0.06);
-          border: 1px solid rgba(255, 255, 255, 0.08);
-          font-size: 18px;
-          line-height: 1.7;
-        }
-
-        .blurred-content {
-          filter: blur(7px);
-          user-select: none;
-          pointer-events: none;
-          opacity: 0.95;
-        }
-
-        .soft-lock-box {
-          margin-top: 18px;
-          padding: 16px 18px;
-          border-radius: 16px;
-          background: rgba(255, 255, 255, 0.05);
-          border: 1px solid rgba(255, 255, 255, 0.08);
-        }
-
-        .soft-lock-title {
-          font-size: 18px;
-          font-weight: 900;
-          margin-bottom: 8px;
-          color: #ffffff;
-        }
-
-        .soft-lock-copy {
-          color: rgba(255, 255, 255, 0.8);
-          line-height: 1.65;
-          margin-bottom: 14px;
-        }
-
-        .protector-wrap {
-          margin: 20px 0 22px;
-        }
-
-        .protector-card {
-          padding: 20px;
-          border-radius: 20px;
-          background: rgba(255, 255, 255, 0.06);
-          border: 1px solid rgba(255, 255, 255, 0.09);
-        }
-
-        .protector-top {
-          display: flex;
-          justify-content: space-between;
-          align-items: flex-start;
-          gap: 14px;
-          margin-bottom: 14px;
-        }
-
-        .protector-kicker {
-          font-size: 12px;
-          text-transform: uppercase;
-          letter-spacing: 0.5px;
-          font-weight: 800;
-          color: #8fd7ff;
-          margin-bottom: 6px;
-        }
-
-        .protector-title {
-          font-size: 22px;
-          font-weight: 900;
-          line-height: 1.15;
-          color: #ffffff;
-        }
-
-        .protector-pill {
-          padding: 10px 14px;
-          border-radius: 999px;
-          background: rgba(126, 240, 209, 0.12);
-          border: 1px solid rgba(126, 240, 209, 0.25);
-          color: #7ef0d1;
-          font-weight: 900;
-          font-size: 14px;
-          white-space: nowrap;
-        }
-
-        .protector-copy {
-          color: rgba(255, 255, 255, 0.84);
-          line-height: 1.7;
-          margin-bottom: 16px;
-        }
-
-        .protector-tally {
-          margin-top: 14px;
-          font-size: 14px;
-          font-weight: 700;
-          color: rgba(255, 255, 255, 0.74);
-        }
-
-        .protector-message {
-          margin-top: 12px;
-          padding: 12px 14px;
-          border-radius: 14px;
-          background: rgba(255, 255, 255, 0.05);
-          border: 1px solid rgba(255, 255, 255, 0.08);
-          color: #e8f3ff;
-          font-size: 14px;
-          line-height: 1.5;
-        }
-
-        .locked-answer-preview {
-          position: relative;
-          margin-top: 12px;
-        }
-
-        .locked-answer-blur {
-          filter: blur(7px);
-          pointer-events: none;
-          user-select: none;
-          opacity: 0.7;
-        }
-
-        .locked-answer-overlay {
-          position: absolute;
-          inset: 0;
-          display: flex;
-          flex-direction: column;
-          justify-content: center;
-          align-items: center;
-          text-align: center;
-          padding: 20px;
-          background: rgba(8, 17, 31, 0.42);
-          border-radius: 20px;
-        }
-
-        .unavailable-box {
-          margin-top: 18px;
-          padding: 12px 14px;
-          border-radius: 14px;
-          border: 1px solid rgba(255, 255, 255, 0.12);
-          background: rgba(255, 255, 255, 0.06);
-          color: #ffd6d6;
-          font-size: 14px;
-          line-height: 1.5;
-        }
-
-        .benefit-list {
-          display: grid;
-          gap: 12px;
-          margin-top: 20px;
-        }
-
-        .benefit-item {
-          display: flex;
-          gap: 10px;
-          align-items: flex-start;
-          padding: 14px 16px;
-          border-radius: 16px;
-          background: rgba(255, 255, 255, 0.05);
-          border: 1px solid rgba(255, 255, 255, 0.08);
-          line-height: 1.55;
-        }
-
-        .capture-points {
-          display: grid;
-          gap: 14px;
-        }
-
-        .capture-point {
-          padding: 18px 18px;
-          border-radius: 18px;
-          background: rgba(255, 255, 255, 0.05);
-          border: 1px solid rgba(255, 255, 255, 0.08);
-        }
-
-        .capture-point-title {
-          font-size: 17px;
-          font-weight: 800;
-          margin-bottom: 8px;
-          color: #ffffff;
-        }
-
-        .capture-point-text {
-          color: rgba(255, 255, 255, 0.76);
-          line-height: 1.65;
-        }
-
-        .cta-row {
-          display: flex;
-          gap: 12px;
-          flex-wrap: wrap;
-          margin-top: 20px;
-        }
-
-        .btn-primary {
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          padding: 14px 20px;
-          border-radius: 18px;
-          background: linear-gradient(135deg, #7a8cff 0%, #35d6ff 100%);
-          color: #06111d;
-          font-weight: 800;
-          font-size: 15px;
-          text-decoration: none;
-          border: none;
-          box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
-        }
-
-        @media (max-width: 980px) {
-          .meta-row {
-            grid-template-columns: repeat(2, minmax(0, 1fr));
-          }
-        }
-
-        @media (max-width: 700px) {
-          .logo-splash {
-            height: 300px;
-          }
-
-          .logo-splash-inner {
-            width: 220px;
-            height: 220px;
-          }
-
-          .scan-wrap {
-            width: min(1120px, calc(100% - 20px));
-          }
-
-          .card,
-          .card-light {
-            padding: 22px;
-            border-radius: 22px;
-          }
-
-          .section-title {
-            font-size: 24px;
-          }
-
-          .hero-text,
-          .section-text-light,
-          .section-text-dark {
-            font-size: 16px;
-          }
-
-          .meta-row {
-            grid-template-columns: 1fr;
-          }
-
-          .protector-top {
-            flex-direction: column;
-          }
-
-          .btn-primary {
-            width: 100%;
-            box-sizing: border-box;
-            text-align: center;
-          }
-        }
-      `}</style>
     </main>
   );
 }
