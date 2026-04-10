@@ -378,6 +378,6 @@ export default function ScanPage() {
           </div>
         </footer>
       </div>
-    </main>
+    </main> 
   );
 }
