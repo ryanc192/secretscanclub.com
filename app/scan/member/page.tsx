@@ -20,9 +20,6 @@ type Drop = {
     acceptedAnswers?: string[];
     explanation?: string;
   };
-  member?: {
-    bonusHint?: string;
-  };
 };
 
 type MemberStats = {
@@ -31,8 +28,6 @@ type MemberStats = {
   attempts: number;
   accuracy: number;
 };
-
-type MembershipTier = "free" | "club" | "vip";
 
 function loadDrop(date: string): Drop | null {
   try {
@@ -51,20 +46,11 @@ function todayET(): string {
   }).format(new Date());
 }
 
-function getMonthKey() {
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone: "America/New_York",
-    year: "numeric",
-    month: "2-digit",
-  }).format(new Date());
-}
-
-export default function ClubMemberScanPage() {
+export default function MemberScanPage() {
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
   const router = useRouter();
 
   const [authReady, setAuthReady] = useState(false);
-  const [membershipTier, setMembershipTier] = useState<MembershipTier>("free");
   const [stats, setStats] = useState<MemberStats>({
     currentStreak: 0,
     longestStreak: 0,
@@ -73,7 +59,6 @@ export default function ClubMemberScanPage() {
   });
 
   const today = todayET();
-  const monthKey = getMonthKey();
   const drop = loadDrop(today);
 
   useEffect(() => {
@@ -100,7 +85,7 @@ export default function ClubMemberScanPage() {
 
       const { data: profile } = await supabase
         .from("profiles")
-        .select("current_streak, longest_streak, membership_tier")
+        .select("current_streak, longest_streak")
         .eq("id", user.id)
         .maybeSingle();
 
@@ -122,16 +107,8 @@ export default function ClubMemberScanPage() {
       const accuracy =
         attempts > 0 ? Math.round((correct / attempts) * 100) : 0;
 
-      const normalizedTier =
-        profile?.membership_tier === "vip"
-          ? "vip"
-          : profile?.membership_tier === "club"
-          ? "club"
-          : "free";
-
       if (!isMounted) return;
 
-      setMembershipTier(normalizedTier);
       setStats({
         currentStreak: profile?.current_streak ?? 0,
         longestStreak: profile?.longest_streak ?? 0,
@@ -162,19 +139,6 @@ export default function ClubMemberScanPage() {
     return null;
   }
 
-  const showBonusHint = membershipTier === "club" || membershipTier === "vip";
-  const monthlyStreakProtectors = membershipTier === "club" ? 1 : membershipTier === "vip" ? 2 : 0;
-
-  const storedUsedCount =
-    typeof window !== "undefined"
-      ? Number(localStorage.getItem(`ssc-streak-protectors-used-${monthKey}`) ?? "0")
-      : 0;
-
-  const remainingProtectors = Math.max(
-    monthlyStreakProtectors - storedUsedCount,
-    0
-  );
-
   return (
     <main className="scan-page">
       <div
@@ -204,7 +168,7 @@ export default function ClubMemberScanPage() {
 
       <div className="scan-wrap">
         <section className="card">
-          <div className="pill">Club Member Mode</div>
+          <div className="pill">Member Mode</div>
 
           <h1 className="hero-title">Keep your streak moving.</h1>
 
@@ -268,131 +232,6 @@ export default function ClubMemberScanPage() {
           </div>
         </section>
 
-        <section className="card-light" style={{ marginTop: 20, position: "relative" }}>
-          <div className="pill-light">Bonus Hint</div>
-
-          <h2 className="section-title">A little edge, if you’ve earned it</h2>
-
-          <p className="section-text-light">
-            Club Members can unlock an extra push when they need it. Use the hint,
-            stay alive, and keep your streak from slipping for no reason.
-          </p>
-
-          <div style={{ position: "relative", marginTop: 18 }}>
-            <div
-              style={{
-                padding: "22px",
-                borderRadius: 20,
-                border: "1px solid rgba(255,255,255,0.12)",
-                background: "rgba(255,255,255,0.06)",
-                position: "relative",
-                overflow: "hidden",
-              }}
-            >
-              <div
-                style={{
-                  filter: showBonusHint ? "none" : "blur(8px)",
-                  userSelect: showBonusHint ? "auto" : "none",
-                  pointerEvents: showBonusHint ? "auto" : "none",
-                  transition: "filter 0.2s ease",
-                }}
-              >
-                <div
-                  style={{
-                    fontSize: 13,
-                    fontWeight: 800,
-                    textTransform: "uppercase",
-                    letterSpacing: "0.08em",
-                    opacity: 0.7,
-                    marginBottom: 10,
-                  }}
-                >
-                  Today’s Bonus Hint
-                </div>
-                <div
-                  style={{
-                    fontSize: 16,
-                    lineHeight: 1.7,
-                    color: "#ffffff",
-                  }}
-                >
-                  {drop?.member?.bonusHint ??
-                    "Add a bonusHint value under the member object in your daily drop JSON to control what appears here."}
-                </div>
-              </div>
-
-              {!showBonusHint && (
-                <div
-                  style={{
-                    position: "absolute",
-                    inset: 0,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    padding: 24,
-                    textAlign: "center",
-                    background:
-                      "linear-gradient(180deg, rgba(8,15,30,0.18) 0%, rgba(8,15,30,0.82) 100%)",
-                  }}
-                >
-                  <div style={{ maxWidth: 460 }}>
-                    <div
-                      style={{
-                        fontSize: 13,
-                        fontWeight: 900,
-                        textTransform: "uppercase",
-                        letterSpacing: "0.08em",
-                        color: "#89f0dd",
-                        marginBottom: 10,
-                      }}
-                    >
-                      Club Upgrade Required
-                    </div>
-
-                    <div
-                      style={{
-                        fontSize: 24,
-                        fontWeight: 800,
-                        color: "#ffffff",
-                        marginBottom: 10,
-                      }}
-                    >
-                      Unlock the bonus hint
-                    </div>
-
-                    <p
-                      style={{
-                        margin: "0 0 18px",
-                        color: "rgba(255,255,255,0.88)",
-                        lineHeight: 1.6,
-                      }}
-                    >
-                      Upgrade your account to Club Member to reveal the hint,
-                      stay in the game longer, and get access to Club-only perks.
-                    </p>
-
-                    <div
-                      style={{
-                        display: "flex",
-                        gap: 12,
-                        justifyContent: "center",
-                        flexWrap: "wrap",
-                      }}
-                    >
-                      <Link href="/subscribe" className="btn-primary">
-                        Upgrade to Club
-                      </Link>
-                      <Link href="/account" className="btn-primary">
-                        Manage Account
-                      </Link>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        </section>
-
         <section className="card" style={{ marginTop: 20 }}>
           <div className="pill">Answer Check</div>
 
@@ -425,99 +264,6 @@ export default function ClubMemberScanPage() {
               Today’s puzzle is not available yet, so answer submission is disabled.
             </div>
           )}
-        </section>
-
-        <section className="card" style={{ marginTop: 20 }}>
-          <div className="pill">Club Member Perk</div>
-
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              gap: 16,
-              flexWrap: "wrap",
-            }}
-          >
-            <div>
-              <h2 className="section-title" style={{ color: "#ffffff", marginBottom: 8 }}>
-                Monthly Streak Protector
-              </h2>
-              <p className="section-text-dark" style={{ maxWidth: "none" }}>
-                Club Members receive{" "}
-                <strong>
-                  {membershipTier === "vip"
-                    ? "2 streak protectors per month"
-                    : membershipTier === "club"
-                    ? "1 streak protector per month"
-                    : "no streak protectors"}
-                </strong>
-                . Use it carefully — once it is used, you do not get another one
-                until next month.
-              </p>
-            </div>
-
-            <div
-              style={{
-                padding: "10px 18px",
-                borderRadius: 999,
-                border: "1px solid rgba(137,240,221,0.28)",
-                background: "rgba(137,240,221,0.08)",
-                color: "#89f0dd",
-                fontWeight: 800,
-                whiteSpace: "nowrap",
-              }}
-            >
-              {remainingProtectors} left this month
-            </div>
-          </div>
-
-          <div
-            style={{
-              marginTop: 18,
-              padding: "18px 20px",
-              borderRadius: 20,
-              border: "1px solid rgba(255,255,255,0.1)",
-              background: "rgba(255,255,255,0.05)",
-            }}
-          >
-            <div
-              style={{
-                fontSize: 13,
-                fontWeight: 800,
-                textTransform: "uppercase",
-                opacity: 0.7,
-                marginBottom: 8,
-              }}
-            >
-              Streak Protector Status
-            </div>
-
-            <div style={{ fontSize: 16, color: "#ffffff", lineHeight: 1.7 }}>
-              {membershipTier === "free" ? (
-                <>
-                  This perk is locked on free accounts. Upgrade to Club Member to
-                  protect your streak once per month.
-                </>
-              ) : remainingProtectors > 0 ? (
-                <>
-                  You still have <strong>{remainingProtectors}</strong>{" "}
-                  streak protector{remainingProtectors === 1 ? "" : "s"} available
-                  this month.
-                </>
-              ) : (
-                <>You have already used your streak protector allocation this month.</>
-              )}
-            </div>
-
-            {membershipTier === "free" && (
-              <div style={{ marginTop: 16 }}>
-                <Link href="/subscribe" className="btn-primary">
-                  Upgrade for Streak Protection
-                </Link>
-              </div>
-            )}
-          </div>
         </section>
 
         <section className="card-light" style={{ marginTop: 20 }}>
