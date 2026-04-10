@@ -120,7 +120,6 @@ export default function VipMemberScanPage() {
   const router = useRouter();
 
   const [authReady, setAuthReady] = useState(false);
-  const [redirectPath, setRedirectPath] = useState<string | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
 
   const [stats, setStats] = useState<MemberStats>({
@@ -184,7 +183,7 @@ export default function VipMemberScanPage() {
       } = await supabase.auth.getSession();
 
       if (!session?.user) {
-        if (isMounted) setRedirectPath("/scan");
+        router.replace("/scan");
         return;
       }
 
@@ -193,7 +192,7 @@ export default function VipMemberScanPage() {
       } = await supabase.auth.getUser();
 
       if (!user) {
-        if (isMounted) setRedirectPath("/scan");
+        router.replace("/scan");
         return;
       }
 
@@ -210,14 +209,13 @@ export default function VipMemberScanPage() {
           ? "club"
           : "free";
 
-      if (membershipTier !== "vip") {
-        if (!isMounted) return;
+      if (membershipTier === "free") {
+        router.replace("/scan/member");
+        return;
+      }
 
-        if (membershipTier === "club") {
-          setRedirectPath("/club-member");
-        } else {
-          setRedirectPath("/member");
-        }
+      if (membershipTier === "club") {
+        router.replace("/scan/club-member");
         return;
       }
 
@@ -234,7 +232,7 @@ export default function VipMemberScanPage() {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (_event, session) => {
       if (!session?.user) {
-        setRedirectPath("/scan");
+        router.replace("/scan");
         return;
       }
 
@@ -251,12 +249,13 @@ export default function VipMemberScanPage() {
           ? "club"
           : "free";
 
-      if (membershipTier !== "vip") {
-        if (membershipTier === "club") {
-          setRedirectPath("/club-member");
-        } else {
-          setRedirectPath("/member");
-        }
+      if (membershipTier === "free") {
+        router.replace("/scan/member");
+        return;
+      }
+
+      if (membershipTier === "club") {
+        router.replace("/scan/club-member");
       }
     });
 
@@ -264,12 +263,7 @@ export default function VipMemberScanPage() {
       isMounted = false;
       subscription.unsubscribe();
     };
-  }, [supabase, today]);
-
-  useEffect(() => {
-    if (!redirectPath) return;
-    router.replace(redirectPath);
-  }, [redirectPath, router]);
+  }, [router, supabase, today]);
 
   async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -332,21 +326,7 @@ export default function VipMemberScanPage() {
   }
 
   if (!authReady) {
-    return (
-      <main
-        style={{
-          minHeight: "100vh",
-          display: "grid",
-          placeItems: "center",
-          background: "#ffffff",
-          color: "#111111",
-          fontSize: 16,
-          fontWeight: 600,
-        }}
-      >
-        Redirecting...
-      </main>
-    );
+    return null;
   }
 
   const monthlyStreakProtectors = 2;
