@@ -36,8 +36,6 @@ type PuzzleSessionRow = {
   created_at?: string | null;
 };
 
-type MembershipTier = "free" | "club" | "vip";
-
 function loadDrop(date: string): Drop | null {
   try {
     return require(`../../../content/drops/${date}.json`);
@@ -117,7 +115,6 @@ export default function VipMemberScanPage() {
   const router = useRouter();
 
   const [authReady, setAuthReady] = useState(false);
-  const [membershipTier, setMembershipTier] = useState<MembershipTier>("free");
   const [userId, setUserId] = useState<string | null>(null);
 
   const [stats, setStats] = useState<MemberStats>({
@@ -144,16 +141,9 @@ export default function VipMemberScanPage() {
   async function refreshStatsAndAttempts(currentUserId: string) {
     const { data: profile } = await supabase
       .from("profiles")
-      .select("current_streak, longest_streak, membership_tier")
+      .select("current_streak, longest_streak")
       .eq("id", currentUserId)
       .maybeSingle();
-
-    const normalizedTier =
-      profile?.membership_tier === "vip"
-        ? "vip"
-        : profile?.membership_tier === "club"
-        ? "club"
-        : "free";
 
     const { data: sessions } = await supabase
       .from("puzzle_sessions")
@@ -169,7 +159,6 @@ export default function VipMemberScanPage() {
     const todayRows = sessionRows.filter((row) => row.puzzle_date === today);
     const hasCorrectToday = todayRows.some((row) => row.is_correct === true);
 
-    setMembershipTier(normalizedTier);
     setStats({
       currentStreak: profile?.current_streak ?? 0,
       longestStreak: profile?.longest_streak ?? 0,
@@ -202,28 +191,6 @@ export default function VipMemberScanPage() {
         return;
       }
 
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("membership_tier")
-        .eq("id", user.id)
-        .maybeSingle();
-
-      const normalizedTier =
-        profile?.membership_tier === "vip"
-          ? "vip"
-          : profile?.membership_tier === "club"
-          ? "club"
-          : "free";
-
-      if (normalizedTier !== "vip") {
-        if (normalizedTier === "club") {
-          router.replace("/scan/club-member");
-        } else {
-          router.replace("/subscribe");
-        }
-        return;
-      }
-
       if (!isMounted) return;
 
       setUserId(user.id);
@@ -238,28 +205,6 @@ export default function VipMemberScanPage() {
     } = supabase.auth.onAuthStateChange(async (_event, session) => {
       if (!session?.user) {
         router.replace("/scan");
-        return;
-      }
-
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("membership_tier")
-        .eq("id", session.user.id)
-        .maybeSingle();
-
-      const normalizedTier =
-        profile?.membership_tier === "vip"
-          ? "vip"
-          : profile?.membership_tier === "club"
-          ? "club"
-          : "free";
-
-      if (normalizedTier !== "vip") {
-        if (normalizedTier === "club") {
-          router.replace("/scan/club-member");
-        } else {
-          router.replace("/subscribe");
-        }
       }
     });
 
@@ -336,7 +281,9 @@ export default function VipMemberScanPage() {
   const monthlyStreakProtectors = 2;
   const storedUsedCount =
     typeof window !== "undefined"
-      ? Number(localStorage.getItem(`ssc-streak-protectors-used-${monthKey}`) ?? "0")
+      ? Number(
+          localStorage.getItem(`ssc-streak-protectors-used-${monthKey}`) ?? "0"
+        )
       : 0;
   const remainingProtectors = Math.max(
     monthlyStreakProtectors - storedUsedCount,
