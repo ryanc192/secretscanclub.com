@@ -115,6 +115,20 @@ function computeTrackedAccuracy(rows: PuzzleSessionRow[]): number {
     : 0;
 }
 
+function mapMembershipTier(rawValue: unknown): MembershipTier {
+  const value = String(rawValue ?? "").trim().toLowerCase();
+
+  if (value === "pro" || value === "vip" || value === "vip_member") {
+    return "vip";
+  }
+
+  if (value === "plus" || value === "club" || value === "club_member") {
+    return "club";
+  }
+
+  return "free";
+}
+
 export default function VipMemberScanPage() {
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
   const router = useRouter();
@@ -202,20 +216,15 @@ export default function VipMemberScanPage() {
         .eq("id", user.id)
         .maybeSingle();
 
-      const membershipTier: MembershipTier =
-        profile?.membership_tier === "vip"
-          ? "vip"
-          : profile?.membership_tier === "club"
-          ? "club"
-          : "free";
+      const membershipTier = mapMembershipTier(profile?.membership_tier);
 
       if (membershipTier === "free") {
-        router.replace("/member");
+        router.replace("/scan/member");
         return;
       }
 
       if (membershipTier === "club") {
-        router.replace("/club-member");
+        router.replace("/scan/club-member");
         return;
       }
 
@@ -242,20 +251,15 @@ export default function VipMemberScanPage() {
         .eq("id", session.user.id)
         .maybeSingle();
 
-      const membershipTier: MembershipTier =
-        profile?.membership_tier === "vip"
-          ? "vip"
-          : profile?.membership_tier === "club"
-          ? "club"
-          : "free";
+      const membershipTier = mapMembershipTier(profile?.membership_tier);
 
       if (membershipTier === "free") {
-        router.replace("/member");
+        router.replace("/scan/member");
         return;
       }
 
       if (membershipTier === "club") {
-        router.replace("/club-member");
+        router.replace("/scan/club-member");
         return;
       }
     });
@@ -327,7 +331,21 @@ export default function VipMemberScanPage() {
   }
 
   if (!authReady) {
-    return null;
+    return (
+      <main
+        style={{
+          minHeight: "100vh",
+          display: "grid",
+          placeItems: "center",
+          background: "#ffffff",
+          color: "#111111",
+          fontSize: 16,
+          fontWeight: 600,
+        }}
+      >
+        Loading...
+      </main>
+    );
   }
 
   const monthlyStreakProtectors = 2;
