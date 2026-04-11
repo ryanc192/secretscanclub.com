@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { createBrowserSupabaseClient } from "../../../lib/supabase/client";
 import AuthStatus from "../../components/AuthStatus";
 
@@ -114,14 +115,9 @@ function computeTrackedAccuracy(rows: PuzzleSessionRow[]): number {
     : 0;
 }
 
-function redirectNow(path: string) {
-  if (typeof window !== "undefined" && window.location.pathname !== path) {
-    window.location.replace(path);
-  }
-}
-
 export default function VipMemberScanPage() {
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
+  const router = useRouter();
 
   const [authReady, setAuthReady] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
@@ -187,7 +183,7 @@ export default function VipMemberScanPage() {
       } = await supabase.auth.getSession();
 
       if (!session?.user) {
-        redirectNow("/scan");
+        router.replace("/scan");
         return;
       }
 
@@ -196,7 +192,7 @@ export default function VipMemberScanPage() {
       } = await supabase.auth.getUser();
 
       if (!user) {
-        redirectNow("/scan");
+        router.replace("/scan");
         return;
       }
 
@@ -214,12 +210,12 @@ export default function VipMemberScanPage() {
           : "free";
 
       if (membershipTier === "free") {
-        redirectNow("/member");
+        router.replace("/member");
         return;
       }
 
       if (membershipTier === "club") {
-        redirectNow("/club-member");
+        router.replace("/club-member");
         return;
       }
 
@@ -236,7 +232,7 @@ export default function VipMemberScanPage() {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (_event, session) => {
       if (!session?.user) {
-        redirectNow("/scan");
+        router.replace("/scan");
         return;
       }
 
@@ -254,12 +250,13 @@ export default function VipMemberScanPage() {
           : "free";
 
       if (membershipTier === "free") {
-        redirectNow("/member");
+        router.replace("/member");
         return;
       }
 
       if (membershipTier === "club") {
-        redirectNow("/club-member");
+        router.replace("/club-member");
+        return;
       }
     });
 
@@ -267,7 +264,7 @@ export default function VipMemberScanPage() {
       isMounted = false;
       subscription.unsubscribe();
     };
-  }, [supabase, today]);
+  }, [router, supabase, today]);
 
   async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -330,21 +327,7 @@ export default function VipMemberScanPage() {
   }
 
   if (!authReady) {
-    return (
-      <main
-        style={{
-          minHeight: "100vh",
-          display: "grid",
-          placeItems: "center",
-          background: "#ffffff",
-          color: "#111111",
-          fontSize: 16,
-          fontWeight: 600,
-        }}
-      >
-        Redirecting...
-      </main>
-    );
+    return null;
   }
 
   const monthlyStreakProtectors = 2;
