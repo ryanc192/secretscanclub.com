@@ -213,7 +213,8 @@ export default function VipMemberScanPage() {
 
   const [authReady, setAuthReady] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
-  const [subscriptionTier, setSubscriptionTier] = useState<SubscriptionTier>("free");
+  const [subscriptionTier, setSubscriptionTier] =
+    useState<SubscriptionTier>("free");
 
   const [stats, setStats] = useState<MemberStats>({
     currentStreak: 0,
@@ -251,6 +252,11 @@ export default function VipMemberScanPage() {
         return;
       }
 
+      if (!isMounted) return;
+
+      setUserId(user.id);
+      setAuthReady(true);
+
       const { data: profile, error } = await supabase
         .from("profiles")
         .select("subscription_tier")
@@ -261,11 +267,11 @@ export default function VipMemberScanPage() {
 
       if (error) {
         console.error("VIP access lookup error:", error);
+        setSubscriptionTier("free");
+        return;
       }
 
-      setUserId(user.id);
       setSubscriptionTier(mapSubscriptionTier(profile?.subscription_tier));
-      setAuthReady(true);
     }
 
     loadAccess();
@@ -278,6 +284,11 @@ export default function VipMemberScanPage() {
         return;
       }
 
+      if (!isMounted) return;
+
+      setUserId(session.user.id);
+      setAuthReady(true);
+
       const { data: profile } = await supabase
         .from("profiles")
         .select("subscription_tier")
@@ -286,7 +297,6 @@ export default function VipMemberScanPage() {
 
       if (!isMounted) return;
 
-      setUserId(session.user.id);
       setSubscriptionTier(mapSubscriptionTier(profile?.subscription_tier));
     });
 
@@ -442,21 +452,7 @@ export default function VipMemberScanPage() {
   }
 
   if (!authReady) {
-    return (
-      <main
-        style={{
-          minHeight: "100vh",
-          display: "grid",
-          placeItems: "center",
-          background: "#ffffff",
-          color: "#111111",
-          fontSize: 16,
-          fontWeight: 600,
-        }}
-      >
-        Loading...
-      </main>
-    );
+    return null;
   }
 
   const monthlyStreakProtectors = 2;
