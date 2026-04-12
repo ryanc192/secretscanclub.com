@@ -6,7 +6,6 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createBrowserSupabaseClient } from "../../../lib/supabase/client";
 import AuthStatus from "../../components/AuthStatus";
-import { getScanRouteForTier, mapSubscriptionTier } from "../getScanRoute";
 
 export const dynamic = "force-dynamic";
 
@@ -85,8 +84,7 @@ function computeTrackedAccuracy(rows: PuzzleSessionRow[]): number {
 
   const grouped = new Map<string, PuzzleSessionRow[]>();
 
-  for (let i = 0; i < submittedRows.length; i += 1) {
-    const row = submittedRows[i];
+  for (const row of submittedRows) {
     const key = row.puzzle_date;
     const existing = grouped.get(key) ?? [];
     existing.push(row);
@@ -104,7 +102,6 @@ function computeTrackedAccuracy(rows: PuzzleSessionRow[]): number {
     });
 
     const firstThree = attempts.slice(0, 3);
-
     trackedAttempts += firstThree.length;
     trackedCorrect += firstThree.filter((item) => item.is_correct === true).length;
   });
@@ -114,11 +111,19 @@ function computeTrackedAccuracy(rows: PuzzleSessionRow[]): number {
     : 0;
 }
 
+function mapSubscriptionTier(rawValue: unknown): "free" | "club" | "vip" {
+  const value = String(rawValue ?? "").trim().toLowerCase();
+
+  if (value === "pro") return "vip";
+  if (value === "plus") return "club";
+  return "free";
+}
+
 export default function VipMemberScanPage() {
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
   const router = useRouter();
 
-  const [authReady, setAuthReady] = useState(false);
+  const [authChecked, setAuthChecked] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
 
   const [stats, setStats] = useState<MemberStats>({
@@ -134,58 +139,18 @@ export default function VipMemberScanPage() {
     type: "success" | "error" | "neutral";
     text: string;
   } | null>(null);
-  const [todayAttempts, setTodayAttempts] = useState<number>(0);
-  const [todayCorrect, setTodayCorrect] = useState<boolean>(false);
+  const [todayAttempts, setTodayAttempts] = useState(0);
+  const [todayCorrect, setTodayCorrect] = useState(false);
 
   const today = todayET();
   const monthKey = getMonthKey();
   const drop = loadDrop(today);
   const acceptedAnswers = buildAcceptedAnswers(drop);
 
-  async function refreshStatsAndAttempts(currentUserId: string) {
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("current_streak, longest_streak")
-      .eq("id", currentUserId)
-      .maybeSingle();
-
-    const { data: sessions } = await supabase
-      .from("puzzle_sessions")
-      .select("id, puzzle_date, is_correct, submitted_at, created_at")
-      .eq("user_id", currentUserId)
-      .not("submitted_at", "is", null)
-      .order("created_at", { ascending: true });
-
-    const sessionRows = (sessions ?? []) as PuzzleSessionRow[];
-
-    const accuracy = computeTrackedAccuracy(sessionRows);
-
-    const todayRows = sessionRows.filter((row) => row.puzzle_date === today);
-    const hasCorrectToday = todayRows.some((row) => row.is_correct === true);
-
-    setStats({
-      currentStreak: profile?.current_streak ?? 0,
-      longestStreak: profile?.longest_streak ?? 0,
-      attempts: sessionRows.length,
-      accuracy,
-    });
-    setTodayAttempts(todayRows.length);
-    setTodayCorrect(hasCorrectToday);
-  }
-
   useEffect(() => {
     let isMounted = true;
 
-    async function load() {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-
-      if (!session?.user) {
-        router.replace("/scan");
-        return;
-      }
-
+    async function checkAccess() {
       const {
         data: { user },
       } = await supabase.auth.getUser();
@@ -195,27 +160,37 @@ export default function VipMemberScanPage() {
         return;
       }
 
-      const { data: profile } = await supabase
+      const { data: profile, error } = await supabase
         .from("profiles")
         .select("subscription_tier")
         .eq("id", user.id)
         .maybeSingle();
 
+      if (error) {
+        console.error("VIP profile lookup error:", error);
+        router.replace("/scan/member");
+        return;
+      }
+
       const tier = mapSubscriptionTier(profile?.subscription_tier);
 
-      if (tier !== "vip") {
-        router.replace(getScanRouteForTier(tier));
+      if (tier === "free") {
+        router.replace("/scan/member");
+        return;
+      }
+
+      if (tier === "club") {
+        router.replace("/scan/club-member");
         return;
       }
 
       if (!isMounted) return;
 
       setUserId(user.id);
-      await refreshStatsAndAttempts(user.id);
-      setAuthReady(true);
+      setAuthChecked(true);
     }
 
-    load();
+    checkAccess();
 
     const {
       data: { subscription },
@@ -233,8 +208,14 @@ export default function VipMemberScanPage() {
 
       const tier = mapSubscriptionTier(profile?.subscription_tier);
 
-      if (tier !== "vip") {
-        router.replace(getScanRouteForTier(tier));
+      if (tier === "free") {
+        router.replace("/scan/member");
+        return;
+      }
+
+      if (tier === "club") {
+        router.replace("/scan/club-member");
+        return;
       }
     });
 
@@ -242,7 +223,87 @@ export default function VipMemberScanPage() {
       isMounted = false;
       subscription.unsubscribe();
     };
-  }, [router, supabase, today]);
+  }, [router, supabase]);
+
+  useEffect(() => {
+    if (!authChecked || !userId) return;
+
+    let isMounted = true;
+
+    async function loadStats() {
+      try {
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("current_streak, longest_streak")
+          .eq("id", userId)
+          .maybeSingle();
+
+        const { data: sessions } = await supabase
+          .from("puzzle_sessions")
+          .select("id, puzzle_date, is_correct, submitted_at, created_at")
+          .eq("user_id", userId)
+          .not("submitted_at", "is", null)
+          .order("created_at", { ascending: true });
+
+        if (!isMounted) return;
+
+        const sessionRows = (sessions ?? []) as PuzzleSessionRow[];
+        const accuracy = computeTrackedAccuracy(sessionRows);
+        const todayRows = sessionRows.filter((row) => row.puzzle_date === today);
+        const hasCorrectToday = todayRows.some((row) => row.is_correct === true);
+
+        setStats({
+          currentStreak: profile?.current_streak ?? 0,
+          longestStreak: profile?.longest_streak ?? 0,
+          attempts: sessionRows.length,
+          accuracy,
+        });
+        setTodayAttempts(todayRows.length);
+        setTodayCorrect(hasCorrectToday);
+      } catch (error) {
+        console.error("VIP stats load error:", error);
+      }
+    }
+
+    loadStats();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [authChecked, userId, supabase, today]);
+
+  async function refreshStatsAndAttempts(currentUserId: string) {
+    try {
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("current_streak, longest_streak")
+        .eq("id", currentUserId)
+        .maybeSingle();
+
+      const { data: sessions } = await supabase
+        .from("puzzle_sessions")
+        .select("id, puzzle_date, is_correct, submitted_at, created_at")
+        .eq("user_id", currentUserId)
+        .not("submitted_at", "is", null)
+        .order("created_at", { ascending: true });
+
+      const sessionRows = (sessions ?? []) as PuzzleSessionRow[];
+      const accuracy = computeTrackedAccuracy(sessionRows);
+      const todayRows = sessionRows.filter((row) => row.puzzle_date === today);
+      const hasCorrectToday = todayRows.some((row) => row.is_correct === true);
+
+      setStats({
+        currentStreak: profile?.current_streak ?? 0,
+        longestStreak: profile?.longest_streak ?? 0,
+        attempts: sessionRows.length,
+        accuracy,
+      });
+      setTodayAttempts(todayRows.length);
+      setTodayCorrect(hasCorrectToday);
+    } catch (error) {
+      console.error("VIP refresh stats error:", error);
+    }
+  }
 
   async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -279,9 +340,7 @@ export default function VipMemberScanPage() {
         submitted_at: new Date().toISOString(),
       });
 
-      if (error) {
-        throw error;
-      }
+      if (error) throw error;
 
       setFeedback({
         type: isCorrect ? "success" : "error",
@@ -296,15 +355,14 @@ export default function VipMemberScanPage() {
       console.error(error);
       setFeedback({
         type: "error",
-        text:
-          "There was a problem submitting your answer. Check your puzzle_sessions table policy and insert fields.",
+        text: "There was a problem submitting your answer.",
       });
     } finally {
       setIsSubmitting(false);
     }
   }
 
-  if (!authReady) {
+  if (!authChecked) {
     return (
       <main
         style={{
@@ -325,14 +383,9 @@ export default function VipMemberScanPage() {
   const monthlyStreakProtectors = 2;
   const storedUsedCount =
     typeof window !== "undefined"
-      ? Number(
-          localStorage.getItem(`ssc-streak-protectors-used-${monthKey}`) ?? "0"
-        )
+      ? Number(localStorage.getItem(`ssc-streak-protectors-used-${monthKey}`) ?? "0")
       : 0;
-  const remainingProtectors = Math.max(
-    monthlyStreakProtectors - storedUsedCount,
-    0
-  );
+  const remainingProtectors = Math.max(monthlyStreakProtectors - storedUsedCount, 0);
 
   return (
     <main className="scan-page">
@@ -491,12 +544,7 @@ export default function VipMemberScanPage() {
 
           {drop ? (
             <form onSubmit={handleSubmit} style={{ marginTop: 18 }}>
-              <div
-                style={{
-                  display: "grid",
-                  gap: 14,
-                }}
-              >
+              <div style={{ display: "grid", gap: 14 }}>
                 <input
                   type="text"
                   value={answer}
@@ -572,21 +620,13 @@ export default function VipMemberScanPage() {
                       border:
                         feedback.type === "success"
                           ? "1px solid rgba(137,240,221,0.28)"
-                          : feedback.type === "error"
-                          ? "1px solid rgba(255,120,120,0.22)"
-                          : "1px solid rgba(255,255,255,0.12)",
+                          : "1px solid rgba(255,120,120,0.22)",
                       background:
                         feedback.type === "success"
                           ? "rgba(137,240,221,0.08)"
-                          : feedback.type === "error"
-                          ? "rgba(255,120,120,0.08)"
-                          : "rgba(255,255,255,0.06)",
+                          : "rgba(255,120,120,0.08)",
                       color:
-                        feedback.type === "success"
-                          ? "#89f0dd"
-                          : feedback.type === "error"
-                          ? "#ffd6d6"
-                          : "#ffffff",
+                        feedback.type === "success" ? "#89f0dd" : "#ffd6d6",
                       fontSize: 14,
                       lineHeight: 1.5,
                     }}
@@ -672,40 +712,6 @@ export default function VipMemberScanPage() {
               {remainingProtectors} left this month
             </div>
           </div>
-
-          <div
-            style={{
-              marginTop: 18,
-              padding: "18px 20px",
-              borderRadius: 20,
-              border: "1px solid rgba(255,255,255,0.1)",
-              background: "rgba(255,255,255,0.05)",
-            }}
-          >
-            <div
-              style={{
-                fontSize: 13,
-                fontWeight: 800,
-                textTransform: "uppercase",
-                opacity: 0.7,
-                marginBottom: 8,
-              }}
-            >
-              Streak Protector Status
-            </div>
-
-            <div style={{ fontSize: 16, color: "#ffffff", lineHeight: 1.7 }}>
-              {remainingProtectors > 0 ? (
-                <>
-                  You still have <strong>{remainingProtectors}</strong> streak
-                  protector{remainingProtectors === 1 ? "" : "s"} available this
-                  month.
-                </>
-              ) : (
-                <>You have already used both streak protectors for this month.</>
-              )}
-            </div>
-          </div>
         </section>
 
         <section className="card-light" style={{ marginTop: 20 }}>
@@ -733,139 +739,16 @@ export default function VipMemberScanPage() {
             <Link href="/scan/archives" className="btn-primary">
               Archives
             </Link>
-
             <Link href="/scan/yesterday" className="btn-primary">
               Try Yesterday’s Puzzle
             </Link>
-
             <Link href="/scan/bonus" className="btn-primary">
               Play Bonus Puzzle
             </Link>
-
             <Link href="/leaderboard" className="btn-primary">
               View Leaderboard
             </Link>
           </div>
-        </section>
-
-        <section className="card" style={{ marginTop: 20 }}>
-          <div className="pill">Your Progress</div>
-
-          <h2 className="section-title" style={{ color: "#ffffff" }}>
-            Your Streak is Your Leverage
-          </h2>
-
-          <div className="section-text-dark">
-            <p>This is where consistency shows.</p>
-            <p>Every correct answer adds up. Your streak grows. Progress compounds.</p>
-            <p>Miss a day, and the chain breaks.</p>
-            <p>It’s that simple.</p>
-          </div>
-
-          <div className="benefit-list">
-            {[
-              `Current streak: ${stats.currentStreak}`,
-              `Best streak: ${stats.longestStreak}`,
-              `Total puzzle plays: ${stats.attempts}`,
-              `Accuracy: ${stats.accuracy}%`,
-              "Come back tomorrow to protect your streak",
-            ].map((item) => (
-              <div key={item} className="benefit-item">
-                <span style={{ fontSize: 18 }}>✓</span>
-                <span>{item}</span>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        <section className="card-light" style={{ marginTop: 20 }}>
-          <div className="pill-light">Member Extras</div>
-
-          <h2 className="section-title">You’re building something now</h2>
-
-          <div className="section-text-light">
-            <p>
-              This isn’t a one-time puzzle visit. Every time you show up, your
-              progress stacks, your streak grows, and the system tightens around
-              your consistency. Each return matters more than the last.
-            </p>
-            <p>Most people don’t stick with it. That’s why nothing changes for them.</p>
-          </div>
-
-          <div className="capture-points" style={{ marginTop: 20 }}>
-            <div className="capture-point">
-              <div className="capture-point-title">Your progress is tracked</div>
-              <div className="capture-point-text">
-                Every answer adds up. Your stats build over time, so each day
-                connects — or exposes when you fall off.
-              </div>
-            </div>
-
-            <div className="capture-point">
-              <div className="capture-point-title">Streaks create pressure</div>
-              <div className="capture-point-text">
-                The longer your streak runs, the harder it is to lose. Miss a
-                day, and it’s gone.
-              </div>
-            </div>
-
-            <div className="capture-point">
-              <div className="capture-point-title">More ways to stay in it</div>
-              <div className="capture-point-text">
-                Bonus challenges and past puzzles are always there — if you’re
-                willing to keep going.
-              </div>
-            </div>
-
-            <div className="capture-point">
-              <div className="capture-point-title">Each visit raises the stakes</div>
-              <div className="capture-point-text">
-                The more you show up, the more it builds. Momentum compounds —
-                or disappears if you stop.
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <section className="card" style={{ marginTop: 20 }}>
-          <div className="pill">Brain Boost</div>
-
-          <h2 className="section-title" style={{ color: "#ffffff" }}>
-            Struggling to stay sharp?
-          </h2>
-
-          <p
-            className="section-text-dark"
-            style={{ maxWidth: "none", opacity: 0.95 }}
-          >
-            If today’s puzzle slowed you down, use that as your signal. Better
-            focus, better energy, and a stronger routine can help you show up
-            sharper for the next challenge.
-          </p>
-
-          <div className="benefit-list">
-            {[
-              "Helps you stay sharp and think faster",
-              "Designed for people who actually use their brain daily",
-              "Simple, no-friction way to level up your routine",
-              "Low effort, high impact addition",
-              "Built for daily use, not occasional effort",
-            ].map((item) => (
-              <div key={item} className="benefit-item">
-                <span style={{ fontSize: 18 }}>✓</span>
-                <span>{item}</span>
-              </div>
-            ))}
-          </div>
-
-          <a
-            href="YOUR-AMWAY-LINK-HERE"
-            target="_blank"
-            rel="noreferrer"
-            className="btn-primary"
-          >
-            Upgrade Your Focus
-          </a>
         </section>
       </div>
     </main>
