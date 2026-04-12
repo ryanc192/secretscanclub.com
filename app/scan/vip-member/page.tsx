@@ -39,6 +39,8 @@ type PuzzleSessionRow = {
   created_at?: string | null;
 };
 
+type SubscriptionTier = "free" | "plus" | "pro";
+
 function loadDrop(date: string): Drop | null {
   try {
     return require(`../../../content/drops/${date}.json`);
@@ -111,20 +113,107 @@ function computeTrackedAccuracy(rows: PuzzleSessionRow[]): number {
     : 0;
 }
 
-function mapSubscriptionTier(rawValue: unknown): "free" | "club" | "vip" {
+function mapSubscriptionTier(rawValue: unknown): SubscriptionTier {
   const value = String(rawValue ?? "").trim().toLowerCase();
-
-  if (value === "pro") return "vip";
-  if (value === "plus") return "club";
+  if (value === "pro") return "pro";
+  if (value === "plus") return "plus";
   return "free";
+}
+
+function LockedOverlay({
+  title,
+  text,
+}: {
+  title: string;
+  text: string;
+}) {
+  return (
+    <div
+      style={{
+        position: "absolute",
+        inset: 0,
+        zIndex: 2,
+        display: "grid",
+        placeItems: "center",
+        padding: 20,
+        textAlign: "center",
+        borderRadius: 20,
+        backdropFilter: "blur(8px)",
+        background: "rgba(7, 10, 20, 0.50)",
+      }}
+    >
+      <div
+        style={{
+          maxWidth: 460,
+          padding: "22px 20px",
+          borderRadius: 20,
+          border: "1px solid rgba(255,255,255,0.16)",
+          background: "rgba(10,14,30,0.74)",
+          color: "#ffffff",
+          boxShadow: "0 10px 30px rgba(0,0,0,0.25)",
+        }}
+      >
+        <div
+          style={{
+            fontSize: 13,
+            fontWeight: 800,
+            letterSpacing: "0.08em",
+            textTransform: "uppercase",
+            opacity: 0.8,
+            marginBottom: 8,
+          }}
+        >
+          VIP Only
+        </div>
+        <div
+          style={{
+            fontSize: 22,
+            fontWeight: 800,
+            marginBottom: 10,
+            lineHeight: 1.2,
+          }}
+        >
+          {title}
+        </div>
+        <p
+          style={{
+            margin: 0,
+            fontSize: 15,
+            lineHeight: 1.65,
+            opacity: 0.94,
+          }}
+        >
+          {text}
+        </p>
+
+        <div
+          style={{
+            display: "flex",
+            gap: 12,
+            justifyContent: "center",
+            flexWrap: "wrap",
+            marginTop: 16,
+          }}
+        >
+          <Link href="/subscribe" className="btn-primary">
+            Upgrade to VIP
+          </Link>
+          <Link href="/scan/club-member" className="btn-primary">
+            Back to Club Page
+          </Link>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 export default function VipMemberScanPage() {
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
   const router = useRouter();
 
-  const [authChecked, setAuthChecked] = useState(false);
+  const [authReady, setAuthReady] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
+  const [subscriptionTier, setSubscriptionTier] = useState<SubscriptionTier>("free");
 
   const [stats, setStats] = useState<MemberStats>({
     currentStreak: 0,
@@ -139,18 +228,20 @@ export default function VipMemberScanPage() {
     type: "success" | "error" | "neutral";
     text: string;
   } | null>(null);
-  const [todayAttempts, setTodayAttempts] = useState(0);
-  const [todayCorrect, setTodayCorrect] = useState(false);
+  const [todayAttempts, setTodayAttempts] = useState<number>(0);
+  const [todayCorrect, setTodayCorrect] = useState<boolean>(false);
 
   const today = todayET();
   const monthKey = getMonthKey();
   const drop = loadDrop(today);
   const acceptedAnswers = buildAcceptedAnswers(drop);
 
+  const isVip = subscriptionTier === "pro";
+
   useEffect(() => {
     let isMounted = true;
 
-    async function checkAccess() {
+    async function loadAccess() {
       const {
         data: { user },
       } = await supabase.auth.getUser();
@@ -166,31 +257,18 @@ export default function VipMemberScanPage() {
         .eq("id", user.id)
         .maybeSingle();
 
-      if (error) {
-        console.error("VIP profile lookup error:", error);
-        router.replace("/scan/member");
-        return;
-      }
-
-      const tier = mapSubscriptionTier(profile?.subscription_tier);
-
-      if (tier === "free") {
-        router.replace("/scan/member");
-        return;
-      }
-
-      if (tier === "club") {
-        router.replace("/scan/club-member");
-        return;
-      }
-
       if (!isMounted) return;
 
+      if (error) {
+        console.error("VIP access lookup error:", error);
+      }
+
       setUserId(user.id);
-      setAuthChecked(true);
+      setSubscriptionTier(mapSubscriptionTier(profile?.subscription_tier));
+      setAuthReady(true);
     }
 
-    checkAccess();
+    loadAccess();
 
     const {
       data: { subscription },
@@ -206,17 +284,10 @@ export default function VipMemberScanPage() {
         .eq("id", session.user.id)
         .maybeSingle();
 
-      const tier = mapSubscriptionTier(profile?.subscription_tier);
+      if (!isMounted) return;
 
-      if (tier === "free") {
-        router.replace("/scan/member");
-        return;
-      }
-
-      if (tier === "club") {
-        router.replace("/scan/club-member");
-        return;
-      }
+      setUserId(session.user.id);
+      setSubscriptionTier(mapSubscriptionTier(profile?.subscription_tier));
     });
 
     return () => {
@@ -226,7 +297,7 @@ export default function VipMemberScanPage() {
   }, [router, supabase]);
 
   useEffect(() => {
-    if (!authChecked || !userId) return;
+    if (!authReady || !userId) return;
 
     let isMounted = true;
 
@@ -270,7 +341,7 @@ export default function VipMemberScanPage() {
     return () => {
       isMounted = false;
     };
-  }, [authChecked, userId, supabase, today]);
+  }, [authReady, userId, supabase, today]);
 
   async function refreshStatsAndAttempts(currentUserId: string) {
     try {
@@ -307,6 +378,14 @@ export default function VipMemberScanPage() {
 
   async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
+
+    if (!isVip) {
+      setFeedback({
+        type: "error",
+        text: "Upgrade to VIP to unlock answer submission on this page.",
+      });
+      return;
+    }
 
     if (!drop || !userId) {
       setFeedback({
@@ -362,7 +441,7 @@ export default function VipMemberScanPage() {
     }
   }
 
-  if (!authChecked) {
+  if (!authReady) {
     return (
       <main
         style={{
@@ -383,9 +462,14 @@ export default function VipMemberScanPage() {
   const monthlyStreakProtectors = 2;
   const storedUsedCount =
     typeof window !== "undefined"
-      ? Number(localStorage.getItem(`ssc-streak-protectors-used-${monthKey}`) ?? "0")
+      ? Number(
+          localStorage.getItem(`ssc-streak-protectors-used-${monthKey}`) ?? "0"
+        )
       : 0;
-  const remainingProtectors = Math.max(monthlyStreakProtectors - storedUsedCount, 0);
+  const remainingProtectors = Math.max(
+    monthlyStreakProtectors - storedUsedCount,
+    0
+  );
 
   return (
     <main className="scan-page">
@@ -491,6 +575,13 @@ export default function VipMemberScanPage() {
           </p>
 
           <div style={{ position: "relative", marginTop: 18 }}>
+            {!isVip && (
+              <LockedOverlay
+                title="Unlock the daily VIP hint"
+                text="The VIP hint is blurred for non-VIP members. Upgrade to VIP to reveal the hint, sharpen your solve time, and unlock the full VIP experience."
+              />
+            )}
+
             <div
               style={{
                 padding: "22px",
@@ -498,6 +589,9 @@ export default function VipMemberScanPage() {
                 border: "1px solid rgba(255,255,255,0.12)",
                 background: "rgba(255,255,255,0.06)",
                 overflow: "hidden",
+                filter: !isVip ? "blur(7px)" : "none",
+                pointerEvents: !isVip ? "none" : "auto",
+                userSelect: !isVip ? "none" : "auto",
               }}
             >
               <div
@@ -542,174 +636,255 @@ export default function VipMemberScanPage() {
             tries for each day count toward accuracy.
           </p>
 
-          {drop ? (
-            <form onSubmit={handleSubmit} style={{ marginTop: 18 }}>
-              <div style={{ display: "grid", gap: 14 }}>
-                <input
-                  type="text"
-                  value={answer}
-                  onChange={(e) => setAnswer(e.target.value)}
-                  placeholder="Type your answer"
-                  disabled={isSubmitting}
-                  style={{
-                    width: "100%",
-                    padding: "16px 18px",
-                    borderRadius: 16,
-                    border: "1px solid rgba(255,255,255,0.14)",
-                    background: "rgba(255,255,255,0.06)",
-                    color: "#ffffff",
-                    fontSize: 16,
-                    outline: "none",
-                  }}
-                />
+          <div style={{ position: "relative", marginTop: 18 }}>
+            {!isVip && (
+              <LockedOverlay
+                title="VIP answer access is locked"
+                text="Upgrade to VIP to unlock answer submission on this page, VIP-only solving perks, and the extra edge that comes with full access."
+              />
+            )}
 
-                <div
-                  style={{
-                    display: "flex",
-                    gap: 12,
-                    flexWrap: "wrap",
-                    alignItems: "center",
-                  }}
-                >
-                  <button
-                    type="submit"
-                    disabled={isSubmitting}
-                    className="btn-primary"
-                    style={{
-                      border: "none",
-                      cursor: isSubmitting ? "not-allowed" : "pointer",
-                    }}
-                  >
-                    {isSubmitting ? "Submitting..." : "Submit Answer"}
-                  </button>
-
-                  <div
-                    style={{
-                      padding: "10px 16px",
-                      borderRadius: 999,
-                      border: "1px solid rgba(255,255,255,0.1)",
-                      background: "rgba(255,255,255,0.05)",
-                      color: "#ffffff",
-                      fontSize: 14,
-                      fontWeight: 700,
-                    }}
-                  >
-                    Attempts today: {todayAttempts}
-                  </div>
-
-                  <div
-                    style={{
-                      padding: "10px 16px",
-                      borderRadius: 999,
-                      border: "1px solid rgba(255,255,255,0.1)",
-                      background: "rgba(255,255,255,0.05)",
-                      color: "#ffffff",
-                      fontSize: 14,
-                      fontWeight: 700,
-                    }}
-                  >
-                    Accuracy uses first 3 tries
-                  </div>
-                </div>
-
-                {feedback && (
-                  <div
-                    style={{
-                      padding: "12px 14px",
-                      borderRadius: 14,
-                      border:
-                        feedback.type === "success"
-                          ? "1px solid rgba(137,240,221,0.28)"
-                          : "1px solid rgba(255,120,120,0.22)",
-                      background:
-                        feedback.type === "success"
-                          ? "rgba(137,240,221,0.08)"
-                          : "rgba(255,120,120,0.08)",
-                      color:
-                        feedback.type === "success" ? "#89f0dd" : "#ffd6d6",
-                      fontSize: 14,
-                      lineHeight: 1.5,
-                    }}
-                  >
-                    {feedback.text}
-                  </div>
-                )}
-
-                {todayCorrect && (
-                  <div
-                    style={{
-                      padding: "12px 14px",
-                      borderRadius: 14,
-                      border: "1px solid rgba(137,240,221,0.28)",
-                      background: "rgba(137,240,221,0.08)",
-                      color: "#89f0dd",
-                      fontSize: 14,
-                      lineHeight: 1.5,
-                    }}
-                  >
-                    You already got today’s puzzle correct. VIP mode still lets you
-                    submit again if you want to keep testing, but your correct solve is
-                    already on record.
-                  </div>
-                )}
-              </div>
-            </form>
-          ) : (
             <div
               style={{
-                marginTop: 18,
-                padding: "12px 14px",
-                borderRadius: 14,
-                border: "1px solid rgba(255,255,255,0.12)",
-                background: "rgba(255,255,255,0.06)",
-                color: "#ffd6d6",
-                fontSize: 14,
-                lineHeight: 1.5,
+                filter: !isVip ? "blur(7px)" : "none",
+                pointerEvents: !isVip ? "none" : "auto",
+                userSelect: !isVip ? "none" : "auto",
               }}
             >
-              Today’s puzzle is not available yet, so answer submission is disabled.
+              {drop ? (
+                <form onSubmit={handleSubmit}>
+                  <div
+                    style={{
+                      display: "grid",
+                      gap: 14,
+                    }}
+                  >
+                    <input
+                      type="text"
+                      value={answer}
+                      onChange={(e) => setAnswer(e.target.value)}
+                      placeholder="Type your answer"
+                      disabled={isSubmitting || !isVip}
+                      style={{
+                        width: "100%",
+                        padding: "16px 18px",
+                        borderRadius: 16,
+                        border: "1px solid rgba(255,255,255,0.14)",
+                        background: "rgba(255,255,255,0.06)",
+                        color: "#ffffff",
+                        fontSize: 16,
+                        outline: "none",
+                      }}
+                    />
+
+                    <div
+                      style={{
+                        display: "flex",
+                        gap: 12,
+                        flexWrap: "wrap",
+                        alignItems: "center",
+                      }}
+                    >
+                      <button
+                        type="submit"
+                        disabled={isSubmitting || !isVip}
+                        className="btn-primary"
+                        style={{
+                          border: "none",
+                          cursor:
+                            isSubmitting || !isVip ? "not-allowed" : "pointer",
+                        }}
+                      >
+                        {isSubmitting ? "Submitting..." : "Submit Answer"}
+                      </button>
+
+                      <div
+                        style={{
+                          padding: "10px 16px",
+                          borderRadius: 999,
+                          border: "1px solid rgba(255,255,255,0.1)",
+                          background: "rgba(255,255,255,0.05)",
+                          color: "#ffffff",
+                          fontSize: 14,
+                          fontWeight: 700,
+                        }}
+                      >
+                        Attempts today: {todayAttempts}
+                      </div>
+
+                      <div
+                        style={{
+                          padding: "10px 16px",
+                          borderRadius: 999,
+                          border: "1px solid rgba(255,255,255,0.1)",
+                          background: "rgba(255,255,255,0.05)",
+                          color: "#ffffff",
+                          fontSize: 14,
+                          fontWeight: 700,
+                        }}
+                      >
+                        Accuracy uses first 3 tries
+                      </div>
+                    </div>
+
+                    {feedback && (
+                      <div
+                        style={{
+                          padding: "12px 14px",
+                          borderRadius: 14,
+                          border:
+                            feedback.type === "success"
+                              ? "1px solid rgba(137,240,221,0.28)"
+                              : feedback.type === "error"
+                              ? "1px solid rgba(255,120,120,0.22)"
+                              : "1px solid rgba(255,255,255,0.12)",
+                          background:
+                            feedback.type === "success"
+                              ? "rgba(137,240,221,0.08)"
+                              : feedback.type === "error"
+                              ? "rgba(255,120,120,0.08)"
+                              : "rgba(255,255,255,0.06)",
+                          color:
+                            feedback.type === "success"
+                              ? "#89f0dd"
+                              : feedback.type === "error"
+                              ? "#ffd6d6"
+                              : "#ffffff",
+                          fontSize: 14,
+                          lineHeight: 1.5,
+                        }}
+                      >
+                        {feedback.text}
+                      </div>
+                    )}
+
+                    {todayCorrect && (
+                      <div
+                        style={{
+                          padding: "12px 14px",
+                          borderRadius: 14,
+                          border: "1px solid rgba(137,240,221,0.28)",
+                          background: "rgba(137,240,221,0.08)",
+                          color: "#89f0dd",
+                          fontSize: 14,
+                          lineHeight: 1.5,
+                        }}
+                      >
+                        You already got today’s puzzle correct. VIP mode still lets you
+                        submit again if you want to keep testing, but your correct solve is
+                        already on record.
+                      </div>
+                    )}
+                  </div>
+                </form>
+              ) : (
+                <div
+                  style={{
+                    padding: "12px 14px",
+                    borderRadius: 14,
+                    border: "1px solid rgba(255,255,255,0.12)",
+                    background: "rgba(255,255,255,0.06)",
+                    color: "#ffd6d6",
+                    fontSize: 14,
+                    lineHeight: 1.5,
+                  }}
+                >
+                  Today’s puzzle is not available yet, so answer submission is disabled.
+                </div>
+              )}
             </div>
-          )}
+          </div>
         </section>
 
         <section className="card" style={{ marginTop: 20 }}>
           <div className="pill">VIP Member Perk</div>
 
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              gap: 16,
-              flexWrap: "wrap",
-            }}
-          >
-            <div>
-              <h2
-                className="section-title"
-                style={{ color: "#ffffff", marginBottom: 8 }}
-              >
-                Monthly Streak Protector
-              </h2>
-              <p className="section-text-dark" style={{ maxWidth: "none" }}>
-                VIP Members receive <strong>2 streak protectors per month</strong>.
-                Use them carefully — once both are used, you do not get another
-                one until next month.
-              </p>
-            </div>
+          <div style={{ position: "relative" }}>
+            {!isVip && (
+              <LockedOverlay
+                title="VIP perks are locked"
+                text="Monthly VIP streak protection and other VIP-only advantages are reserved for Pro members. Upgrade to unlock the full set of VIP perks."
+              />
+            )}
 
             <div
               style={{
-                padding: "10px 18px",
-                borderRadius: 999,
-                border: "1px solid rgba(137,240,221,0.28)",
-                background: "rgba(137,240,221,0.08)",
-                color: "#89f0dd",
-                fontWeight: 800,
-                whiteSpace: "nowrap",
+                filter: !isVip ? "blur(7px)" : "none",
+                pointerEvents: !isVip ? "none" : "auto",
+                userSelect: !isVip ? "none" : "auto",
               }}
             >
-              {remainingProtectors} left this month
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: 16,
+                  flexWrap: "wrap",
+                }}
+              >
+                <div>
+                  <h2
+                    className="section-title"
+                    style={{ color: "#ffffff", marginBottom: 8 }}
+                  >
+                    Monthly Streak Protector
+                  </h2>
+                  <p className="section-text-dark" style={{ maxWidth: "none" }}>
+                    VIP Members receive <strong>2 streak protectors per month</strong>.
+                    Use them carefully — once both are used, you do not get another
+                    one until next month.
+                  </p>
+                </div>
+
+                <div
+                  style={{
+                    padding: "10px 18px",
+                    borderRadius: 999,
+                    border: "1px solid rgba(137,240,221,0.28)",
+                    background: "rgba(137,240,221,0.08)",
+                    color: "#89f0dd",
+                    fontWeight: 800,
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {remainingProtectors} left this month
+                </div>
+              </div>
+
+              <div
+                style={{
+                  marginTop: 18,
+                  padding: "18px 20px",
+                  borderRadius: 20,
+                  border: "1px solid rgba(255,255,255,0.1)",
+                  background: "rgba(255,255,255,0.05)",
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: 13,
+                    fontWeight: 800,
+                    textTransform: "uppercase",
+                    opacity: 0.7,
+                    marginBottom: 8,
+                  }}
+                >
+                  Streak Protector Status
+                </div>
+
+                <div style={{ fontSize: 16, color: "#ffffff", lineHeight: 1.7 }}>
+                  {remainingProtectors > 0 ? (
+                    <>
+                      You still have <strong>{remainingProtectors}</strong> streak
+                      protector{remainingProtectors === 1 ? "" : "s"} available this
+                      month.
+                    </>
+                  ) : (
+                    <>You have already used both streak protectors for this month.</>
+                  )}
+                </div>
+              </div>
             </div>
           </div>
         </section>
@@ -739,16 +914,139 @@ export default function VipMemberScanPage() {
             <Link href="/scan/archives" className="btn-primary">
               Archives
             </Link>
+
             <Link href="/scan/yesterday" className="btn-primary">
               Try Yesterday’s Puzzle
             </Link>
+
             <Link href="/scan/bonus" className="btn-primary">
               Play Bonus Puzzle
             </Link>
+
             <Link href="/leaderboard" className="btn-primary">
               View Leaderboard
             </Link>
           </div>
+        </section>
+
+        <section className="card" style={{ marginTop: 20 }}>
+          <div className="pill">Your Progress</div>
+
+          <h2 className="section-title" style={{ color: "#ffffff" }}>
+            Your Streak is Your Leverage
+          </h2>
+
+          <div className="section-text-dark">
+            <p>This is where consistency shows.</p>
+            <p>Every correct answer adds up. Your streak grows. Progress compounds.</p>
+            <p>Miss a day, and the chain breaks.</p>
+            <p>It’s that simple.</p>
+          </div>
+
+          <div className="benefit-list">
+            {[
+              `Current streak: ${stats.currentStreak}`,
+              `Best streak: ${stats.longestStreak}`,
+              `Total puzzle plays: ${stats.attempts}`,
+              `Accuracy: ${stats.accuracy}%`,
+              "Come back tomorrow to protect your streak",
+            ].map((item) => (
+              <div key={item} className="benefit-item">
+                <span style={{ fontSize: 18 }}>✓</span>
+                <span>{item}</span>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <section className="card-light" style={{ marginTop: 20 }}>
+          <div className="pill-light">Member Extras</div>
+
+          <h2 className="section-title">You’re building something now</h2>
+
+          <div className="section-text-light">
+            <p>
+              This isn’t a one-time puzzle visit. Every time you show up, your
+              progress stacks, your streak grows, and the system tightens around
+              your consistency. Each return matters more than the last.
+            </p>
+            <p>Most people don’t stick with it. That’s why nothing changes for them.</p>
+          </div>
+
+          <div className="capture-points" style={{ marginTop: 20 }}>
+            <div className="capture-point">
+              <div className="capture-point-title">Your progress is tracked</div>
+              <div className="capture-point-text">
+                Every answer adds up. Your stats build over time, so each day
+                connects — or exposes when you fall off.
+              </div>
+            </div>
+
+            <div className="capture-point">
+              <div className="capture-point-title">Streaks create pressure</div>
+              <div className="capture-point-text">
+                The longer your streak runs, the harder it is to lose. Miss a
+                day, and it’s gone.
+              </div>
+            </div>
+
+            <div className="capture-point">
+              <div className="capture-point-title">More ways to stay in it</div>
+              <div className="capture-point-text">
+                Bonus challenges and past puzzles are always there — if you’re
+                willing to keep going.
+              </div>
+            </div>
+
+            <div className="capture-point">
+              <div className="capture-point-title">Each visit raises the stakes</div>
+              <div className="capture-point-text">
+                The more you show up, the more it builds. Momentum compounds —
+                or disappears if you stop.
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section className="card" style={{ marginTop: 20 }}>
+          <div className="pill">Brain Boost</div>
+
+          <h2 className="section-title" style={{ color: "#ffffff" }}>
+            Struggling to stay sharp?
+          </h2>
+
+          <p
+            className="section-text-dark"
+            style={{ maxWidth: "none", opacity: 0.95 }}
+          >
+            If today’s puzzle slowed you down, use that as your signal. Better
+            focus, better energy, and a stronger routine can help you show up
+            sharper for the next challenge.
+          </p>
+
+          <div className="benefit-list">
+            {[
+              "Helps you stay sharp and think faster",
+              "Designed for people who actually use their brain daily",
+              "Simple, no-friction way to level up your routine",
+              "Low effort, high impact addition",
+              "Built for daily use, not occasional effort",
+            ].map((item) => (
+              <div key={item} className="benefit-item">
+                <span style={{ fontSize: 18 }}>✓</span>
+                <span>{item}</span>
+              </div>
+            ))}
+          </div>
+
+          <a
+            href="YOUR-AMWAY-LINK-HERE"
+            target="_blank"
+            rel="noreferrer"
+            className="btn-primary"
+          >
+            Upgrade Your Focus
+          </a>
         </section>
       </div>
     </main>
