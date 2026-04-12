@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createBrowserSupabaseClient } from "../../../lib/supabase/client";
 import AuthStatus from "../../components/AuthStatus";
+import { getScanRouteForTier, mapSubscriptionTier } from "../getScanRoute";
 
 export const dynamic = "force-dynamic";
 
@@ -38,8 +39,6 @@ type PuzzleSessionRow = {
   submitted_at: string | null;
   created_at?: string | null;
 };
-
-type MembershipTier = "free" | "club" | "vip";
 
 function loadDrop(date: string): Drop | null {
   try {
@@ -113,20 +112,6 @@ function computeTrackedAccuracy(rows: PuzzleSessionRow[]): number {
   return trackedAttempts > 0
     ? Math.round((trackedCorrect / trackedAttempts) * 100)
     : 0;
-}
-
-function mapMembershipTier(rawValue: unknown): MembershipTier {
-  const value = String(rawValue ?? "").trim().toLowerCase();
-
-  if (value === "pro" || value === "vip" || value === "vip_member") {
-    return "vip";
-  }
-
-  if (value === "plus" || value === "club" || value === "club_member") {
-    return "club";
-  }
-
-  return "free";
 }
 
 export default function VipMemberScanPage() {
@@ -212,19 +197,14 @@ export default function VipMemberScanPage() {
 
       const { data: profile } = await supabase
         .from("profiles")
-        .select("membership_tier")
+        .select("subscription_tier")
         .eq("id", user.id)
         .maybeSingle();
 
-      const membershipTier = mapMembershipTier(profile?.membership_tier);
+      const tier = mapSubscriptionTier(profile?.subscription_tier);
 
-      if (membershipTier === "free") {
-        router.replace("/scan/member");
-        return;
-      }
-
-      if (membershipTier === "club") {
-        router.replace("/scan/club-member");
+      if (tier !== "vip") {
+        router.replace(getScanRouteForTier(tier));
         return;
       }
 
@@ -247,20 +227,14 @@ export default function VipMemberScanPage() {
 
       const { data: profile } = await supabase
         .from("profiles")
-        .select("membership_tier")
+        .select("subscription_tier")
         .eq("id", session.user.id)
         .maybeSingle();
 
-      const membershipTier = mapMembershipTier(profile?.membership_tier);
+      const tier = mapSubscriptionTier(profile?.subscription_tier);
 
-      if (membershipTier === "free") {
-        router.replace("/scan/member");
-        return;
-      }
-
-      if (membershipTier === "club") {
-        router.replace("/scan/club-member");
-        return;
+      if (tier !== "vip") {
+        router.replace(getScanRouteForTier(tier));
       }
     });
 
