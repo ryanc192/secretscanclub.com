@@ -5,6 +5,7 @@ import { stripe } from "../../../../lib/stripe/server";
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
+
     const userId = typeof body.userId === "string" ? body.userId : null;
     const email = typeof body.email === "string" ? body.email : null;
     const stripeSessionId =
@@ -17,20 +18,44 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const session = await stripe.checkout.sessions.retrieve(stripeSessionId);
+    const checkoutSession = await stripe.checkout.sessions.retrieve(stripeSessionId);
 
-    const shortCode = session.metadata?.ssc_qr_code ?? null;
-    const internalCode = session.metadata?.ssc_qr_internal_code ?? null;
-    const qrSessionId = session.metadata?.ssc_qr_session_id ?? null;
+    const shortCode = checkoutSession.metadata?.ssc_qr_code ?? null;
+    const internalCode = checkoutSession.metadata?.ssc_qr_internal_code ?? null;
+    const qrSessionId = checkoutSession.metadata?.ssc_qr_session_id ?? null;
+    const membershipTier = checkoutSession.metadata?.membership_tier ?? "club";
 
     if (!shortCode || !qrSessionId) {
-      return NextResponse.json({ ok: true, skipped: true });
+      return NextResponse.json({
+        ok: true,
+        skipped: true,
+        reason: "Missing QR metadata on Stripe session",
+      });
     }
 
-    const amount = session.amount_total ? session.amount_total / 100 : null;
-    const tier =
-      session.metadata?.membership_tier ||
-      (amount === 10 ? "vip" : "club");
+    const amount =
+      typeof checkoutSession.amount_total === "number"
+        ? checkoutSession.amount_total / 100
+        : null;
+
+    const currency = checkoutSession.currency ?? "usd";
+    const stripeCustomerId =
+      typeof checkoutSession.customer === "string"
+        ? checkoutSession.customer
+        : null;
+
+    const existing = await supabaseAdmin
+      .from("qr_events")
+      .select("id")
+      .eq("event_type", "membership_purchase")
+      .eq("user_id", userId)
+      .eq("session_id", qrSessionId)
+      .eq("short_code", shortCode)
+      .maybeSingle();
+
+    if (existing.data?.id) {
+      return NextResponse.json({ ok: true, duplicate: true });
+    }
 
     const { error } = await supabaseAdmin.from("qr_events").insert({
       short_code: shortCode,
@@ -41,12 +66,11 @@ export async function POST(request: NextRequest) {
       path: "/subscribe/confirmation",
       metadata: {
         email,
-        membership_tier: tier,
+        membership_tier: membershipTier,
         amount,
-        currency: session.currency,
-        stripe_customer_id:
-          typeof session.customer === "string" ? session.customer : null,
-        stripe_session_id: session.id,
+        currency,
+        stripe_customer_id: stripeCustomerId,
+        stripe_session_id: checkoutSession.id,
       },
     });
 
