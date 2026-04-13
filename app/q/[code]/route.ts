@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
-import { supabaseAdmin } from "@/lib/supabase/admin";
+import { supabaseAdmin } from "../../../lib/supabase/admin";
 
 function hashIp(ip: string | null): string | null {
   if (!ip) return null;
