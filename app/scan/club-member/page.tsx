@@ -32,7 +32,7 @@ type MemberStats = {
   accuracy: number;
 };
 
-type MembershipTier = "free" | "club" | "vip";
+type SubscriptionTier = "free" | "plus" | "pro";
 
 function loadDrop(date: string): Drop | null {
   try {
@@ -59,12 +59,20 @@ function getMonthKey() {
   }).format(new Date());
 }
 
+function mapSubscriptionTier(rawValue: unknown): SubscriptionTier {
+  const value = String(rawValue ?? "").trim().toLowerCase();
+  if (value === "pro") return "pro";
+  if (value === "plus") return "plus";
+  return "free";
+}
+
 export default function ClubMemberScanPage() {
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
   const router = useRouter();
 
   const [authReady, setAuthReady] = useState(false);
-  const [membershipTier, setMembershipTier] = useState<MembershipTier>("free");
+  const [subscriptionTier, setSubscriptionTier] =
+    useState<SubscriptionTier>("free");
   const [stats, setStats] = useState<MemberStats>({
     currentStreak: 0,
     longestStreak: 0,
@@ -100,9 +108,16 @@ export default function ClubMemberScanPage() {
 
       const { data: profile } = await supabase
         .from("profiles")
-        .select("current_streak, longest_streak, membership_tier")
+        .select("current_streak, longest_streak, subscription_tier")
         .eq("id", user.id)
         .maybeSingle();
+
+      const normalizedTier = mapSubscriptionTier(profile?.subscription_tier);
+
+      if (normalizedTier === "free") {
+        router.replace("/scan/member");
+        return;
+      }
 
       const { count: attemptsCount } = await supabase
         .from("puzzle_sessions")
@@ -122,16 +137,9 @@ export default function ClubMemberScanPage() {
       const accuracy =
         attempts > 0 ? Math.round((correct / attempts) * 100) : 0;
 
-      const normalizedTier =
-        profile?.membership_tier === "vip"
-          ? "vip"
-          : profile?.membership_tier === "club"
-          ? "club"
-          : "free";
-
       if (!isMounted) return;
 
-      setMembershipTier(normalizedTier);
+      setSubscriptionTier(normalizedTier);
       setStats({
         currentStreak: profile?.current_streak ?? 0,
         longestStreak: profile?.longest_streak ?? 0,
@@ -146,9 +154,23 @@ export default function ClubMemberScanPage() {
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
+    } = supabase.auth.onAuthStateChange(async (_event, session) => {
       if (!session?.user) {
         router.replace("/scan");
+        return;
+      }
+
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("subscription_tier")
+        .eq("id", session.user.id)
+        .maybeSingle();
+
+      const normalizedTier = mapSubscriptionTier(profile?.subscription_tier);
+
+      if (normalizedTier === "free") {
+        router.replace("/scan/member");
+        return;
       }
     });
 
@@ -162,8 +184,9 @@ export default function ClubMemberScanPage() {
     return null;
   }
 
-  const showBonusHint = membershipTier === "club" || membershipTier === "vip";
-  const monthlyStreakProtectors = membershipTier === "club" ? 1 : membershipTier === "vip" ? 2 : 0;
+  const showBonusHint = subscriptionTier === "plus" || subscriptionTier === "pro";
+  const monthlyStreakProtectors =
+    subscriptionTier === "pro" ? 2 : subscriptionTier === "plus" ? 1 : 0;
 
   const storedUsedCount =
     typeof window !== "undefined"
@@ -446,11 +469,9 @@ export default function ClubMemberScanPage() {
               <p className="section-text-dark" style={{ maxWidth: "none" }}>
                 Club Members receive{" "}
                 <strong>
-                  {membershipTier === "vip"
+                  {subscriptionTier === "pro"
                     ? "2 streak protectors per month"
-                    : membershipTier === "club"
-                    ? "1 streak protector per month"
-                    : "no streak protectors"}
+                    : "1 streak protector per month"}
                 </strong>
                 . Use it carefully — once it is used, you do not get another one
                 until next month.
@@ -494,12 +515,7 @@ export default function ClubMemberScanPage() {
             </div>
 
             <div style={{ fontSize: 16, color: "#ffffff", lineHeight: 1.7 }}>
-              {membershipTier === "free" ? (
-                <>
-                  This perk is locked on free accounts. Upgrade to Club Member to
-                  protect your streak once per month.
-                </>
-              ) : remainingProtectors > 0 ? (
+              {remainingProtectors > 0 ? (
                 <>
                   You still have <strong>{remainingProtectors}</strong>{" "}
                   streak protector{remainingProtectors === 1 ? "" : "s"} available
@@ -509,14 +525,6 @@ export default function ClubMemberScanPage() {
                 <>You have already used your streak protector allocation this month.</>
               )}
             </div>
-
-            {membershipTier === "free" && (
-              <div style={{ marginTop: 16 }}>
-                <Link href="/subscribe" className="btn-primary">
-                  Upgrade for Streak Protection
-                </Link>
-              </div>
-            )}
           </div>
         </section>
 
