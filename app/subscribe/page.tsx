@@ -182,33 +182,28 @@ export default function SubscribePage() {
       return;
     }
 
-    const priceId = STRIPE_PRICE_IDS[planKey][billingMode];
-
     try {
       setCheckoutLoading(planKey);
 
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
+      const tier = planKey === "pro" ? "vip" : "club";
+      const billing = billingMode;
 
-      const accessToken = session?.access_token;
-
-      if (!accessToken) {
-        setErrorMessage("You must be logged in before starting checkout.");
-        router.push("/login?next=/subscribe");
-        return;
-      }
-
-      const { data, error } = await supabase.functions.invoke("create-checkout-session", {
-        body: { priceId },
+      const res = await fetch("/api/stripe/create-checkout-session", {
+        method: "POST",
         headers: {
-          Authorization: `Bearer ${accessToken}`,
+          "Content-Type": "application/json",
         },
+        body: JSON.stringify({
+          tier,
+          billingMode: billing,
+        }),
       });
 
-      if (error) {
-        console.error("Checkout session error:", error);
-        setErrorMessage(error.message || "Could not start checkout. Please try again.");
+      const data = await res.json();
+
+      if (!res.ok) {
+        console.error("Checkout session error:", data);
+        setErrorMessage(data?.error || "Could not start checkout. Please try again.");
         return;
       }
 
@@ -289,7 +284,9 @@ export default function SubscribePage() {
         <section style={styles.hero} className="hero-grid">
           <div style={styles.heroText} className="hero-text-card">
             <div style={styles.kicker}>Unlock more than the daily scan</div>
-            <h1 style={styles.heroTitle} className="hero-title">Choose the membership that fits how you play.</h1>
+            <h1 style={styles.heroTitle} className="hero-title">
+              Choose the membership that fits how you play.
+            </h1>
             <p style={styles.heroBody}>
               Get bonus hints, premium answer access, more contest entries, streak tools, and
               member-only extras designed to keep people coming back every day.
@@ -298,11 +295,15 @@ export default function SubscribePage() {
             <div style={styles.heroUserBox} className="hero-user-box">
               <div>
                 <div style={styles.userLabel}>Signed in as</div>
-                <div style={styles.userValue} className="user-value">{userName || userEmail || "Guest User"}</div>
+                <div style={styles.userValue} className="user-value">
+                  {userName || userEmail || "Guest User"}
+                </div>
               </div>
               <div>
                 <div style={styles.userLabel}>Current membership</div>
-                <div style={styles.userValue} className="user-value">{labelTier(currentTier)}</div>
+                <div style={styles.userValue} className="user-value">
+                  {labelTier(currentTier)}
+                </div>
               </div>
             </div>
 
@@ -473,7 +474,9 @@ export default function SubscribePage() {
         </section>
 
         <section style={styles.bottomCta} className="bottom-cta">
-          <h2 style={styles.bottomCtaTitle} className="bottom-cta-title">Ready to unlock more from Secret Scan Club?</h2>
+          <h2 style={styles.bottomCtaTitle} className="bottom-cta-title">
+            Ready to unlock more from Secret Scan Club?
+          </h2>
           <p style={styles.bottomCtaText}>
             Start free, upgrade when you want more perks, and keep building daily engagement.
           </p>
