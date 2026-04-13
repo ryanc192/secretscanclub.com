@@ -1,6 +1,7 @@
 import "./styles/scan.css";
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
+import QrPageViewTracker from "@/app/components/QrPageViewTracker";
 
 export const metadata: Metadata = {
   title: "Secret Scan Club",
@@ -15,6 +16,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body style={{ margin: 0, fontFamily: "Arial, sans-serif" }}>
+        <QrPageViewTracker />
         {children}
       </body>
     </html>
