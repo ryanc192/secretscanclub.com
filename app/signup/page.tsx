@@ -19,6 +19,27 @@ function getGuestToken(): string {
   return token;
 }
 
+async function trackSignupCompleted(userId: string, email: string | null) {
+  try {
+    const res = await fetch("/api/track/signup-completed", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        userId,
+        email,
+      }),
+      keepalive: true,
+    });
+
+    const data = await res.json();
+    console.log("signup_completed response:", data);
+  } catch (err) {
+    console.error("signup_completed tracking failed:", err);
+  }
+}
+
 function SignupForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -85,6 +106,10 @@ function SignupForm() {
 
         setMessage(error.message);
         return;
+      }
+
+      if (data.user?.id) {
+        await trackSignupCompleted(data.user.id, data.user.email ?? null);
       }
 
       if (!data.session) {
