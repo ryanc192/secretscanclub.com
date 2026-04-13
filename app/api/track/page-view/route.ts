@@ -1,44 +1,42 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "../../../../lib/supabase/admin";
 
-export async function POST(req: NextRequest) {
+export async function POST(request: NextRequest) {
   try {
-    const body = await req.json().catch(() => ({}));
+    const body = await request.json();
+    const path = typeof body.path === "string" ? body.path : null;
 
-    const pathname =
-      typeof body?.pathname === "string" ? body.pathname : null;
-    const code = typeof body?.code === "string" ? body.code : null;
-    const referrer =
-      typeof body?.referrer === "string" ? body.referrer : null;
+    if (!path) {
+      return NextResponse.json({ error: "Missing path" }, { status: 400 });
+    }
 
-    const userAgent = req.headers.get("user-agent");
-    const forwardedFor = req.headers.get("x-forwarded-for");
-    const ipAddress = forwardedFor?.split(",")[0]?.trim() ?? null;
+    const shortCode = request.cookies.get("ssc_qr_code")?.value ?? null;
+    const internalCode = request.cookies.get("ssc_qr_internal_code")?.value ?? null;
+    const sessionId = request.cookies.get("ssc_qr_session_id")?.value ?? null;
+    const referrer = request.headers.get("referer");
+    const userAgent = request.headers.get("user-agent");
 
-    const payload = {
-      qr_code: code,
-      pathname,
+    if (!shortCode || !sessionId) {
+      return NextResponse.json({ ok: true, skipped: true });
+    }
+
+    const { error } = await supabaseAdmin.from("qr_pageviews").insert({
+      short_code: shortCode,
+      internal_code: internalCode,
+      session_id: sessionId,
+      path,
       referrer,
       user_agent: userAgent,
-      ip_address: ipAddress,
-    };
-
-    const { error } = await supabaseAdmin.from("qr_page_views").insert(payload);
+    });
 
     if (error) {
-      console.error("track page view insert error:", error);
-      return NextResponse.json(
-        { ok: false, error: error.message },
-        { status: 500 }
-      );
+      console.error("qr_pageviews insert error:", error);
+      return NextResponse.json({ error: "Insert failed" }, { status: 500 });
     }
 
     return NextResponse.json({ ok: true });
   } catch (error) {
-    console.error("track page view route error:", error);
-    return NextResponse.json(
-      { ok: false, error: "Unexpected server error." },
-      { status: 500 }
-    );
+    console.error("page view tracking error:", error);
+    return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
 }
