@@ -1,11 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { createBrowserSupabaseClient } from "../../../lib/supabase/client";
 
-export default function SubscribeSuccessPage() {
+function SubscribeSuccessContent() {
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
   const searchParams = useSearchParams();
 
@@ -168,6 +168,33 @@ export default function SubscribeSuccessPage() {
         </section>
       </div>
     </main>
+  );
+}
+
+function SubscribeSuccessFallback() {
+  return (
+    <main style={styles.page}>
+      <div style={styles.backgroundGlowTop} />
+      <div style={styles.backgroundGlowBottom} />
+
+      <div style={styles.shell}>
+        <section style={styles.card}>
+          <div style={styles.kicker}>Loading</div>
+          <h1 style={styles.title}>Loading your membership confirmation...</h1>
+          <p style={styles.body}>
+            Please wait while we confirm your account and subscription details.
+          </p>
+        </section>
+      </div>
+    </main>
+  );
+}
+
+export default function SubscribeSuccessPage() {
+  return (
+    <Suspense fallback={<SubscribeSuccessFallback />}>
+      <SubscribeSuccessContent />
+    </Suspense>
   );
 }
 
