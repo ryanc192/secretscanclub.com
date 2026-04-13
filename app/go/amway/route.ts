@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "../../../lib/supabase/admin";
 
+export const dynamic = "force-dynamic";
+
 const AMWAY_URL = "https://www.amway.com/your-actual-link-here";
 
 export async function GET(request: NextRequest) {
@@ -15,7 +17,7 @@ export async function GET(request: NextRequest) {
       await supabaseAdmin.from("qr_events").insert({
         short_code: shortCode,
         internal_code: internalCode,
-        event_type: "product_purchase", // use a cleaner custom type if you want, see note below
+        event_type: "affiliate_click",
         session_id: sessionId,
         path: "/go/amway",
         referrer,
