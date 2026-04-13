@@ -1,7 +1,7 @@
 import "./styles/scan.css";
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
-import QrPageViewTracker from "@/app/components/QrPageViewTracker";
+import QrPageViewTracker from "./components/QrPageViewTracker";
 
 export const metadata: Metadata = {
   title: "Secret Scan Club",
