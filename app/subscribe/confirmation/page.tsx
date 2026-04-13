@@ -1,19 +1,25 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { createBrowserSupabaseClient } from "../../../lib/supabase/client";
 
 export default function SubscribeSuccessPage() {
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
+  const searchParams = useSearchParams();
+
   const [userName, setUserName] = useState("");
   const [userEmail, setUserEmail] = useState("");
   const [loading, setLoading] = useState(true);
+  const [trackingDone, setTrackingDone] = useState(false);
+
+  const hasTrackedRef = useRef(false);
 
   useEffect(() => {
     let mounted = true;
 
-    async function loadUser() {
+    async function loadUserAndTrackMembership() {
       try {
         const {
           data: { user },
@@ -22,12 +28,50 @@ export default function SubscribeSuccessPage() {
         if (!mounted) return;
 
         if (user) {
-          setUserEmail(user.email ?? "");
-          setUserName(
+          const resolvedEmail = user.email ?? "";
+          const resolvedName =
             (user.user_metadata?.full_name as string) ||
-              (user.user_metadata?.name as string) ||
-              (user.email?.split("@")[0] ?? "")
-          );
+            (user.user_metadata?.name as string) ||
+            (user.email?.split("@")[0] ?? "");
+
+          setUserEmail(resolvedEmail);
+          setUserName(resolvedName);
+
+          if (!hasTrackedRef.current) {
+            hasTrackedRef.current = true;
+
+            const sessionId = searchParams.get("session_id") || "";
+            const tier = searchParams.get("tier") || "club";
+            const amount = Number(
+              searchParams.get("amount") || (tier === "vip" ? "10" : "5")
+            );
+
+            try {
+              const res = await fetch("/api/track/membership-completed", {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                  userId: user.id,
+                  email: resolvedEmail,
+                  tier,
+                  amount,
+                  stripeSessionId: sessionId || null,
+                }),
+                keepalive: true,
+              });
+
+              const data = await res.json();
+              console.log("membership_completed response:", data);
+
+              if (mounted && res.ok) {
+                setTrackingDone(true);
+              }
+            } catch (trackError) {
+              console.error("Failed to track membership purchase:", trackError);
+            }
+          }
         }
       } catch (error) {
         console.error("Failed to load success page user:", error);
@@ -36,12 +80,12 @@ export default function SubscribeSuccessPage() {
       }
     }
 
-    loadUser();
+    loadUserAndTrackMembership();
 
     return () => {
       mounted = false;
     };
-  }, [supabase]);
+  }, [supabase, searchParams]);
 
   return (
     <main style={styles.page}>
@@ -81,9 +125,9 @@ export default function SubscribeSuccessPage() {
           <h1 style={styles.title}>Your membership checkout was successful.</h1>
 
           <p style={styles.body}>
-            Thank you for upgrading your Secret Scan Club membership. Your payment was submitted
-            successfully, and your account should update shortly after Stripe finishes processing
-            and your subscription sync completes.
+            Thank you for upgrading your Secret Scan Club membership. Your payment was
+            submitted successfully, and your account should update shortly after Stripe
+            finishes processing and your subscription sync completes.
           </p>
 
           <div style={styles.userBox}>
@@ -101,10 +145,16 @@ export default function SubscribeSuccessPage() {
           </div>
 
           <div style={styles.notice}>
-            If your membership perks do not appear immediately, give it a moment and then open your
-            dashboard again. In most cases, the account updates automatically once the Stripe
-            subscription data finishes syncing.
+            If your membership perks do not appear immediately, give it a moment and then
+            open your dashboard again. In most cases, the account updates automatically
+            once the Stripe subscription data finishes syncing.
           </div>
+
+          {trackingDone ? (
+            <div style={styles.trackingBox}>
+              Membership attribution recorded successfully.
+            </div>
+          ) : null}
 
           <div style={styles.buttonRow}>
             <Link href="/dashboard" style={styles.primaryButton}>
@@ -304,6 +354,18 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 14,
     lineHeight: 1.6,
     textAlign: "left",
+  },
+  trackingBox: {
+    marginTop: 16,
+    padding: "14px 16px",
+    borderRadius: 16,
+    background: "rgba(121, 240, 207, 0.08)",
+    border: "1px solid rgba(121, 240, 207, 0.22)",
+    color: "#d9fff4",
+    fontSize: 14,
+    lineHeight: 1.5,
+    textAlign: "center",
+    fontWeight: 700,
   },
   buttonRow: {
     display: "flex",
