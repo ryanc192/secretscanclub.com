@@ -1,8 +1,7 @@
-// app/scan/archives/page.tsx
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
-import { formatArchiveDate, getAllArchivedDrops } from "@/lib/puzzles/archive";
+import { createServerSupabaseClient } from "../../../../lib/supabase/server";
+import { formatArchiveDate, getAllArchivedDrops } from "../../../../lib/puzzles/archive";
 
 function normalizeMembership(profile: any) {
   const raw =
@@ -23,7 +22,7 @@ function isClubMembership(value: string) {
   return ["club", "club_member", "club-member"].includes(value);
 }
 
-export default async function ArchivesPage() {
+export default async function VipArchivesPage() {
   const supabase = await createServerSupabaseClient();
 
   const {
@@ -112,7 +111,7 @@ export default async function ArchivesPage() {
             {drops.map((drop) => (
               <Link
                 key={drop.date}
-                href={`/scan/archives/${drop.date}`}
+                href={`/scan/vip-member/archives/${drop.date}`}
                 className="group rounded-[28px] border border-white/10 bg-white/[0.04] p-6 shadow-[0_0_30px_rgba(0,0,0,0.2)] transition hover:-translate-y-1 hover:border-cyan-300/30 hover:bg-white/[0.06]"
               >
                 <p className="text-xs font-semibold uppercase tracking-[0.24em] text-cyan-300/80">
