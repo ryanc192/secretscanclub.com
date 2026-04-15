@@ -66,111 +66,6 @@ function mapSubscriptionTier(rawValue: unknown): SubscriptionTier {
   return "free";
 }
 
-function LockedSectionOverlay({
-  title,
-  description,
-  ctaText = "Upgrade to Club",
-}: {
-  title: string;
-  description: string;
-  ctaText?: string;
-}) {
-  return (
-    <div
-      style={{
-        position: "absolute",
-        inset: 0,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        padding: 24,
-        textAlign: "center",
-        background:
-          "linear-gradient(180deg, rgba(8,15,30,0.24) 0%, rgba(8,15,30,0.88) 100%)",
-        zIndex: 3,
-      }}
-    >
-      <div style={{ maxWidth: 520 }}>
-        <div
-          style={{
-            width: 74,
-            height: 74,
-            borderRadius: "50%",
-            margin: "0 auto 14px",
-            display: "grid",
-            placeItems: "center",
-            fontSize: 30,
-            background: "rgba(137,240,221,0.12)",
-            border: "1px solid rgba(137,240,221,0.24)",
-            color: "#89f0dd",
-          }}
-        >
-          🔒
-        </div>
-
-        <div
-          style={{
-            fontSize: 13,
-            fontWeight: 900,
-            textTransform: "uppercase",
-            letterSpacing: "0.08em",
-            color: "#89f0dd",
-            marginBottom: 10,
-          }}
-        >
-          Club Upgrade Required
-        </div>
-
-        <div
-          style={{
-            fontSize: 28,
-            fontWeight: 900,
-            color: "#ffffff",
-            lineHeight: 1.15,
-            marginBottom: 12,
-          }}
-        >
-          {title}
-        </div>
-
-        <p
-          style={{
-            margin: "0 0 18px",
-            color: "rgba(255,255,255,0.88)",
-            lineHeight: 1.65,
-            fontSize: 15,
-          }}
-        >
-          {description}
-        </p>
-
-        <div
-          style={{
-            display: "flex",
-            gap: 12,
-            justifyContent: "center",
-            flexWrap: "wrap",
-          }}
-        >
-          <Link href="/subscribe" className="btn-primary">
-            {ctaText}
-          </Link>
-          <Link
-            href="/account"
-            className="btn-primary"
-            style={{
-              background: "rgba(255,255,255,0.08)",
-              border: "1px solid rgba(255,255,255,0.12)",
-            }}
-          >
-            Manage Account
-          </Link>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 export default function ClubMemberScanPage() {
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
   const router = useRouter();
@@ -203,7 +98,14 @@ export default function ClubMemberScanPage() {
           return;
         }
 
-        const user = session.user;
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+
+        if (!user) {
+          router.replace("/scan");
+          return;
+        }
 
         const { data: profile } = await supabase
           .from("profiles")
@@ -249,20 +151,10 @@ export default function ClubMemberScanPage() {
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (_event, session) => {
+    } = supabase.auth.onAuthStateChange((_event, session) => {
       if (!session?.user) {
         router.replace("/scan");
-        return;
       }
-
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("subscription_tier")
-        .eq("id", session.user.id)
-        .maybeSingle();
-
-      if (!isMounted) return;
-      setSubscriptionTier(mapSubscriptionTier(profile?.subscription_tier));
     });
 
     return () => {
@@ -285,25 +177,21 @@ export default function ClubMemberScanPage() {
     );
   }
 
-  const hasClubAccess =
-    subscriptionTier === "plus" || subscriptionTier === "pro";
-
-  const showBonusHint = hasClubAccess;
-
+  const showBonusHint = subscriptionTier === "plus" || subscriptionTier === "pro";
   const monthlyStreakProtectors =
     subscriptionTier === "pro" ? 2 : subscriptionTier === "plus" ? 1 : 0;
 
   const storedUsedCount =
     typeof window !== "undefined"
-      ? Number(
-          localStorage.getItem(`ssc-streak-protectors-used-${monthKey}`) ?? "0"
-        )
+      ? Number(localStorage.getItem(`ssc-streak-protectors-used-${monthKey}`) ?? "0")
       : 0;
 
   const remainingProtectors = Math.max(
     monthlyStreakProtectors - storedUsedCount,
     0
   );
+
+  const isFreeUser = subscriptionTier === "free";
 
   return (
     <main className="scan-page">
@@ -398,10 +286,7 @@ export default function ClubMemberScanPage() {
           </div>
         </section>
 
-        <section
-          className="card-light"
-          style={{ marginTop: 20, position: "relative", overflow: "hidden" }}
-        >
+        <section className="card-light" style={{ marginTop: 20, position: "relative" }}>
           <div className="pill-light">Bonus Hint</div>
 
           <h2 className="section-title">A little edge, if you’ve earned it</h2>
@@ -424,7 +309,7 @@ export default function ClubMemberScanPage() {
             >
               <div
                 style={{
-                  filter: showBonusHint ? "none" : "blur(9px)",
+                  filter: showBonusHint ? "none" : "grayscale(100%) blur(3px) opacity(0.6)",
                   userSelect: showBonusHint ? "auto" : "none",
                   pointerEvents: showBonusHint ? "auto" : "none",
                   transition: "filter 0.2s ease",
@@ -456,11 +341,31 @@ export default function ClubMemberScanPage() {
               </div>
 
               {!showBonusHint && (
-                <LockedSectionOverlay
-                  title="Unlock the bonus hint"
-                  description="Free members can see this perk exists. Club Members can actually use it. Upgrade to reveal the hint and give yourself a better shot at protecting your streak."
-                  ctaText="Upgrade to Club"
-                />
+                <div
+                  style={{
+                    position: "absolute",
+                    inset: 0,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    textAlign: "center",
+                    padding: 20,
+                    background: "rgba(0,0,0,0.55)",
+                  }}
+                >
+                  <div>
+                    <div style={{ fontSize: 28, marginBottom: 10 }}>🔒</div>
+                    <div style={{ fontWeight: 800, fontSize: 20, marginBottom: 8 }}>
+                      Bonus Hint Locked
+                    </div>
+                    <p style={{ marginBottom: 16, color: "#ffffff" }}>
+                      Upgrade to Club to reveal today’s hint.
+                    </p>
+                    <Link href="/subscribe" className="btn-primary">
+                      Upgrade
+                    </Link>
+                  </div>
+                </div>
               )}
             </div>
           </div>
@@ -503,10 +408,7 @@ export default function ClubMemberScanPage() {
           )}
         </section>
 
-        <section
-          className="card"
-          style={{ marginTop: 20, position: "relative", overflow: "hidden" }}
-        >
+        <section className="card" style={{ marginTop: 20, position: "relative" }}>
           <div className="pill">Club Member Perk</div>
 
           <div
@@ -519,10 +421,7 @@ export default function ClubMemberScanPage() {
             }}
           >
             <div>
-              <h2
-                className="section-title"
-                style={{ color: "#ffffff", marginBottom: 8 }}
-              >
+              <h2 className="section-title" style={{ color: "#ffffff", marginBottom: 8 }}>
                 Monthly Streak Protector
               </h2>
               <p className="section-text-dark" style={{ maxWidth: "none" }}>
@@ -550,70 +449,84 @@ export default function ClubMemberScanPage() {
                 whiteSpace: "nowrap",
               }}
             >
-              {hasClubAccess
-                ? `${remainingProtectors} left this month`
-                : "Locked on free plan"}
+              {isFreeUser ? "Locked on free plan" : `${remainingProtectors} left this month`}
             </div>
           </div>
 
-          <div
-            style={{
-              marginTop: 18,
-              padding: "18px 20px",
-              borderRadius: 20,
-              border: "1px solid rgba(255,255,255,0.1)",
-              background: "rgba(255,255,255,0.05)",
-              position: "relative",
-              overflow: "hidden",
-            }}
-          >
+          <div style={{ position: "relative" }}>
             <div
               style={{
-                filter: hasClubAccess ? "none" : "blur(8px)",
-                userSelect: hasClubAccess ? "auto" : "none",
-                pointerEvents: hasClubAccess ? "auto" : "none",
-                transition: "filter 0.2s ease",
+                filter: isFreeUser ? "grayscale(100%) blur(2px) opacity(0.6)" : "none",
+                pointerEvents: isFreeUser ? "none" : "auto",
               }}
             >
               <div
                 style={{
-                  fontSize: 13,
-                  fontWeight: 800,
-                  textTransform: "uppercase",
-                  opacity: 0.7,
-                  marginBottom: 8,
+                  marginTop: 18,
+                  padding: "18px 20px",
+                  borderRadius: 20,
+                  border: "1px solid rgba(255,255,255,0.1)",
+                  background: "rgba(255,255,255,0.05)",
                 }}
               >
-                Streak Protector Status
-              </div>
+                <div
+                  style={{
+                    fontSize: 13,
+                    fontWeight: 800,
+                    textTransform: "uppercase",
+                    opacity: 0.7,
+                    marginBottom: 8,
+                  }}
+                >
+                  Streak Protector Status
+                </div>
 
-              <div style={{ fontSize: 16, color: "#ffffff", lineHeight: 1.7 }}>
-                {remainingProtectors > 0 ? (
-                  <>
-                    You still have <strong>{remainingProtectors}</strong> streak
-                    protector{remainingProtectors === 1 ? "" : "s"} available
-                    this month.
-                  </>
-                ) : (
-                  <>You have already used your streak protector allocation this month.</>
-                )}
+                <div style={{ fontSize: 16, color: "#ffffff", lineHeight: 1.7 }}>
+                  {remainingProtectors > 0 ? (
+                    <>
+                      You still have <strong>{remainingProtectors}</strong>{" "}
+                      streak protector{remainingProtectors === 1 ? "" : "s"} available
+                      this month.
+                    </>
+                  ) : (
+                    <>You have already used your streak protector allocation this month.</>
+                  )}
+                </div>
               </div>
             </div>
 
-            {!hasClubAccess && (
-              <LockedSectionOverlay
-                title="Protect your streak once per month"
-                description="Free users can see the perk. Club Members can actually use it. Upgrade to unlock streak protection and keep one bad day from breaking your momentum."
-                ctaText="Upgrade for Streak Protection"
-              />
+            {isFreeUser && (
+              <div
+                style={{
+                  position: "absolute",
+                  inset: 0,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  textAlign: "center",
+                  padding: 20,
+                  background: "rgba(0,0,0,0.55)",
+                  borderRadius: 20,
+                }}
+              >
+                <div>
+                  <div style={{ fontSize: 28, marginBottom: 10 }}>🔒</div>
+                  <div style={{ fontWeight: 800, fontSize: 20, marginBottom: 8, color: "#ffffff" }}>
+                    Streak Protection Locked
+                  </div>
+                  <p style={{ marginBottom: 16, color: "#ffffff" }}>
+                    Protect your streak once per month with Club.
+                  </p>
+                  <Link href="/subscribe" className="btn-primary">
+                    Upgrade
+                  </Link>
+                </div>
+              </div>
             )}
           </div>
         </section>
 
-        <section
-          className="card-light"
-          style={{ marginTop: 20, position: "relative", overflow: "hidden" }}
-        >
+        <section className="card-light" style={{ marginTop: 20 }}>
           <div className="pill-light">Keep Going</div>
 
           <h2 className="section-title">One click doesn’t prove anything</h2>
@@ -629,10 +542,11 @@ export default function ClubMemberScanPage() {
 
           <div
             style={{
-              position: "relative",
+              display: "flex",
+              gap: 12,
+              flexWrap: "wrap",
               marginTop: 20,
-              borderRadius: 20,
-              overflow: "hidden",
+              position: "relative",
             }}
           >
             <div
@@ -640,11 +554,8 @@ export default function ClubMemberScanPage() {
                 display: "flex",
                 gap: 12,
                 flexWrap: "wrap",
-                filter: hasClubAccess ? "none" : "blur(8px)",
-                pointerEvents: hasClubAccess ? "auto" : "none",
-                userSelect: hasClubAccess ? "auto" : "none",
-                transition: "filter 0.2s ease",
-                minHeight: 64,
+                filter: isFreeUser ? "grayscale(100%) blur(3px) opacity(0.6)" : "none",
+                pointerEvents: isFreeUser ? "none" : "auto",
               }}
             >
               <Link href="/scan/yesterday" className="btn-primary">
@@ -660,7 +571,7 @@ export default function ClubMemberScanPage() {
               </Link>
             </div>
 
-            {!hasClubAccess && (
+            {isFreeUser && (
               <div
                 style={{
                   position: "absolute",
@@ -668,63 +579,23 @@ export default function ClubMemberScanPage() {
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
-                  padding: 18,
                   textAlign: "center",
-                  background:
-                    "linear-gradient(180deg, rgba(8,15,30,0.18) 0%, rgba(8,15,30,0.82) 100%)",
-                  zIndex: 3,
+                  padding: 20,
+                  background: "rgba(0,0,0,0.55)",
+                  borderRadius: 20,
                 }}
               >
-                <div style={{ maxWidth: 540 }}>
-                  <div
-                    style={{
-                      fontSize: 13,
-                      fontWeight: 900,
-                      textTransform: "uppercase",
-                      letterSpacing: "0.08em",
-                      color: "#89f0dd",
-                      marginBottom: 10,
-                    }}
-                  >
-                    Locked Club Paths
+                <div>
+                  <div style={{ fontSize: 28, marginBottom: 10 }}>🔒</div>
+                  <div style={{ fontWeight: 800, fontSize: 20, marginBottom: 8, color: "#ffffff" }}>
+                    More Puzzles Locked
                   </div>
-
-                  <div
-                    style={{
-                      fontSize: 24,
-                      fontWeight: 900,
-                      color: "#ffffff",
-                      marginBottom: 10,
-                      lineHeight: 1.15,
-                    }}
-                  >
-                    Yesterday’s Puzzle and Bonus Puzzle are waiting
-                  </div>
-
-                  <p
-                    style={{
-                      margin: "0 0 18px",
-                      color: "rgba(255,255,255,0.88)",
-                      lineHeight: 1.65,
-                    }}
-                  >
-                    Free members can see these extra paths exist, but only Club
-                    and VIP members can open them. Upgrade to unlock more reps,
-                    more chances, and more reasons to come back daily.
+                  <p style={{ marginBottom: 16, color: "#ffffff" }}>
+                    Club members get access to yesterday’s puzzle and bonus challenges.
                   </p>
-
-                  <div
-                    style={{
-                      display: "flex",
-                      gap: 12,
-                      justifyContent: "center",
-                      flexWrap: "wrap",
-                    }}
-                  >
-                    <Link href="/subscribe" className="btn-primary">
-                      Unlock Club Access
-                    </Link>
-                  </div>
+                  <Link href="/subscribe" className="btn-primary">
+                    Unlock Access
+                  </Link>
                 </div>
               </div>
             )}
