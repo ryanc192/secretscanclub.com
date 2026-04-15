@@ -365,57 +365,21 @@ export default function ClubMemberScanPage() {
                       "linear-gradient(180deg, rgba(8,15,30,0.18) 0%, rgba(8,15,30,0.82) 100%)",
                   }}
                 >
-                  <div style={{ maxWidth: 460 }}>
-                    <div
-                      style={{
-                        fontSize: 13,
-                        fontWeight: 900,
-                        textTransform: "uppercase",
-                        letterSpacing: "0.08em",
-                        color: "#89f0dd",
-                        marginBottom: 10,
-                      }}
-                    >
-                      Club Upgrade Required
-                    </div>
-
+                  <div>
                     <div
                       style={{
                         fontSize: 24,
                         fontWeight: 800,
                         color: "#ffffff",
-                        marginBottom: 10,
+                        marginBottom: 16,
                       }}
                     >
                       Unlock the bonus hint
                     </div>
 
-                    <p
-                      style={{
-                        margin: "0 0 18px",
-                        color: "rgba(255,255,255,0.88)",
-                        lineHeight: 1.6,
-                      }}
-                    >
-                      Upgrade your account to Club Member to reveal the hint,
-                      stay in the game longer, and get access to Club-only perks.
-                    </p>
-
-                    <div
-                      style={{
-                        display: "flex",
-                        gap: 12,
-                        justifyContent: "center",
-                        flexWrap: "wrap",
-                      }}
-                    >
-                      <Link href="/subscribe" className="btn-primary">
-                        Upgrade to Club
-                      </Link>
-                      <Link href="/account" className="btn-primary">
-                        Manage Account
-                      </Link>
-                    </div>
+                    <Link href="/subscribe" className="btn-primary">
+                      Upgrade to Club
+                    </Link>
                   </div>
                 </div>
               )}
@@ -483,9 +447,7 @@ export default function ClubMemberScanPage() {
                 <strong>
                   {subscriptionTier === "pro"
                     ? "2 streak protectors per month"
-                    : subscriptionTier === "plus"
-                    ? "1 streak protector per month"
-                    : "no streak protectors"}
+                    : "1 streak protector per month"}
                 </strong>
                 . Use it carefully — once it is used, you do not get another one
                 until next month.
@@ -531,8 +493,7 @@ export default function ClubMemberScanPage() {
             <div style={{ fontSize: 16, color: "#ffffff", lineHeight: 1.7 }}>
               {subscriptionTier === "free" ? (
                 <>
-                  This perk is locked on free accounts. Upgrade to Club Member to
-                  protect your streak once per month.
+                  Club members get 1 streak protector each month to protect their streak.
                 </>
               ) : remainingProtectors > 0 ? (
                 <>
