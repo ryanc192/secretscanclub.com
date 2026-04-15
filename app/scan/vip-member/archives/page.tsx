@@ -44,6 +44,20 @@ function formatArchiveDate(date: string) {
   }).format(d);
 }
 
+function getYearFromDate(date: string) {
+  return date.slice(0, 4);
+}
+
+function getMonthFromDate(date: string) {
+  return date.slice(5, 7);
+}
+
+function getMonthLabel(month: string) {
+  return new Date(`2000-${month}-01T12:00:00`).toLocaleString("en-US", {
+    month: "long",
+  });
+}
+
 export default function VipArchivesPage() {
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
   const router = useRouter();
@@ -53,6 +67,9 @@ export default function VipArchivesPage() {
     useState<SubscriptionTier>("free");
   const [firstName, setFirstName] = useState("Member");
   const [drops, setDrops] = useState<PuzzleDrop[]>([]);
+  const [selectedYear, setSelectedYear] = useState("");
+  const [selectedMonth, setSelectedMonth] = useState("");
+  const [selectedDate, setSelectedDate] = useState("");
 
   useEffect(() => {
     let isMounted = true;
@@ -98,7 +115,24 @@ export default function VipArchivesPage() {
 
         if (!isMounted) return;
 
-        setDrops(Array.isArray(json?.drops) ? json.drops : []);
+        const loadedDrops = Array.isArray(json?.drops) ? json.drops : [];
+        setDrops(loadedDrops);
+
+        if (loadedDrops.length > 0) {
+          const firstYear = getYearFromDate(loadedDrops[0].date);
+          const firstMonth = getMonthFromDate(loadedDrops[0].date);
+
+          setSelectedYear(firstYear);
+          setSelectedMonth(firstMonth);
+
+          const firstMatchingDrop = loadedDrops.find(
+            (drop) =>
+              getYearFromDate(drop.date) === firstYear &&
+              getMonthFromDate(drop.date) === firstMonth
+          );
+
+          setSelectedDate(firstMatchingDrop?.date ?? "");
+        }
       } catch (error) {
         console.error("archives load error:", error);
       } finally {
@@ -123,6 +157,76 @@ export default function VipArchivesPage() {
       subscription.unsubscribe();
     };
   }, [router, supabase]);
+
+  const years = useMemo(() => {
+    return Array.from(new Set(drops.map((drop) => getYearFromDate(drop.date))));
+  }, [drops]);
+
+  const months = useMemo(() => {
+    if (!selectedYear) return [];
+
+    return Array.from(
+      new Set(
+        drops
+          .filter((drop) => getYearFromDate(drop.date) === selectedYear)
+          .map((drop) => getMonthFromDate(drop.date))
+      )
+    );
+  }, [drops, selectedYear]);
+
+  const filteredDays = useMemo(() => {
+    if (!selectedYear || !selectedMonth) return [];
+
+    return drops.filter(
+      (drop) =>
+        getYearFromDate(drop.date) === selectedYear &&
+        getMonthFromDate(drop.date) === selectedMonth
+    );
+  }, [drops, selectedYear, selectedMonth]);
+
+  const selectedDrop = useMemo(() => {
+    return filteredDays.find((drop) => drop.date === selectedDate) ?? null;
+  }, [filteredDays, selectedDate]);
+
+  function handleYearChange(value: string) {
+    setSelectedYear(value);
+
+    const nextMonths = Array.from(
+      new Set(
+        drops
+          .filter((drop) => getYearFromDate(drop.date) === value)
+          .map((drop) => getMonthFromDate(drop.date))
+      )
+    );
+
+    const nextMonth = nextMonths[0] ?? "";
+    setSelectedMonth(nextMonth);
+
+    const nextDrop = drops.find(
+      (drop) =>
+        getYearFromDate(drop.date) === value &&
+        getMonthFromDate(drop.date) === nextMonth
+    );
+
+    setSelectedDate(nextDrop?.date ?? "");
+  }
+
+  function handleMonthChange(value: string) {
+    setSelectedMonth(value);
+
+    const nextDrop = drops.find(
+      (drop) =>
+        getYearFromDate(drop.date) === selectedYear &&
+        getMonthFromDate(drop.date) === value
+    );
+
+    setSelectedDate(nextDrop?.date ?? "");
+  }
+
+  function handleOpenPuzzle() {
+    if (!selectedDate) return;
+    router.push(`/scan/vip-member/archives/${selectedDate}`);
+  }
 
   if (!authReady) {
     return (
@@ -168,8 +272,8 @@ export default function VipArchivesPage() {
               place.
             </p>
             <p>
-              Use it to revisit old drops, study patterns, and sharpen your edge
-              before the next live challenge.
+              Pick a year, narrow it down by month, choose the day, and jump
+              straight into that archived puzzle.
             </p>
           </div>
 
@@ -192,142 +296,265 @@ export default function VipArchivesPage() {
         </section>
 
         <section className="card-light" style={{ marginTop: 20 }}>
-          <div className="pill-light">Premium Access</div>
+          <div className="pill-light">Archive Browser</div>
 
-          <h2 className="section-title">Every past drop, all in one place</h2>
+          <h2 className="section-title">Find a past puzzle fast</h2>
 
           <p className="section-text-light">
-            Archived puzzles are for VIP viewing only and do not count toward
-            live streaks, leaderboard points, or prize eligibility. This vault
-            is here to help you revisit, review, and keep your edge sharp.
+            Use the dropdowns below to browse archived drops by year, then
+            month, then day.
           </p>
-        </section>
 
-        {drops.length === 0 ? (
-          <section className="card" style={{ marginTop: 20 }}>
-            <div className="pill">Archive Status</div>
-
-            <h2 className="section-title" style={{ color: "#ffffff" }}>
-              No archives yet
-            </h2>
-
-            <p className="section-text-dark">
-              As soon as previous daily drops exist, they will appear here
-              automatically.
-            </p>
-          </section>
-        ) : (
-          <section className="card-light" style={{ marginTop: 20 }}>
-            <div className="pill-light">Archived Drops</div>
-
-            <h2 className="section-title">Choose a past puzzle</h2>
-
-            <p className="section-text-light">
-              Open any archived drop to review the puzzle, reveal the answer,
-              and study the explanation.
-            </p>
-
+          {drops.length === 0 ? (
             <div
               style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
-                gap: 16,
                 marginTop: 20,
+                padding: "18px 20px",
+                borderRadius: 20,
+                border: "1px solid rgba(255,255,255,0.12)",
+                background: "rgba(255,255,255,0.06)",
               }}
             >
-              {drops.map((drop) => {
-                const previewText =
-                  drop.vip?.puzzle ||
-                  drop.club?.puzzle ||
-                  drop.member?.puzzle ||
-                  drop.free?.puzzle ||
-                  "Open this archived puzzle to view the full challenge and official answer.";
-
-                return (
-                  <Link
-                    key={drop.date}
-                    href={`/scan/vip-member/archives/${drop.date}`}
+              <div
+                style={{
+                  fontSize: 22,
+                  fontWeight: 800,
+                  color: "#111111",
+                  marginBottom: 8,
+                }}
+              >
+                No archives yet
+              </div>
+              <div
+                style={{
+                  fontSize: 15,
+                  lineHeight: 1.7,
+                  color: "#222222",
+                }}
+              >
+                As soon as previous daily drops exist, they will appear here
+                automatically.
+              </div>
+            </div>
+          ) : (
+            <>
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+                  gap: 14,
+                  marginTop: 20,
+                }}
+              >
+                <div>
+                  <label
+                    htmlFor="archive-year"
                     style={{
                       display: "block",
-                      textDecoration: "none",
-                      color: "inherit",
-                      borderRadius: 20,
-                      border: "1px solid rgba(255,255,255,0.12)",
-                      background: "rgba(255,255,255,0.06)",
-                      padding: 18,
-                      transition:
-                        "transform 0.18s ease, border-color 0.18s ease",
+                      fontSize: 13,
+                      fontWeight: 800,
+                      textTransform: "uppercase",
+                      letterSpacing: "0.08em",
+                      marginBottom: 8,
+                      color: "#111111",
                     }}
                   >
-                    <div
-                      style={{
-                        fontSize: 12,
-                        fontWeight: 800,
-                        textTransform: "uppercase",
-                        letterSpacing: "0.08em",
-                        opacity: 0.7,
-                        marginBottom: 8,
-                        color: "#89f0dd",
-                      }}
-                    >
-                      Archived Drop
-                    </div>
+                    Year
+                  </label>
+                  <select
+                    id="archive-year"
+                    value={selectedYear}
+                    onChange={(e) => handleYearChange(e.target.value)}
+                    style={{
+                      width: "100%",
+                      borderRadius: 16,
+                      padding: "14px 16px",
+                      border: "1px solid rgba(0,0,0,0.12)",
+                      background: "#ffffff",
+                      color: "#111111",
+                      fontSize: 15,
+                    }}
+                  >
+                    {years.map((year) => (
+                      <option key={year} value={year}>
+                        {year}
+                      </option>
+                    ))}
+                  </select>
+                </div>
 
-                    <div
-                      style={{
-                        fontSize: 22,
-                        fontWeight: 800,
-                        color: "#111111",
-                        lineHeight: 1.2,
-                        marginBottom: 8,
-                      }}
-                    >
-                      {drop.title || `Puzzle ${drop.number ?? ""}`.trim()}
-                    </div>
+                <div>
+                  <label
+                    htmlFor="archive-month"
+                    style={{
+                      display: "block",
+                      fontSize: 13,
+                      fontWeight: 800,
+                      textTransform: "uppercase",
+                      letterSpacing: "0.08em",
+                      marginBottom: 8,
+                      color: "#111111",
+                    }}
+                  >
+                    Month
+                  </label>
+                  <select
+                    id="archive-month"
+                    value={selectedMonth}
+                    onChange={(e) => handleMonthChange(e.target.value)}
+                    style={{
+                      width: "100%",
+                      borderRadius: 16,
+                      padding: "14px 16px",
+                      border: "1px solid rgba(0,0,0,0.12)",
+                      background: "#ffffff",
+                      color: "#111111",
+                      fontSize: 15,
+                    }}
+                  >
+                    {months.map((month) => (
+                      <option key={month} value={month}>
+                        {getMonthLabel(month)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
 
-                    <div
-                      style={{
-                        fontSize: 14,
-                        color: "#333333",
-                        marginBottom: 14,
-                      }}
-                    >
-                      {formatArchiveDate(drop.date)}
-                    </div>
+                <div>
+                  <label
+                    htmlFor="archive-day"
+                    style={{
+                      display: "block",
+                      fontSize: 13,
+                      fontWeight: 800,
+                      textTransform: "uppercase",
+                      letterSpacing: "0.08em",
+                      marginBottom: 8,
+                      color: "#111111",
+                    }}
+                  >
+                    Day
+                  </label>
+                  <select
+                    id="archive-day"
+                    value={selectedDate}
+                    onChange={(e) => setSelectedDate(e.target.value)}
+                    style={{
+                      width: "100%",
+                      borderRadius: 16,
+                      padding: "14px 16px",
+                      border: "1px solid rgba(0,0,0,0.12)",
+                      background: "#ffffff",
+                      color: "#111111",
+                      fontSize: 15,
+                    }}
+                  >
+                    {filteredDays.map((drop) => (
+                      <option key={drop.date} value={drop.date}>
+                        {formatArchiveDate(drop.date)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
 
-                    <div
-                      style={{
-                        padding: "14px 16px",
-                        borderRadius: 16,
-                        border: "1px solid rgba(0,0,0,0.08)",
-                        background: "rgba(255,255,255,0.8)",
-                        color: "#111111",
-                        fontSize: 14,
-                        lineHeight: 1.6,
-                        minHeight: 108,
-                        overflow: "hidden",
-                      }}
-                    >
-                      {previewText.slice(0, 180)}
-                      {previewText.length > 180 ? "..." : ""}
-                    </div>
+              {selectedDrop && (
+                <div
+                  style={{
+                    marginTop: 20,
+                    padding: "18px 20px",
+                    borderRadius: 20,
+                    border: "1px solid rgba(255,255,255,0.12)",
+                    background: "rgba(255,255,255,0.06)",
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: 12,
+                      fontWeight: 800,
+                      textTransform: "uppercase",
+                      letterSpacing: "0.08em",
+                      opacity: 0.7,
+                      marginBottom: 8,
+                      color: "#89f0dd",
+                    }}
+                  >
+                    Selected Puzzle
+                  </div>
 
-                    <div
-                      style={{
-                        marginTop: 14,
-                        fontSize: 14,
-                        fontWeight: 800,
-                        color: "#7c3aed",
-                      }}
+                  <div
+                    style={{
+                      fontSize: 24,
+                      fontWeight: 800,
+                      color: "#111111",
+                      lineHeight: 1.2,
+                      marginBottom: 8,
+                    }}
+                  >
+                    {selectedDrop.title ||
+                      `Puzzle ${selectedDrop.number ?? ""}`.trim()}
+                  </div>
+
+                  <div
+                    style={{
+                      fontSize: 14,
+                      color: "#333333",
+                      marginBottom: 14,
+                    }}
+                  >
+                    {formatArchiveDate(selectedDrop.date)}
+                  </div>
+
+                  <div
+                    style={{
+                      padding: "14px 16px",
+                      borderRadius: 16,
+                      border: "1px solid rgba(0,0,0,0.08)",
+                      background: "rgba(255,255,255,0.82)",
+                      color: "#111111",
+                      fontSize: 14,
+                      lineHeight: 1.6,
+                    }}
+                  >
+                    {(
+                      selectedDrop.vip?.puzzle ||
+                      selectedDrop.club?.puzzle ||
+                      selectedDrop.member?.puzzle ||
+                      selectedDrop.free?.puzzle ||
+                      "Open this archived puzzle to view the full challenge and official answer."
+                    ).slice(0, 240)}
+                    {(
+                      selectedDrop.vip?.puzzle ||
+                      selectedDrop.club?.puzzle ||
+                      selectedDrop.member?.puzzle ||
+                      selectedDrop.free?.puzzle ||
+                      ""
+                    ).length > 240
+                      ? "..."
+                      : ""}
+                  </div>
+
+                  <div
+                    style={{
+                      display: "flex",
+                      gap: 12,
+                      flexWrap: "wrap",
+                      marginTop: 18,
+                    }}
+                  >
+                    <button
+                      type="button"
+                      onClick={handleOpenPuzzle}
+                      className="btn-primary"
                     >
-                      Open archive →
-                    </div>
-                  </Link>
-                );
-              })}
-            </div>
-          </section>
-        )}
+                      Open This Puzzle
+                    </button>
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+        </section>
 
         <section className="card" style={{ marginTop: 20 }}>
           <div className="pill">Keep Going</div>
