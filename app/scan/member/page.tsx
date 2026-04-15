@@ -65,58 +65,62 @@ export default function MemberScanPage() {
     let isMounted = true;
 
     async function load() {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
+      try {
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
 
-      if (!session?.user) {
-        router.replace("/scan");
-        return;
+        if (!session?.user) {
+          router.replace("/scan");
+          return;
+        }
+
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+
+        if (!user) {
+          router.replace("/scan");
+          return;
+        }
+
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("current_streak, longest_streak")
+          .eq("id", user.id)
+          .maybeSingle();
+
+        const { count: attemptsCount } = await supabase
+          .from("puzzle_sessions")
+          .select("*", { count: "exact", head: true })
+          .eq("user_id", user.id)
+          .not("submitted_at", "is", null);
+
+        const { count: correctCount } = await supabase
+          .from("puzzle_sessions")
+          .select("*", { count: "exact", head: true })
+          .eq("user_id", user.id)
+          .eq("is_correct", true)
+          .not("submitted_at", "is", null);
+
+        if (!isMounted) return;
+
+        const attempts = attemptsCount ?? 0;
+        const correct = correctCount ?? 0;
+        const accuracy =
+          attempts > 0 ? Math.round((correct / attempts) * 100) : 0;
+
+        setStats({
+          currentStreak: profile?.current_streak ?? 0,
+          longestStreak: profile?.longest_streak ?? 0,
+          attempts,
+          accuracy,
+        });
+      } finally {
+        if (isMounted) {
+          setAuthReady(true);
+        }
       }
-
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
-      if (!user) {
-        router.replace("/scan");
-        return;
-      }
-
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("current_streak, longest_streak")
-        .eq("id", user.id)
-        .maybeSingle();
-
-      const { count: attemptsCount } = await supabase
-        .from("puzzle_sessions")
-        .select("*", { count: "exact", head: true })
-        .eq("user_id", user.id)
-        .not("submitted_at", "is", null);
-
-      const { count: correctCount } = await supabase
-        .from("puzzle_sessions")
-        .select("*", { count: "exact", head: true })
-        .eq("user_id", user.id)
-        .eq("is_correct", true)
-        .not("submitted_at", "is", null);
-
-      const attempts = attemptsCount ?? 0;
-      const correct = correctCount ?? 0;
-      const accuracy =
-        attempts > 0 ? Math.round((correct / attempts) * 100) : 0;
-
-      if (!isMounted) return;
-
-      setStats({
-        currentStreak: profile?.current_streak ?? 0,
-        longestStreak: profile?.longest_streak ?? 0,
-        attempts,
-        accuracy,
-      });
-
-      setAuthReady(true);
     }
 
     load();
@@ -151,14 +155,7 @@ export default function MemberScanPage() {
 
   return (
     <main className="scan-page">
-      <div
-        style={{
-          position: "fixed",
-          top: "20px",
-          right: "20px",
-          zIndex: 999999,
-        }}
-      >
+      <div style={{ position: "fixed", top: "20px", right: "20px", zIndex: 999999 }}>
         <AuthStatus />
       </div>
 
@@ -179,79 +176,27 @@ export default function MemberScanPage() {
       <div className="scan-wrap">
         <section className="card">
           <div className="pill">Member Mode</div>
-
           <h1 className="hero-title">Keep your streak moving.</h1>
 
-          <div className="hero-text">
-            <p>Let’s be real — consistency breaks most people.</p>
-            <p>Not because it’s hard… but because they stop showing up.</p>
-            <p>So here’s the test:</p>
-            <p>
-              Solve today’s puzzle. Keep your streak alive. Then take another
-              shot — bonus challenge, locked content, whatever’s below.
-            </p>
-            <p>Or prove you’re no different from the rest of them.</p>
-          </div>
-
           <div className="meta-row">
-            <div className="meta-box">
-              <strong>Current Streak:</strong> {stats.currentStreak}
-            </div>
-            <div className="meta-box">
-              <strong>Best Streak:</strong> {stats.longestStreak}
-            </div>
-            <div className="meta-box">
-              <strong>Total Plays:</strong> {stats.attempts}
-            </div>
-            <div className="meta-box">
-              <strong>Accuracy:</strong> {stats.accuracy}%
-            </div>
+            <div className="meta-box"><strong>Current Streak:</strong> {stats.currentStreak}</div>
+            <div className="meta-box"><strong>Best Streak:</strong> {stats.longestStreak}</div>
+            <div className="meta-box"><strong>Total Plays:</strong> {stats.attempts}</div>
+            <div className="meta-box"><strong>Accuracy:</strong> {stats.accuracy}%</div>
           </div>
         </section>
 
         <section className="card-light" style={{ marginTop: 20 }}>
-          <div className="pill-light">
-            Today’s Puzzle: You Get One Shot and One Shot Only
-          </div>
-
-          <h2 className="section-title">
-            {drop?.title ?? "Today’s puzzle is not live yet"}
-          </h2>
-
-          <p className="section-text-light">
-            {drop
-              ? "Today’s challenge is live. Solve it, protect your streak, and keep your momentum going before tomorrow’s drop resets the pressure. And remember, don't mess up. You only get one try."
-              : "Today’s puzzle file has not been added yet. Come back soon."}
-          </p>
-
+          <div className="pill-light">Today’s Puzzle</div>
+          <h2 className="section-title">{drop?.title ?? "Today’s puzzle is not live yet"}</h2>
           <div className="puzzle-box">
-            <div>
-              <div
-                style={{
-                  fontSize: 14,
-                  fontWeight: 800,
-                  textTransform: "uppercase",
-                  opacity: 0.6,
-                  marginBottom: 10,
-                }}
-              >
-                Today’s Brain Tester
-              </div>
-              <div>{drop?.free?.puzzle ?? "Come back soon for today’s puzzle."}</div>
-            </div>
+            <div>{drop?.free?.puzzle ?? "Come back soon for today’s puzzle."}</div>
           </div>
         </section>
 
         <section className="card" style={{ marginTop: 20 }}>
           <div className="pill">Answer Check</div>
-
           <h2 className="section-title">Submit your answer</h2>
-
-          <p className="section-text-dark">
-            Lock in your answer now. Every correct play strengthens your stats,
-            extends your streak, and keeps you moving toward a stronger member
-            profile.
-          </p>
 
           {drop ? (
             <DailyPuzzle
@@ -260,18 +205,7 @@ export default function MemberScanPage() {
               explanation={drop.free.explanation ?? ""}
             />
           ) : (
-            <div
-              style={{
-                marginTop: 18,
-                padding: "12px 14px",
-                borderRadius: 14,
-                border: "1px solid rgba(255,255,255,0.12)",
-                background: "rgba(255,255,255,0.06)",
-                color: "#ffd6d6",
-                fontSize: 14,
-                lineHeight: 1.5,
-              }}
-            >
+            <div style={{ marginTop: 18, padding: "12px 14px", borderRadius: 14, border: "1px solid rgba(255,255,255,0.12)", background: "rgba(255,255,255,0.06)", color: "#ffd6d6", fontSize: 14, lineHeight: 1.5 }}>
               Today’s puzzle is not available yet, so answer submission is disabled.
             </div>
           )}
@@ -279,37 +213,10 @@ export default function MemberScanPage() {
 
         <section className="card-light" style={{ marginTop: 20 }}>
           <div className="pill-light">Keep Going</div>
-
-          <h2 className="section-title">One click doesn’t prove anything</h2>
-
-          <div className="section-text-light">
-            <p>Anyone can do that.</p>
-            <p>
-              Try it again. Hit another puzzle. See where you stack up on the
-              leaderboard.
-            </p>
-            <p>That’s where it starts to count.</p>
-          </div>
-
-          <div
-            style={{
-              display: "flex",
-              gap: 12,
-              flexWrap: "wrap",
-              marginTop: 20,
-            }}
-          >
-            <Link href="/scan/yesterday" className="btn-primary">
-              Try Yesterday’s Puzzle
-            </Link>
-
-            <Link href="/scan/bonus" className="btn-primary">
-              Play Bonus Puzzle
-            </Link>
-
-            <Link href="/leaderboard" className="btn-primary">
-              View Leaderboard
-            </Link>
+          <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginTop: 20 }}>
+            <Link href="/scan/yesterday" className="btn-primary">Try Yesterday’s Puzzle</Link>
+            <Link href="/scan/bonus" className="btn-primary">Play Bonus Puzzle</Link>
+            <Link href="/leaderboard" className="btn-primary">View Leaderboard</Link>
           </div>
         </section>
       </div>
