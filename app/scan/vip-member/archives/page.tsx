@@ -1,59 +1,141 @@
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { redirect } from "next/navigation";
-import { createServerSupabaseClient } from "../../../../lib/supabase/server";
-import { formatArchiveDate, getAllArchivedDrops } from "../../../../lib/puzzles/archive";
+import { useRouter } from "next/navigation";
+import { createBrowserSupabaseClient } from "../../../../lib/supabase/client";
 
-function normalizeMembership(profile: any) {
-  const raw =
-    profile?.subscription_tier ??
-    profile?.membership_status ??
-    profile?.membership ??
-    profile?.plan ??
-    profile?.tier ??
-    "free";
+type DropTierContent = {
+  puzzle?: string;
+  answer?: string;
+  acceptedAnswers?: string[];
+  explanation?: string;
+  sharePrompt?: string;
+  bonusHint?: string;
+};
 
-  return String(raw).trim().toLowerCase();
+type PuzzleDrop = {
+  date: string;
+  number?: number | string;
+  title?: string;
+  free?: DropTierContent;
+  member?: DropTierContent;
+  club?: DropTierContent;
+  vip?: DropTierContent;
+};
+
+type SubscriptionTier = "free" | "plus" | "pro";
+
+function mapSubscriptionTier(rawValue: unknown): SubscriptionTier {
+  const value = String(rawValue ?? "").trim().toLowerCase();
+  if (value === "pro") return "pro";
+  if (value === "plus") return "plus";
+  return "free";
 }
 
-function isVipMembership(value: string) {
-  return value === "pro";
+function formatArchiveDate(date: string) {
+  const d = new Date(`${date}T12:00:00-04:00`);
+  return new Intl.DateTimeFormat("en-US", {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  }).format(d);
 }
 
-function isClubMembership(value: string) {
-  return value === "plus";
-}
+export default function VipArchivesPage() {
+  const supabase = useMemo(() => createBrowserSupabaseClient(), []);
+  const router = useRouter();
 
-export default async function VipArchivesPage() {
-  const supabase = await createServerSupabaseClient();
+  const [authReady, setAuthReady] = useState(false);
+  const [subscriptionTier, setSubscriptionTier] =
+    useState<SubscriptionTier>("free");
+  const [firstName, setFirstName] = useState("Member");
+  const [drops, setDrops] = useState<PuzzleDrop[]>([]);
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  useEffect(() => {
+    let isMounted = true;
 
-  if (!user) {
-    redirect("/scan");
-  }
+    async function loadAccess() {
+      try {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("id, full_name, first_name, subscription_tier, membership_status, membership, plan, tier")
-    .eq("id", user.id)
-    .maybeSingle();
+        if (!user) {
+          router.replace("/scan");
+          return;
+        }
 
-  const membership = normalizeMembership(profile);
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("full_name, first_name, subscription_tier")
+          .eq("id", user.id)
+          .maybeSingle();
 
-  if (!isVipMembership(membership)) {
-    if (isClubMembership(membership)) {
-      redirect("/scan/club-member");
+        const tier = mapSubscriptionTier(profile?.subscription_tier);
+
+        if (!isMounted) return;
+
+        if (tier === "free") {
+          router.replace("/scan/member");
+          return;
+        }
+
+        if (tier === "plus") {
+          router.replace("/scan/club-member");
+          return;
+        }
+
+        setSubscriptionTier(tier);
+        setFirstName(
+          profile?.first_name || profile?.full_name?.split(" ")?.[0] || "Member"
+        );
+
+        const res = await fetch("/api/archives", { cache: "no-store" });
+        const json = await res.json();
+
+        if (!isMounted) return;
+
+        setDrops(Array.isArray(json?.drops) ? json.drops : []);
+      } finally {
+        if (isMounted) {
+          setAuthReady(true);
+        }
+      }
     }
-    redirect("/scan/member");
+
+    loadAccess();
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      if (!session?.user) {
+        router.replace("/scan");
+      }
+    });
+
+    return () => {
+      isMounted = false;
+      subscription.unsubscribe();
+    };
+  }, [router, supabase]);
+
+  if (!authReady) {
+    return (
+      <main className="min-h-screen bg-[#07111f] text-white">
+        <div className="mx-auto max-w-6xl px-4 py-8">
+          <div className="rounded-[28px] border border-white/10 bg-white/[0.04] p-8">
+            <h1 className="text-3xl font-black">Loading archives...</h1>
+          </div>
+        </div>
+      </main>
+    );
   }
 
-  const drops = getAllArchivedDrops();
-  const firstName =
-    profile?.first_name ||
-    profile?.full_name?.split(" ")?.[0] ||
-    "Member";
+  if (subscriptionTier !== "pro") {
+    return null;
+  }
 
   return (
     <main className="min-h-screen bg-[#07111f] text-white">
