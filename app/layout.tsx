@@ -14,8 +14,24 @@ export default function RootLayout({
   children: ReactNode;
 }) {
   return (
-    <html lang="en">
-      <body style={{ margin: 0, fontFamily: "Arial, sans-serif" }}>
+    <html
+      lang="en"
+      style={{
+        backgroundColor: "#07111f", // prevents white flash
+      }}
+    >
+      <body
+        style={{
+          margin: 0,
+          padding: 0,
+          minHeight: "100vh",
+          fontFamily: "Arial, sans-serif",
+          background:
+            "radial-gradient(circle at top, #111a33 0%, #07111f 45%, #030816 100%)",
+          color: "#ffffff",
+          overflowX: "hidden",
+        }}
+      >
         <QrPageViewTracker />
         {children}
       </body>
