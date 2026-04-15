@@ -1,9 +1,8 @@
-"use client"; 
+"use client";
 
 import { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { createBrowserSupabaseClient } from "../../../lib/supabase/client";
 import AuthStatus from "../../components/AuthStatus";
 
@@ -15,6 +14,8 @@ type MemberStats = {
   attempts: number;
   accuracy: number;
 };
+
+type AccessTier = "free" | "club" | "vip";
 
 const BONUS_PUZZLE = {
   title: "Bonus Vault Challenge",
@@ -31,11 +32,144 @@ function normalizeAnswer(value: string) {
   return value.trim().toLowerCase().replace(/\s+/g, " ");
 }
 
+function resolveAccessTier(profile: Record<string, any> | null | undefined): AccessTier {
+  if (!profile) return "free";
+
+  const possibleTier =
+    profile.membership_tier ??
+    profile.member_tier ??
+    profile.subscription_tier ??
+    profile.plan ??
+    profile.role ??
+    profile.membership ??
+    profile.account_tier ??
+    "free";
+
+  const normalized = String(possibleTier).toLowerCase();
+
+  if (normalized.includes("vip")) return "vip";
+  if (normalized.includes("club")) return "club";
+  return "free";
+}
+
+function LockedOverlay() {
+  return (
+    <div
+      style={{
+        position: "absolute",
+        inset: 0,
+        zIndex: 30,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: "24px",
+      }}
+    >
+      <div
+        style={{
+          width: "100%",
+          maxWidth: 680,
+          borderRadius: 28,
+          padding: "32px 24px",
+          textAlign: "center",
+          border: "1px solid rgba(255,255,255,0.14)",
+          background: "rgba(10,14,24,0.78)",
+          backdropFilter: "blur(12px)",
+          boxShadow: "0 25px 80px rgba(0,0,0,0.35)",
+        }}
+      >
+        <div
+          style={{
+            width: 88,
+            height: 88,
+            borderRadius: "50%",
+            margin: "0 auto 18px",
+            display: "grid",
+            placeItems: "center",
+            fontSize: 38,
+            background: "rgba(255, 215, 110, 0.12)",
+            border: "1px solid rgba(255, 215, 110, 0.28)",
+            color: "#ffe7a6",
+          }}
+        >
+          🔒
+        </div>
+
+        <div
+          style={{
+            fontSize: 14,
+            fontWeight: 800,
+            letterSpacing: "0.08em",
+            textTransform: "uppercase",
+            color: "#ffe7a6",
+            marginBottom: 10,
+          }}
+        >
+          Locked Member Content
+        </div>
+
+        <h2
+          style={{
+            margin: 0,
+            fontSize: "clamp(28px, 5vw, 44px)",
+            lineHeight: 1.1,
+            fontWeight: 900,
+            color: "#ffffff",
+          }}
+        >
+          This page is for Club and VIP members only
+        </h2>
+
+        <p
+          style={{
+            marginTop: 14,
+            marginBottom: 0,
+            fontSize: 16,
+            lineHeight: 1.7,
+            color: "rgba(255,255,255,0.82)",
+            maxWidth: 560,
+            marginInline: "auto",
+          }}
+        >
+          Upgrade your account to unlock bonus challenges, extra puzzle access,
+          and the member-only pages built for people who want more than the
+          basic path.
+        </p>
+
+        <div
+          style={{
+            display: "flex",
+            gap: 12,
+            justifyContent: "center",
+            flexWrap: "wrap",
+            marginTop: 24,
+          }}
+        >
+          <Link href="/subscribe" className="btn-primary">
+            Upgrade Your Account
+          </Link>
+
+          <Link
+            href="/scan/member"
+            className="btn-primary"
+            style={{
+              background: "rgba(255,255,255,0.08)",
+              border: "1px solid rgba(255,255,255,0.12)",
+            }}
+          >
+            Back to Member Page
+          </Link>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function BonusPuzzlePage() {
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
-  const router = useRouter();
 
   const [authReady, setAuthReady] = useState(false);
+  const [hasAccess, setHasAccess] = useState(false);
   const [stats, setStats] = useState<MemberStats>({
     currentStreak: 0,
     longestStreak: 0,
@@ -56,7 +190,9 @@ export default function BonusPuzzlePage() {
       } = await supabase.auth.getSession();
 
       if (!session?.user) {
-        router.replace("/scan");
+        if (!isMounted) return;
+        setHasAccess(false);
+        setAuthReady(true);
         return;
       }
 
@@ -65,15 +201,27 @@ export default function BonusPuzzlePage() {
       } = await supabase.auth.getUser();
 
       if (!user) {
-        router.replace("/scan");
+        if (!isMounted) return;
+        setHasAccess(false);
+        setAuthReady(true);
         return;
       }
 
       const { data: profile } = await supabase
         .from("profiles")
-        .select("current_streak, longest_streak")
+        .select("*")
         .eq("id", user.id)
         .maybeSingle();
+
+      const tier = resolveAccessTier(profile);
+      const allowed = tier === "club" || tier === "vip";
+
+      if (!allowed) {
+        if (!isMounted) return;
+        setHasAccess(false);
+        setAuthReady(true);
+        return;
+      }
 
       const { count: attemptsCount } = await supabase
         .from("puzzle_sessions")
@@ -102,6 +250,7 @@ export default function BonusPuzzlePage() {
         accuracy,
       });
 
+      setHasAccess(true);
       setAuthReady(true);
     }
 
@@ -109,20 +258,38 @@ export default function BonusPuzzlePage() {
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
+    } = supabase.auth.onAuthStateChange(async (_event, session) => {
       if (!session?.user) {
-        router.replace("/scan");
+        if (!isMounted) return;
+        setHasAccess(false);
+        setAuthReady(true);
+        return;
       }
+
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("id", session.user.id)
+        .maybeSingle();
+
+      const tier = resolveAccessTier(profile);
+      const allowed = tier === "club" || tier === "vip";
+
+      if (!isMounted) return;
+      setHasAccess(allowed);
+      setAuthReady(true);
     });
 
     return () => {
       isMounted = false;
       subscription.unsubscribe();
     };
-  }, [router, supabase]);
+  }, [supabase]);
 
   function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
+
+    if (!hasAccess) return;
 
     const normalized = normalizeAnswer(answer);
     const correct = BONUS_PUZZLE.acceptedAnswers.some(
@@ -164,7 +331,15 @@ export default function BonusPuzzlePage() {
         </div>
       </section>
 
-      <div className="scan-wrap">
+      <div
+        className="scan-wrap"
+        style={{
+          position: "relative",
+          filter: hasAccess ? "none" : "blur(16px)",
+          pointerEvents: hasAccess ? "auto" : "none",
+          userSelect: hasAccess ? "auto" : "none",
+        }}
+      >
         <section className="card">
           <div className="pill">Bonus Vault</div>
 
@@ -473,6 +648,8 @@ export default function BonusPuzzlePage() {
           </a>
         </section>
       </div>
+
+      {!hasAccess ? <LockedOverlay /> : null}
     </main>
   );
 }
