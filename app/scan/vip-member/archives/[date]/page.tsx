@@ -1,126 +1,272 @@
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { notFound, redirect } from "next/navigation";
-import { createServerSupabaseClient } from "../../../../../lib/supabase/server";
-import {
-  formatArchiveDate,
-  getArchivedDropByDate,
-  getVipArchiveContent,
-} from "../../../../../lib/puzzles/archive";
+import { useParams, useRouter } from "next/navigation";
+import { createBrowserSupabaseClient } from "../../../../../lib/supabase/client";
+import AuthStatus from "../../../../components/AuthStatus";
 import RevealAnswerCard from "./RevealAnswerCard";
 
-function normalizeMembership(profile: any) {
-  const raw =
-    profile?.subscription_tier ??
-    profile?.membership_status ??
-    profile?.membership ??
-    profile?.plan ??
-    profile?.tier ??
-    "free";
-
-  return String(raw).trim().toLowerCase();
-}
-
-function isVipMembership(value: string) {
-  return value === "pro";
-}
-
-function isClubMembership(value: string) {
-  return value === "plus";
-}
-
-type Props = {
-  params: Promise<{ date: string }>;
+type DropTierContent = {
+  puzzle?: string;
+  answer?: string;
+  acceptedAnswers?: string[];
+  explanation?: string;
+  sharePrompt?: string;
+  bonusHint?: string;
 };
 
-export default async function ArchivedPuzzleDetailPage({ params }: Props) {
-  const { date } = await params;
+type PuzzleDrop = {
+  date: string;
+  number?: number | string;
+  title?: string;
+  free?: DropTierContent;
+  member?: DropTierContent;
+  club?: DropTierContent;
+  vip?: DropTierContent;
+};
 
-  const supabase = await createServerSupabaseClient();
+type SubscriptionTier = "free" | "plus" | "pro";
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+function mapSubscriptionTier(rawValue: unknown): SubscriptionTier {
+  const value = String(rawValue ?? "").trim().toLowerCase();
+  if (value === "pro") return "pro";
+  if (value === "plus") return "plus";
+  return "free";
+}
 
-  if (!user) {
-    redirect("/scan");
-  }
+function formatArchiveDate(date: string) {
+  const d = new Date(`${date}T12:00:00-04:00`);
+  return new Intl.DateTimeFormat("en-US", {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  }).format(d);
+}
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("id, subscription_tier, membership_status, membership, plan, tier")
-    .eq("id", user.id)
-    .maybeSingle();
-
-  const membership = normalizeMembership(profile);
-
-  if (!isVipMembership(membership)) {
-    if (isClubMembership(membership)) {
-      redirect("/scan/club-member");
+function getVipArchiveContent(drop: PuzzleDrop): DropTierContent {
+  return (
+    drop.vip ||
+    drop.club ||
+    drop.member ||
+    drop.free || {
+      puzzle: "",
+      answer: "",
+      acceptedAnswers: [],
+      explanation: "",
     }
-    redirect("/scan/member");
+  );
+}
+
+export default function ArchivedPuzzleDetailPage() {
+  const supabase = useMemo(() => createBrowserSupabaseClient(), []);
+  const router = useRouter();
+  const params = useParams<{ date: string }>();
+
+  const [authReady, setAuthReady] = useState(false);
+  const [subscriptionTier, setSubscriptionTier] =
+    useState<SubscriptionTier>("free");
+  const [drop, setDrop] = useState<PuzzleDrop | null>(null);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadPage() {
+      try {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+
+        if (!user) {
+          router.replace("/scan");
+          return;
+        }
+
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("subscription_tier")
+          .eq("id", user.id)
+          .maybeSingle();
+
+        const tier = mapSubscriptionTier(profile?.subscription_tier);
+
+        if (!isMounted) return;
+
+        if (tier === "free") {
+          router.replace("/scan/member");
+          return;
+        }
+
+        if (tier === "plus") {
+          router.replace("/scan/club-member");
+          return;
+        }
+
+        setSubscriptionTier(tier);
+
+        const res = await fetch("/api/archives", { cache: "no-store" });
+        const json = await res.json();
+        const drops = Array.isArray(json?.drops) ? json.drops : [];
+        const found = drops.find((item: PuzzleDrop) => item.date === params.date) || null;
+
+        if (!isMounted) return;
+
+        if (!found) {
+          router.replace("/scan/vip-member/archives");
+          return;
+        }
+
+        setDrop(found);
+      } finally {
+        if (isMounted) {
+          setAuthReady(true);
+        }
+      }
+    }
+
+    loadPage();
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      if (!session?.user) {
+        router.replace("/scan");
+      }
+    });
+
+    return () => {
+      isMounted = false;
+      subscription.unsubscribe();
+    };
+  }, [params.date, router, supabase]);
+
+  if (!authReady) {
+    return (
+      <main className="scan-page">
+        <div className="scan-wrap">
+          <section className="card" style={{ marginTop: 40 }}>
+            <h2 className="section-title" style={{ color: "#ffffff" }}>
+              Loading archived puzzle...
+            </h2>
+          </section>
+        </div>
+      </main>
+    );
   }
 
-  const drop = getArchivedDropByDate(date);
-  if (!drop) {
-    notFound();
+  if (subscriptionTier !== "pro" || !drop) {
+    return null;
   }
 
   const content = getVipArchiveContent(drop);
 
   return (
-    <main className="min-h-screen bg-[#07111f] text-white">
-      <div className="mx-auto max-w-5xl px-4 py-6 sm:px-6 lg:px-8">
-        <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-          <Link
-            href="/scan/vip-member/archives"
-            className="rounded-full border border-white/10 bg-white/5 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-white/10"
-          >
-            ← Back to Archives
-          </Link>
+    <main className="scan-page">
+      <div
+        style={{
+          position: "fixed",
+          top: "20px",
+          right: "20px",
+          zIndex: 999999,
+        }}
+      >
+        <AuthStatus />
+      </div>
 
-          <Link
-            href="/scan/vip-member"
-            className="rounded-full bg-cyan-400 px-5 py-2.5 text-sm font-semibold text-slate-950 transition hover:scale-[1.02]"
-          >
-            VIP Member Area
-          </Link>
-        </div>
+      <div className="scan-wrap">
+        <section className="card">
+          <div className="pill">Archived Puzzle</div>
 
-        <div className="mb-6 rounded-[28px] border border-white/10 bg-white/[0.04] p-6 shadow-[0_0_40px_rgba(0,0,0,0.25)] backdrop-blur">
-          <p className="text-xs font-semibold uppercase tracking-[0.28em] text-cyan-300/80">
-            Archived Puzzle
-          </p>
-          <h1 className="mt-2 text-3xl font-black tracking-tight text-white sm:text-4xl">
+          <h1 className="hero-title">
             {drop.title || `Puzzle ${drop.number ?? ""}`.trim()}
           </h1>
-          <p className="mt-3 text-sm text-slate-300">{formatArchiveDate(drop.date)}</p>
-        </div>
 
-        <div className="mb-6 rounded-[28px] border border-white/10 bg-white/[0.04] p-6 shadow-[0_0_30px_rgba(0,0,0,0.2)]">
-          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-fuchsia-200/80">
-            Puzzle
-          </p>
-          <div className="mt-4 rounded-2xl border border-white/10 bg-slate-950/35 p-5">
-            <p className="whitespace-pre-wrap text-base leading-8 text-slate-100 sm:text-lg">
-              {content.puzzle || "This archived puzzle does not have puzzle text available."}
-            </p>
+          <div className="hero-text">
+            <p>{formatArchiveDate(drop.date)}</p>
+          </div>
+
+          <div
+            style={{
+              display: "flex",
+              gap: 12,
+              flexWrap: "wrap",
+              marginTop: 20,
+            }}
+          >
+            <Link href="/scan/vip-member/archives" className="btn-primary">
+              Back to Archives
+            </Link>
+
+            <Link href="/scan/vip-member" className="btn-primary">
+              VIP Member Area
+            </Link>
+          </div>
+        </section>
+
+        <section className="card-light" style={{ marginTop: 20 }}>
+          <div className="pill-light">Puzzle</div>
+
+          <h2 className="section-title">The challenge</h2>
+
+          <div
+            style={{
+              marginTop: 18,
+              padding: "22px",
+              borderRadius: 20,
+              border: "1px solid rgba(255,255,255,0.12)",
+              background: "rgba(255,255,255,0.06)",
+              color: "#111111",
+              fontSize: 16,
+              lineHeight: 1.8,
+            }}
+          >
+            {content.puzzle || "This archived puzzle does not have puzzle text available."}
           </div>
 
           {content.bonusHint && (
-            <div className="mt-5 rounded-2xl border border-cyan-300/15 bg-cyan-400/10 p-5">
-              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-cyan-200/80">
+            <div
+              style={{
+                marginTop: 18,
+                padding: "18px 20px",
+                borderRadius: 20,
+                border: "1px solid rgba(137,240,221,0.28)",
+                background: "rgba(137,240,221,0.08)",
+              }}
+            >
+              <div
+                style={{
+                  fontSize: 13,
+                  fontWeight: 800,
+                  textTransform: "uppercase",
+                  opacity: 0.7,
+                  marginBottom: 8,
+                  color: "#111111",
+                }}
+              >
                 VIP Bonus Hint
-              </p>
-              <p className="mt-3 text-base leading-7 text-slate-100">{content.bonusHint}</p>
+              </div>
+
+              <div
+                style={{
+                  fontSize: 16,
+                  lineHeight: 1.7,
+                  color: "#111111",
+                }}
+              >
+                {content.bonusHint}
+              </div>
             </div>
           )}
-        </div>
+        </section>
 
-        <RevealAnswerCard
-          answer={content.answer}
-          acceptedAnswers={content.acceptedAnswers}
-          explanation={content.explanation}
-        />
+        <section className="card" style={{ marginTop: 20 }}>
+          <RevealAnswerCard
+            answer={content.answer}
+            acceptedAnswers={content.acceptedAnswers}
+            explanation={content.explanation}
+          />
+        </section>
       </div>
     </main>
   );
