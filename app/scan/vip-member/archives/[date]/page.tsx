@@ -10,6 +10,7 @@ import RevealAnswerCard from "./RevealAnswerCard";
 
 function normalizeMembership(profile: any) {
   const raw =
+    profile?.subscription_tier ??
     profile?.membership_status ??
     profile?.membership ??
     profile?.plan ??
@@ -20,11 +21,11 @@ function normalizeMembership(profile: any) {
 }
 
 function isVipMembership(value: string) {
-  return ["vip", "vip_member", "vip-member"].includes(value);
+  return value === "pro";
 }
 
 function isClubMembership(value: string) {
-  return ["club", "club_member", "club-member"].includes(value);
+  return value === "plus";
 }
 
 type Props = {
@@ -46,9 +47,9 @@ export default async function ArchivedPuzzleDetailPage({ params }: Props) {
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("id, membership_status, membership, plan, tier")
+    .select("id, subscription_tier, membership_status, membership, plan, tier")
     .eq("id", user.id)
-    .single();
+    .maybeSingle();
 
   const membership = normalizeMembership(profile);
 
