@@ -71,8 +71,6 @@ export default function VipMemberScanPage() {
   const router = useRouter();
 
   const [authReady, setAuthReady] = useState(false);
-  const [subscriptionTier, setSubscriptionTier] =
-    useState<SubscriptionTier>("free");
   const [stats, setStats] = useState<MemberStats>({
     currentStreak: 0,
     longestStreak: 0,
@@ -144,7 +142,6 @@ export default function VipMemberScanPage() {
 
       if (!isMounted) return;
 
-      setSubscriptionTier(normalizedTier);
       setStats({
         currentStreak: profile?.current_streak ?? 0,
         longestStreak: profile?.longest_streak ?? 0,
@@ -180,7 +177,6 @@ export default function VipMemberScanPage() {
 
       if (normalizedTier === "plus") {
         router.replace("/scan/club-member");
-        return;
       }
     });
 
@@ -191,10 +187,18 @@ export default function VipMemberScanPage() {
   }, [router, supabase]);
 
   if (!authReady) {
-    return null;
+    return (
+      <main className="scan-page">
+        <div className="scan-wrap">
+          <section className="card" style={{ marginTop: 40 }}>
+            <h2 className="section-title" style={{ color: "#ffffff" }}>
+              Loading your VIP page...
+            </h2>
+          </section>
+        </div>
+      </main>
+    );
   }
-
-  const isVip = subscriptionTier === "pro";
 
   const monthlyStreakProtectors = 2;
   const storedUsedCount =
@@ -367,6 +371,7 @@ export default function VipMemberScanPage() {
             <DailyPuzzle
               puzzleDate={drop.date}
               acceptedAnswers={drop.free.acceptedAnswers ?? [drop.free.answer]}
+              explanation={drop.free.explanation ?? ""}
             />
           ) : (
             <div
@@ -426,200 +431,6 @@ export default function VipMemberScanPage() {
               {remainingProtectors} left this month
             </div>
           </div>
-
-          <div
-            style={{
-              marginTop: 18,
-              padding: "18px 20px",
-              borderRadius: 20,
-              border: "1px solid rgba(255,255,255,0.1)",
-              background: "rgba(255,255,255,0.05)",
-            }}
-          >
-            <div
-              style={{
-                fontSize: 13,
-                fontWeight: 800,
-                textTransform: "uppercase",
-                opacity: 0.7,
-                marginBottom: 8,
-              }}
-            >
-              Streak Protector Status
-            </div>
-
-            <div style={{ fontSize: 16, color: "#ffffff", lineHeight: 1.7 }}>
-              {remainingProtectors > 0 ? (
-                <>
-                  You still have <strong>{remainingProtectors}</strong> streak
-                  protector{remainingProtectors === 1 ? "" : "s"} available this
-                  month.
-                </>
-              ) : (
-                <>You have already used both streak protectors for this month.</>
-              )}
-            </div>
-          </div>
-        </section>
-
-        <section className="card-light" style={{ marginTop: 20 }}>
-          <div className="pill-light">Keep Going</div>
-
-          <h2 className="section-title">One click doesn’t prove anything</h2>
-
-          <div className="section-text-light">
-            <p>Anyone can do that.</p>
-            <p>
-              Try it again. Hit another puzzle. See where you stack up on the
-              leaderboard.
-            </p>
-            <p>That’s where it starts to count.</p>
-          </div>
-
-          <div
-            style={{
-              display: "flex",
-              gap: 12,
-              flexWrap: "wrap",
-              marginTop: 20,
-            }}
-          >
-            <Link href="/scan/archives" className="btn-primary">
-              Archives
-            </Link>
-
-            <Link href="/scan/yesterday" className="btn-primary">
-              Try Yesterday’s Puzzle
-            </Link>
-
-            <Link href="/scan/bonus" className="btn-primary">
-              Play Bonus Puzzle
-            </Link>
-
-            <Link href="/leaderboard" className="btn-primary">
-              View Leaderboard
-            </Link>
-          </div>
-        </section>
-
-        <section className="card" style={{ marginTop: 20 }}>
-          <div className="pill">Your Progress</div>
-
-          <h2 className="section-title" style={{ color: "#ffffff" }}>
-            Your Streak is Your Leverage
-          </h2>
-
-          <div className="section-text-dark">
-            <p>This is where consistency shows.</p>
-            <p>Every correct answer adds up. Your streak grows. Progress compounds.</p>
-            <p>Miss a day, and the chain breaks.</p>
-            <p>It’s that simple.</p>
-          </div>
-
-          <div className="benefit-list">
-            {[
-              `Current streak: ${stats.currentStreak}`,
-              `Best streak: ${stats.longestStreak}`,
-              `Total puzzle plays: ${stats.attempts}`,
-              `Accuracy: ${stats.accuracy}%`,
-              "Come back tomorrow to protect your streak",
-            ].map((item) => (
-              <div key={item} className="benefit-item">
-                <span style={{ fontSize: 18 }}>✓</span>
-                <span>{item}</span>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        <section className="card-light" style={{ marginTop: 20 }}>
-          <div className="pill-light">Member Extras</div>
-
-          <h2 className="section-title">You’re building something now</h2>
-
-          <div className="section-text-light">
-            <p>
-              This isn’t a one-time puzzle visit. Every time you show up, your
-              progress stacks, your streak grows, and the system tightens around
-              your consistency. Each return matters more than the last.
-            </p>
-            <p>Most people don’t stick with it. That’s why nothing changes for them.</p>
-          </div>
-
-          <div className="capture-points" style={{ marginTop: 20 }}>
-            <div className="capture-point">
-              <div className="capture-point-title">Your progress is tracked</div>
-              <div className="capture-point-text">
-                Every answer adds up. Your stats build over time, so each day
-                connects — or exposes when you fall off.
-              </div>
-            </div>
-
-            <div className="capture-point">
-              <div className="capture-point-title">Streaks create pressure</div>
-              <div className="capture-point-text">
-                The longer your streak runs, the harder it is to lose. Miss a
-                day, and it’s gone.
-              </div>
-            </div>
-
-            <div className="capture-point">
-              <div className="capture-point-title">More ways to stay in it</div>
-              <div className="capture-point-text">
-                Bonus challenges and past puzzles are always there — if you’re
-                willing to keep going.
-              </div>
-            </div>
-
-            <div className="capture-point">
-              <div className="capture-point-title">Each visit raises the stakes</div>
-              <div className="capture-point-text">
-                The more you show up, the more it builds. Momentum compounds —
-                or disappears if you stop.
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <section className="card" style={{ marginTop: 20 }}>
-          <div className="pill">Brain Boost</div>
-
-          <h2 className="section-title" style={{ color: "#ffffff" }}>
-            Struggling to stay sharp?
-          </h2>
-
-          <p
-            className="section-text-dark"
-            style={{ maxWidth: "none", opacity: 0.95 }}
-          >
-            If today’s puzzle slowed you down, use that as your signal. Better
-            focus, better energy, and a stronger routine can help you show up
-            sharper for the next challenge.
-          </p>
-
-          <div className="benefit-list">
-            {[
-              "Helps you stay sharp and think faster",
-              "Designed for people who actually use their brain daily",
-              "Simple, no-friction way to level up your routine",
-              "Low effort, high impact addition",
-              "Built for daily use, not occasional effort",
-            ].map((item) => (
-              <div key={item} className="benefit-item">
-                <span style={{ fontSize: 18 }}>✓</span>
-                <span>{item}</span>
-              </div>
-            ))}
-          </div>
-
-          <a
-            href="YOUR-AMWAY-LINK-HERE"
-            target="_blank"
-            rel="noreferrer"
-            className="btn-primary"
-          >
-            Upgrade Your Focus
-          </a>
         </section>
       </div>
     </main>
