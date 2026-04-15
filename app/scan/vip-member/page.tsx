@@ -590,9 +590,9 @@ export default function VipMemberScanPage() {
               marginTop: 20,
             }}
           >
-            <Link href="/scan/archives" className="btn-primary">
-              Archives
-            </Link>
+<Link href="/scan/vip-member/archives" className="btn-primary">
+  Archives
+</Link>
 
             <Link href="/scan/yesterday" className="btn-primary">
               Try Yesterday’s Puzzle
