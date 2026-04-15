@@ -8,9 +8,6 @@ export const metadata: Metadata = {
   description: "Daily drops, one QR, always new.",
 };
 
-const backgroundGradient =
-  "radial-gradient(circle at top, #111a33 0%, #07111f 45%, #030816 100%)";
-
 export default function RootLayout({
   children,
 }: {
@@ -20,7 +17,7 @@ export default function RootLayout({
     <html
       lang="en"
       style={{
-        background: backgroundGradient, // 🔥 match body exactly
+        backgroundColor: "#000000", // 🔥 solid black
       }}
     >
       <body
@@ -29,7 +26,7 @@ export default function RootLayout({
           padding: 0,
           minHeight: "100vh",
           fontFamily: "Arial, sans-serif",
-          background: backgroundGradient, // 🔥 same exact value
+          backgroundColor: "#000000", // 🔥 match exactly
           color: "#ffffff",
           overflowX: "hidden",
         }}
