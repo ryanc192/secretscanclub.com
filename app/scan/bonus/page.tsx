@@ -58,7 +58,7 @@ function LockedOverlay() {
       style={{
         position: "absolute",
         inset: 0,
-        zIndex: 30,
+        zIndex: 50,
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
@@ -73,7 +73,7 @@ function LockedOverlay() {
           padding: "32px 24px",
           textAlign: "center",
           border: "1px solid rgba(255,255,255,0.14)",
-          background: "rgba(10,14,24,0.78)",
+          background: "rgba(10,14,24,0.80)",
           backdropFilter: "blur(12px)",
           boxShadow: "0 25px 80px rgba(0,0,0,0.35)",
         }}
@@ -132,8 +132,7 @@ function LockedOverlay() {
           }}
         >
           Upgrade your account to unlock bonus challenges, extra puzzle access,
-          and the member-only pages built for people who want more than the
-          basic path.
+          and premium member-only content.
         </p>
 
         <div
@@ -170,6 +169,7 @@ export default function BonusPuzzlePage() {
 
   const [authReady, setAuthReady] = useState(false);
   const [hasAccess, setHasAccess] = useState(false);
+
   const [stats, setStats] = useState<MemberStats>({
     currentStreak: 0,
     longestStreak: 0,
@@ -196,16 +196,7 @@ export default function BonusPuzzlePage() {
         return;
       }
 
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
-      if (!user) {
-        if (!isMounted) return;
-        setHasAccess(false);
-        setAuthReady(true);
-        return;
-      }
+      const user = session.user;
 
       const { data: profile } = await supabase
         .from("profiles")
@@ -216,41 +207,37 @@ export default function BonusPuzzlePage() {
       const tier = resolveAccessTier(profile);
       const allowed = tier === "club" || tier === "vip";
 
-      if (!allowed) {
+      if (allowed) {
+        const { count: attemptsCount } = await supabase
+          .from("puzzle_sessions")
+          .select("*", { count: "exact", head: true })
+          .eq("user_id", user.id)
+          .not("submitted_at", "is", null);
+
+        const { count: correctCount } = await supabase
+          .from("puzzle_sessions")
+          .select("*", { count: "exact", head: true })
+          .eq("user_id", user.id)
+          .eq("is_correct", true)
+          .not("submitted_at", "is", null);
+
+        const attempts = attemptsCount ?? 0;
+        const correct = correctCount ?? 0;
+        const accuracy =
+          attempts > 0 ? Math.round((correct / attempts) * 100) : 0;
+
         if (!isMounted) return;
-        setHasAccess(false);
-        setAuthReady(true);
-        return;
+
+        setStats({
+          currentStreak: profile?.current_streak ?? 0,
+          longestStreak: profile?.longest_streak ?? 0,
+          attempts,
+          accuracy,
+        });
       }
 
-      const { count: attemptsCount } = await supabase
-        .from("puzzle_sessions")
-        .select("*", { count: "exact", head: true })
-        .eq("user_id", user.id)
-        .not("submitted_at", "is", null);
-
-      const { count: correctCount } = await supabase
-        .from("puzzle_sessions")
-        .select("*", { count: "exact", head: true })
-        .eq("user_id", user.id)
-        .eq("is_correct", true)
-        .not("submitted_at", "is", null);
-
-      const attempts = attemptsCount ?? 0;
-      const correct = correctCount ?? 0;
-      const accuracy =
-        attempts > 0 ? Math.round((correct / attempts) * 100) : 0;
-
       if (!isMounted) return;
-
-      setStats({
-        currentStreak: profile?.current_streak ?? 0,
-        longestStreak: profile?.longest_streak ?? 0,
-        attempts,
-        accuracy,
-      });
-
-      setHasAccess(true);
+      setHasAccess(allowed);
       setAuthReady(true);
     }
 
@@ -259,8 +246,9 @@ export default function BonusPuzzlePage() {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      if (!isMounted) return;
+
       if (!session?.user) {
-        if (!isMounted) return;
         setHasAccess(false);
         setAuthReady(true);
         return;
@@ -273,10 +261,7 @@ export default function BonusPuzzlePage() {
         .maybeSingle();
 
       const tier = resolveAccessTier(profile);
-      const allowed = tier === "club" || tier === "vip";
-
-      if (!isMounted) return;
-      setHasAccess(allowed);
+      setHasAccess(tier === "club" || tier === "vip");
       setAuthReady(true);
     });
 
@@ -301,11 +286,25 @@ export default function BonusPuzzlePage() {
   }
 
   if (!authReady) {
-    return null;
+    return (
+      <main className="scan-page">
+        <div
+          style={{
+            minHeight: "100vh",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            color: "#ffffff",
+          }}
+        >
+          Loading...
+        </div>
+      </main>
+    );
   }
 
   return (
-    <main className="scan-page">
+    <main className="scan-page" style={{ position: "relative" }}>
       <div
         style={{
           position: "fixed",
@@ -334,10 +333,10 @@ export default function BonusPuzzlePage() {
       <div
         className="scan-wrap"
         style={{
-          position: "relative",
-          filter: hasAccess ? "none" : "blur(16px)",
+          filter: hasAccess ? "none" : "blur(14px)",
           pointerEvents: hasAccess ? "auto" : "none",
           userSelect: hasAccess ? "auto" : "none",
+          transition: "filter 0.2s ease",
         }}
       >
         <section className="card">
@@ -528,124 +527,6 @@ export default function BonusPuzzlePage() {
               View Leaderboard
             </Link>
           </div>
-        </section>
-
-        <section className="card" style={{ marginTop: 20 }}>
-          <div className="pill">Your Progress</div>
-
-          <h2 className="section-title" style={{ color: "#ffffff" }}>
-            Bonus Work Still Counts
-          </h2>
-
-          <div className="section-text-dark">
-            <p>This is where separation happens.</p>
-            <p>The main path is where most people stop.</p>
-            <p>The bonus path is where extra effort starts exposing real intent.</p>
-            <p>That’s what makes it useful.</p>
-          </div>
-
-          <div className="benefit-list">
-            {[
-              `Current streak: ${stats.currentStreak}`,
-              `Best streak: ${stats.longestStreak}`,
-              `Total puzzle plays: ${stats.attempts}`,
-              `Accuracy: ${stats.accuracy}%`,
-              "Bonus reps help reveal what your consistency really looks like",
-            ].map((item) => (
-              <div key={item} className="benefit-item">
-                <span style={{ fontSize: 18 }}>✓</span>
-                <span>{item}</span>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        <section className="card-light" style={{ marginTop: 20 }}>
-          <div className="pill-light">Member Extras</div>
-
-          <h2 className="section-title">This is the kind of page most people skip</h2>
-
-          <div className="section-text-light">
-            <p>That’s what makes it valuable.</p>
-            <p>
-              Bonus content filters for effort. It shows who just clicked once
-              and who actually wants more reps, more challenge, and more proof.
-            </p>
-          </div>
-
-          <div className="capture-points" style={{ marginTop: 20 }}>
-            <div className="capture-point">
-              <div className="capture-point-title">Bonus puzzles increase reps</div>
-              <div className="capture-point-text">
-                More attempts mean more opportunities to sharpen your thinking
-                and expose where you still break down.
-              </div>
-            </div>
-
-            <div className="capture-point">
-              <div className="capture-point-title">Extra effort changes the picture</div>
-              <div className="capture-point-text">
-                One puzzle is a moment. Bonus material starts showing a pattern.
-              </div>
-            </div>
-
-            <div className="capture-point">
-              <div className="capture-point-title">The extra click matters</div>
-              <div className="capture-point-text">
-                Most people never go further than the basic path. That’s why
-                going further matters.
-              </div>
-            </div>
-
-            <div className="capture-point">
-              <div className="capture-point-title">Consistency compounds</div>
-              <div className="capture-point-text">
-                The more often you return and engage, the more your progress
-                stops looking random and starts looking earned.
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <section className="card" style={{ marginTop: 20 }}>
-          <div className="pill">Brain Boost</div>
-
-          <h2 className="section-title" style={{ color: "#ffffff" }}>
-            Want to stay sharper for the next challenge?
-          </h2>
-
-          <p
-            className="section-text-dark"
-            style={{ maxWidth: "none", opacity: 0.95 }}
-          >
-            If the bonus puzzle slowed you down, use that as useful feedback.
-            Better focus, better energy, and a stronger routine can help you
-            show up cleaner the next time you take your shot.
-          </p>
-
-          <div className="benefit-list">
-            {[
-              "Helps you stay sharp and think faster",
-              "Designed for people who actually use their brain daily",
-              "Simple, no-friction way to level up your routine",
-              "Low effort, high impact addition",
-              "Built for daily use, not occasional effort",
-            ].map((item) => (
-              <div key={item} className="benefit-item">
-                <span style={{ fontSize: 18 }}>✓</span>
-                <span>{item}</span>
-              </div>
-            ))}
-          </div>
-
-          <a
-            href="YOUR-AMWAY-LINK-HERE"
-            target="_blank"
-            rel="noreferrer"
-            className="btn-primary"
-          >
-            Upgrade Your Focus
-          </a>
         </section>
       </div>
 
