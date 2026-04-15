@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createBrowserSupabaseClient } from "../../../../lib/supabase/client";
+import AuthStatus from "../../../components/AuthStatus";
 
 type DropTierContent = {
   puzzle?: string;
@@ -96,8 +97,9 @@ export default function VipArchivesPage() {
         const json = await res.json();
 
         if (!isMounted) return;
-
         setDrops(Array.isArray(json?.drops) ? json.drops : []);
+      } catch (error) {
+        console.error("archives load error:", error);
       } finally {
         if (isMounted) {
           setAuthReady(true);
@@ -123,11 +125,13 @@ export default function VipArchivesPage() {
 
   if (!authReady) {
     return (
-      <main className="min-h-screen bg-[#07111f] text-white">
-        <div className="mx-auto max-w-6xl px-4 py-8">
-          <div className="rounded-[28px] border border-white/10 bg-white/[0.04] p-8">
-            <h1 className="text-3xl font-black">Loading archives...</h1>
-          </div>
+      <main className="scan-page">
+        <div className="scan-wrap">
+          <section className="card" style={{ marginTop: 40 }}>
+            <h2 className="section-title" style={{ color: "#ffffff" }}>
+              Loading archives...
+            </h2>
+          </section>
         </div>
       </main>
     );
@@ -138,91 +142,225 @@ export default function VipArchivesPage() {
   }
 
   return (
-    <main className="min-h-screen bg-[#07111f] text-white">
-      <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6 lg:px-8">
-        <div className="mb-8 flex flex-col gap-4 rounded-[28px] border border-white/10 bg-white/[0.04] p-6 shadow-[0_0_40px_rgba(0,0,0,0.25)] backdrop-blur md:flex-row md:items-center md:justify-between">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.28em] text-cyan-300/80">
-              VIP Archive Access
+    <main className="scan-page">
+      <div
+        style={{
+          position: "fixed",
+          top: "20px",
+          right: "20px",
+          zIndex: 999999,
+        }}
+      >
+        <AuthStatus />
+      </div>
+
+      <div className="scan-wrap">
+        <section className="card">
+          <div className="pill">VIP Archive Access</div>
+
+          <h1 className="hero-title">The Puzzle Vault</h1>
+
+          <div className="hero-text">
+            <p>
+              Welcome back, {firstName}. This is your VIP archive vault.
             </p>
-            <h1 className="mt-2 text-3xl font-black tracking-tight text-white sm:text-4xl">
-              The Puzzle Vault
-            </h1>
-            <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-300 sm:text-base">
-              Welcome back, {firstName}. This archive gives VIP members access to every previous
-              puzzle, answer, and explanation in one place.
+            <p>
+              Every previous puzzle, answer, and explanation lives here in one
+              place.
+            </p>
+            <p>
+              Use it to revisit old drops, study patterns, and sharpen your edge
+              before the next live challenge.
             </p>
           </div>
 
-          <div className="flex flex-wrap gap-3">
-            <Link
-              href="/dashboard"
-              className="rounded-full border border-white/10 bg-white/5 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-white/10"
-            >
+          <div
+            style={{
+              display: "flex",
+              gap: 12,
+              flexWrap: "wrap",
+              marginTop: 20,
+            }}
+          >
+            <Link href="/dashboard" className="btn-primary">
               Dashboard
             </Link>
-            <Link
-              href="/scan/vip-member"
-              className="rounded-full bg-cyan-400 px-5 py-2.5 text-sm font-semibold text-slate-950 transition hover:scale-[1.02]"
-            >
+
+            <Link href="/scan/vip-member" className="btn-primary">
               VIP Member Area
             </Link>
           </div>
-        </div>
+        </section>
 
-        <div className="mb-6 rounded-[28px] border border-cyan-300/15 bg-gradient-to-br from-cyan-400/10 to-fuchsia-400/10 p-6">
-          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-cyan-200/80">
-            Premium Access
+        <section className="card-light" style={{ marginTop: 20 }}>
+          <div className="pill-light">Premium Access</div>
+
+          <h2 className="section-title">Every past drop, all in one place</h2>
+
+          <p className="section-text-light">
+            Archived puzzles are for VIP viewing only and do not count toward
+            live streaks, leaderboard points, or prize eligibility. This vault
+            is here to help you revisit, review, and keep your edge sharp.
           </p>
-          <h2 className="mt-2 text-2xl font-bold text-white">Every past drop, all in one place</h2>
-          <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-200 sm:text-base">
-            Use this page to revisit older puzzles, study answer logic, and see how the archive
-            has unfolded over time. Archived puzzles are for VIP viewing only and do not count
-            toward live streaks, leaderboard points, or prize eligibility.
-          </p>
-        </div>
+        </section>
 
         {drops.length === 0 ? (
-          <div className="rounded-[28px] border border-white/10 bg-white/[0.04] p-10 text-center">
-            <h3 className="text-2xl font-bold text-white">No archives yet</h3>
-            <p className="mt-3 text-slate-300">
-              As soon as previous daily drops exist, they will appear here automatically.
-            </p>
-          </div>
-        ) : (
-          <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-            {drops.map((drop) => (
-              <Link
-                key={drop.date}
-                href={`/scan/vip-member/archives/${drop.date}`}
-                className="group rounded-[28px] border border-white/10 bg-white/[0.04] p-6 shadow-[0_0_30px_rgba(0,0,0,0.2)] transition hover:-translate-y-1 hover:border-cyan-300/30 hover:bg-white/[0.06]"
-              >
-                <p className="text-xs font-semibold uppercase tracking-[0.24em] text-cyan-300/80">
-                  Archived Drop
-                </p>
-                <h3 className="mt-3 text-2xl font-black text-white">
-                  {drop.title || `Puzzle ${drop.number ?? ""}`.trim()}
-                </h3>
-                <p className="mt-2 text-sm text-slate-300">{formatArchiveDate(drop.date)}</p>
+          <section className="card" style={{ marginTop: 20 }}>
+            <div className="pill">Archive Status</div>
 
-                <div className="mt-5 rounded-2xl border border-white/10 bg-slate-950/30 p-4">
-                  <p className="line-clamp-4 whitespace-pre-wrap text-sm leading-6 text-slate-200">
-                    {drop.vip?.puzzle ||
+            <h2 className="section-title" style={{ color: "#ffffff" }}>
+              No archives yet
+            </h2>
+
+            <p className="section-text-dark">
+              As soon as previous daily drops exist, they will appear here
+              automatically.
+            </p>
+          </section>
+        ) : (
+          <section className="card-light" style={{ marginTop: 20 }}>
+            <div className="pill-light">Archived Drops</div>
+
+            <h2 className="section-title">Choose a past puzzle</h2>
+
+            <p className="section-text-light">
+              Open any archived drop to review the puzzle, reveal the answer,
+              and study the explanation.
+            </p>
+
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
+                gap: 16,
+                marginTop: 20,
+              }}
+            >
+              {drops.map((drop) => (
+                <Link
+                  key={drop.date}
+                  href={`/scan/vip-member/archives/${drop.date}`}
+                  style={{
+                    display: "block",
+                    textDecoration: "none",
+                    color: "inherit",
+                    borderRadius: 20,
+                    border: "1px solid rgba(255,255,255,0.12)",
+                    background: "rgba(255,255,255,0.06)",
+                    padding: 18,
+                    transition: "transform 0.18s ease, border-color 0.18s ease",
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: 12,
+                      fontWeight: 800,
+                      textTransform: "uppercase",
+                      letterSpacing: "0.08em",
+                      opacity: 0.7,
+                      marginBottom: 8,
+                      color: "#89f0dd",
+                    }}
+                  >
+                    Archived Drop
+                  </div>
+
+                  <div
+                    style={{
+                      fontSize: 22,
+                      fontWeight: 800,
+                      color: "#111111",
+                      lineHeight: 1.2,
+                      marginBottom: 8,
+                    }}
+                  >
+                    {drop.title || `Puzzle ${drop.number ?? ""}`.trim()}
+                  </div>
+
+                  <div
+                    style={{
+                      fontSize: 14,
+                      color: "#333333",
+                      marginBottom: 14,
+                    }}
+                  >
+                    {formatArchiveDate(drop.date)}
+                  </div>
+
+                  <div
+                    style={{
+                      padding: "14px 16px",
+                      borderRadius: 16,
+                      border: "1px solid rgba(0,0,0,0.08)",
+                      background: "rgba(255,255,255,0.8)",
+                      color: "#111111",
+                      fontSize: 14,
+                      lineHeight: 1.6,
+                      minHeight: 108,
+                      overflow: "hidden",
+                    }}
+                  >
+                    {(drop.vip?.puzzle ||
                       drop.club?.puzzle ||
                       drop.member?.puzzle ||
                       drop.free?.puzzle ||
-                      "Open this archived puzzle to view the full challenge and official answer."}
-                  </p>
-                </div>
+                      "Open this archived puzzle to view the full challenge and official answer."
+                    ).slice(0, 180)}
+                    {(drop.vip?.puzzle ||
+                      drop.club?.puzzle ||
+                      drop.member?.puzzle ||
+                      drop.free?.puzzle ||
+                      ""
+                    ).length > 180
+                      ? "..."
+                      : ""}
+                  </div>
 
-                <div className="mt-5 inline-flex items-center gap-2 text-sm font-semibold text-cyan-300">
-                  Open archive
-                  <span className="transition group-hover:translate-x-1">→</span>
-                </div>
-              </Link>
-            ))}
-          </div>
+                  <div
+                    style={{
+                      marginTop: 14,
+                      fontSize: 14,
+                      fontWeight: 800,
+                      color: "#7c3aed",
+                    }}
+                  >
+                    Open archive →
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </section>
         )}
+
+        <section className="card" style={{ marginTop: 20 }}>
+          <div className="pill">Keep Going</div>
+
+          <h2 className="section-title" style={{ color: "#ffffff" }}>
+            Stay in the flow
+          </h2>
+
+          <div className="section-text-dark">
+            <p>Use the vault when you want more reps.</p>
+            <p>Then come back to the live puzzle and keep your streak moving.</p>
+          </div>
+
+          <div
+            style={{
+              display: "flex",
+              gap: 12,
+              flexWrap: "wrap",
+              marginTop: 20,
+            }}
+          >
+            <Link href="/scan/vip-member" className="btn-primary">
+              Back to VIP Page
+            </Link>
+
+            <Link href="/leaderboard" className="btn-primary">
+              View Leaderboard
+            </Link>
+          </div>
+        </section>
       </div>
     </main>
   );
