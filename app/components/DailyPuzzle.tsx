@@ -6,8 +6,11 @@ import { startPuzzleSession } from "../../lib/puzzles/startPuzzleSession";
 import { submitPuzzleAnswer } from "../../lib/puzzles/submitPuzzleAnswer";
 
 type StartResult = {
+  session_id?: string;
+  session_puzzle_id?: string;
+  session_started_at?: string;
   already_submitted?: boolean;
-  existing_is_correct?: boolean;
+  existing_is_correct?: boolean | null;
 };
 
 type SubmitResult = {
@@ -18,11 +21,17 @@ type SubmitResult = {
 type DailyPuzzleProps = {
   puzzleDate: string;
   acceptedAnswers: string[];
+  explanation?: string;
+  submitLabel?: string;
+  submittedLabel?: string;
 };
 
 export default function DailyPuzzle({
   puzzleDate,
   acceptedAnswers,
+  explanation = "",
+  submitLabel = "Submit Answer",
+  submittedLabel = "Answer Submitted",
 }: DailyPuzzleProps) {
   const [answer, setAnswer] = useState("");
   const [loading, setLoading] = useState(false);
@@ -30,24 +39,37 @@ export default function DailyPuzzle({
   const [submitted, setSubmitted] = useState(false);
   const [result, setResult] = useState<SubmitResult | null>(null);
   const [error, setError] = useState("");
+  const [booting, setBooting] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
 
     async function boot() {
-      try {
-        setError("");
+      setBooting(true);
+      setError("");
+      setStarted(false);
+      setSubmitted(false);
+      setResult(null);
 
+      try {
         const guestToken = getGuestToken();
-        const session = (await startPuzzleSession(puzzleDate, guestToken)) as
-          | StartResult
-          | null;
+
+        const session = (await startPuzzleSession(
+          puzzleDate,
+          guestToken
+        )) as StartResult | null;
 
         if (cancelled) return;
 
+        if (!session?.session_id) {
+          setError("Could not start puzzle session. Please refresh and try again.");
+          setStarted(false);
+          return;
+        }
+
         setStarted(true);
 
-        if (session?.already_submitted) {
+        if (session.already_submitted) {
           setSubmitted(true);
           setResult({
             is_correct: !!session.existing_is_correct,
@@ -59,6 +81,11 @@ export default function DailyPuzzle({
 
         if (!cancelled) {
           setError("Could not start puzzle session. Please refresh and try again.");
+          setStarted(false);
+        }
+      } finally {
+        if (!cancelled) {
+          setBooting(false);
         }
       }
     }
@@ -73,7 +100,7 @@ export default function DailyPuzzle({
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
 
-    if (!answer.trim() || !started || submitted) return;
+    if (!answer.trim() || !started || submitted || loading) return;
 
     setLoading(true);
     setError("");
@@ -88,11 +115,16 @@ export default function DailyPuzzle({
         guestToken
       )) as SubmitResult | null;
 
+      if (!data) {
+        setError("Could not submit answer. Please try again.");
+        return;
+      }
+
       setResult(data);
       setSubmitted(true);
 
-      if (data?.already_submitted) {
-        setError("You have already submitted today's answer.");
+      if (data.already_submitted) {
+        setError("You already used today’s attempt.");
       }
     } catch (err) {
       console.error("submit puzzle answer failed:", err);
@@ -102,11 +134,11 @@ export default function DailyPuzzle({
     }
   }
 
-  const formDisabled = loading || !started || submitted;
+  const formDisabled = loading || booting || !started || submitted;
 
   return (
     <div style={{ marginTop: 18 }}>
-      {!started && !error && (
+      {booting && !error && (
         <div
           style={{
             color: "rgba(255,255,255,0.72)",
@@ -185,11 +217,7 @@ export default function DailyPuzzle({
                 formDisabled || !answer.trim() ? "not-allowed" : "pointer",
             }}
           >
-            {loading
-              ? "Submitting..."
-              : submitted
-              ? "Answer Submitted"
-              : "Submit Answer"}
+            {loading ? "Submitting..." : submitted ? submittedLabel : submitLabel}
           </button>
         </div>
       </form>
@@ -209,12 +237,25 @@ export default function DailyPuzzle({
               fontSize: 16,
               fontWeight: 800,
               color: result.is_correct ? "#86efac" : "#fca5a5",
+              marginBottom: explanation ? 8 : 0,
             }}
           >
             {result.is_correct
               ? "Correct! Your answer has been locked in."
               : "Incorrect. Your answer has been submitted."}
           </div>
+
+          {explanation ? (
+            <div
+              style={{
+                color: "rgba(255,255,255,0.9)",
+                fontSize: 14,
+                lineHeight: 1.6,
+              }}
+            >
+              {explanation}
+            </div>
+          ) : null}
         </div>
       )}
     </div>
