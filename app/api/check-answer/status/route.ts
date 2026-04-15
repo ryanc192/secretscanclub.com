@@ -16,7 +16,7 @@ export async function POST(req: Request) {
       );
     }
 
-    const supabase = createServerSupabaseClient();
+    const supabase = await createServerSupabaseClient();
 
     const { data, error } = await supabase
       .from("submissions")
@@ -27,7 +27,7 @@ export async function POST(req: Request) {
 
     if (error) {
       return NextResponse.json(
-        { success: false, message: "Failed to check status." },
+        { success: false, message: "Failed to check submission status." },
         { status: 500 }
       );
     }
@@ -35,17 +35,16 @@ export async function POST(req: Request) {
     if (!data) {
       return NextResponse.json({
         success: true,
-        locked: false,
+        hasSubmitted: false,
       });
     }
 
     return NextResponse.json({
       success: true,
-      locked: true,
+      hasSubmitted: true,
       answer: data.answer,
       isCorrect: data.is_correct,
       submittedAt: data.submitted_at,
-      message: "You already answered today.",
     });
   } catch {
     return NextResponse.json(
