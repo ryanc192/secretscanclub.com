@@ -1,4 +1,3 @@
-// lib/puzzles/archive.ts
 import fs from "fs";
 import path from "path";
 
