@@ -321,6 +321,7 @@ export default function ClubMemberScanPage() {
                     letterSpacing: "0.08em",
                     opacity: 0.7,
                     marginBottom: 10,
+                    color: "#000000",
                   }}
                 >
                   Today’s Bonus Hint
@@ -329,7 +330,7 @@ export default function ClubMemberScanPage() {
                   style={{
                     fontSize: 16,
                     lineHeight: 1.7,
-                    color: "#ffffff",
+                    color: drop?.member?.bonusHint ? "#ffffff" : "#000000",
                   }}
                 >
                   {drop?.member?.bonusHint ??
@@ -412,7 +413,9 @@ export default function ClubMemberScanPage() {
         <section className="card" style={{ marginTop: 20 }}>
           <div className="pill">Answer Check</div>
 
-          <h2 className="section-title">Submit your answer</h2>
+          <h2 className="section-title" style={{ color: "#ffffff" }}>
+            Submit your answer
+          </h2>
 
           <p className="section-text-dark">
             Lock in your answer now. Every correct play strengthens your stats,
