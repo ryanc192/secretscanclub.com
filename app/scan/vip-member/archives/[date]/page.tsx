@@ -108,7 +108,8 @@ export default function ArchivedPuzzleDetailPage() {
         const res = await fetch("/api/archives", { cache: "no-store" });
         const json = await res.json();
         const drops = Array.isArray(json?.drops) ? json.drops : [];
-        const found = drops.find((item: PuzzleDrop) => item.date === params.date) || null;
+        const found =
+          drops.find((item: PuzzleDrop) => item.date === params.date) || null;
 
         if (!isMounted) return;
 
@@ -212,26 +213,29 @@ export default function ArchivedPuzzleDetailPage() {
           <div
             style={{
               marginTop: 18,
-              padding: "22px",
-              borderRadius: 20,
-              border: "1px solid rgba(255,255,255,0.12)",
-              background: "rgba(255,255,255,0.06)",
+              padding: "24px",
+              borderRadius: 24,
+              border: "1px solid rgba(255,255,255,0.10)",
+              background: "rgba(255,255,255,0.08)",
               color: "#111111",
-              fontSize: 16,
-              lineHeight: 1.8,
+              fontSize: 17,
+              lineHeight: 1.9,
+              boxShadow: "inset 0 1px 0 rgba(255,255,255,0.25)",
             }}
           >
-            {content.puzzle || "This archived puzzle does not have puzzle text available."}
+            {content.puzzle ||
+              "This archived puzzle does not have puzzle text available."}
           </div>
 
           {content.bonusHint && (
             <div
               style={{
                 marginTop: 18,
-                padding: "18px 20px",
-                borderRadius: 20,
+                padding: "20px 22px",
+                borderRadius: 24,
                 border: "1px solid rgba(137,240,221,0.28)",
-                background: "rgba(137,240,221,0.08)",
+                background:
+                  "linear-gradient(135deg, rgba(137,240,221,0.14) 0%, rgba(255,255,255,0.04) 100%)",
               }}
             >
               <div
@@ -239,7 +243,8 @@ export default function ArchivedPuzzleDetailPage() {
                   fontSize: 13,
                   fontWeight: 800,
                   textTransform: "uppercase",
-                  opacity: 0.7,
+                  letterSpacing: "0.08em",
+                  opacity: 0.9,
                   marginBottom: 8,
                   color: "#111111",
                 }}
@@ -250,7 +255,7 @@ export default function ArchivedPuzzleDetailPage() {
               <div
                 style={{
                   fontSize: 16,
-                  lineHeight: 1.7,
+                  lineHeight: 1.8,
                   color: "#111111",
                 }}
               >
@@ -260,7 +265,7 @@ export default function ArchivedPuzzleDetailPage() {
           )}
         </section>
 
-        <section className="card" style={{ marginTop: 20 }}>
+        <section style={{ marginTop: 20 }}>
           <RevealAnswerCard
             answer={content.answer}
             acceptedAnswers={content.acceptedAnswers}
