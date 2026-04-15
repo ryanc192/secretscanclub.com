@@ -35,25 +35,24 @@ export default function DailyPuzzle({
 }: DailyPuzzleProps) {
   const [answer, setAnswer] = useState("");
   const [loading, setLoading] = useState(false);
+  const [booting, setBooting] = useState(true);
   const [started, setStarted] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [result, setResult] = useState<SubmitResult | null>(null);
   const [error, setError] = useState("");
-  const [booting, setBooting] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
 
     async function boot() {
       setBooting(true);
-      setError("");
       setStarted(false);
       setSubmitted(false);
       setResult(null);
+      setError("");
 
       try {
         const guestToken = getGuestToken();
-
         const session = (await startPuzzleSession(
           puzzleDate,
           guestToken
@@ -63,7 +62,6 @@ export default function DailyPuzzle({
 
         if (!session?.session_id) {
           setError("Could not start puzzle session. Please refresh and try again.");
-          setStarted(false);
           return;
         }
 
@@ -78,10 +76,8 @@ export default function DailyPuzzle({
         }
       } catch (err) {
         console.error("start puzzle session failed:", err);
-
         if (!cancelled) {
           setError("Could not start puzzle session. Please refresh and try again.");
-          setStarted(false);
         }
       } finally {
         if (!cancelled) {
@@ -107,7 +103,6 @@ export default function DailyPuzzle({
 
     try {
       const guestToken = getGuestToken();
-
       const data = (await submitPuzzleAnswer(
         puzzleDate,
         answer.trim(),
