@@ -159,7 +159,9 @@ export default function VipArchivesPage() {
   }, [router, supabase]);
 
   const years = useMemo(() => {
-    return Array.from(new Set(drops.map((drop) => getYearFromDate(drop.date))));
+    return Array.from(new Set(drops.map((drop) => getYearFromDate(drop.date)))).sort(
+      (a, b) => b.localeCompare(a)
+    );
   }, [drops]);
 
   const months = useMemo(() => {
@@ -171,7 +173,7 @@ export default function VipArchivesPage() {
           .filter((drop) => getYearFromDate(drop.date) === selectedYear)
           .map((drop) => getMonthFromDate(drop.date))
       )
-    );
+    ).sort((a, b) => b.localeCompare(a));
   }, [drops, selectedYear]);
 
   const filteredDays = useMemo(() => {
@@ -197,7 +199,7 @@ export default function VipArchivesPage() {
           .filter((drop) => getYearFromDate(drop.date) === value)
           .map((drop) => getMonthFromDate(drop.date))
       )
-    );
+    ).sort((a, b) => b.localeCompare(a));
 
     const nextMonth = nextMonths[0] ?? "";
     setSelectedMonth(nextMonth);
@@ -371,12 +373,24 @@ export default function VipArchivesPage() {
                       padding: "14px 16px",
                       border: "1px solid rgba(0,0,0,0.12)",
                       background: "#ffffff",
-                      color: "#111111",
+                      color: "#22314d",
                       fontSize: 15,
+                      fontWeight: 500,
+                      lineHeight: 1.6,
+                      fontFamily: "inherit",
                     }}
                   >
                     {years.map((year) => (
-                      <option key={year} value={year}>
+                      <option
+                        key={year}
+                        value={year}
+                        style={{
+                          fontFamily: "inherit",
+                          fontSize: 15,
+                          fontWeight: 500,
+                          color: "#22314d",
+                        }}
+                      >
                         {year}
                       </option>
                     ))}
@@ -408,12 +422,24 @@ export default function VipArchivesPage() {
                       padding: "14px 16px",
                       border: "1px solid rgba(0,0,0,0.12)",
                       background: "#ffffff",
-                      color: "#111111",
+                      color: "#22314d",
                       fontSize: 15,
+                      fontWeight: 500,
+                      lineHeight: 1.6,
+                      fontFamily: "inherit",
                     }}
                   >
                     {months.map((month) => (
-                      <option key={month} value={month}>
+                      <option
+                        key={month}
+                        value={month}
+                        style={{
+                          fontFamily: "inherit",
+                          fontSize: 15,
+                          fontWeight: 500,
+                          color: "#22314d",
+                        }}
+                      >
                         {getMonthLabel(month)}
                       </option>
                     ))}
@@ -445,12 +471,24 @@ export default function VipArchivesPage() {
                       padding: "14px 16px",
                       border: "1px solid rgba(0,0,0,0.12)",
                       background: "#ffffff",
-                      color: "#111111",
+                      color: "#22314d",
                       fontSize: 15,
+                      fontWeight: 500,
+                      lineHeight: 1.6,
+                      fontFamily: "inherit",
                     }}
                   >
                     {filteredDays.map((drop) => (
-                      <option key={drop.date} value={drop.date}>
+                      <option
+                        key={drop.date}
+                        value={drop.date}
+                        style={{
+                          fontFamily: "inherit",
+                          fontSize: 15,
+                          fontWeight: 500,
+                          color: "#22314d",
+                        }}
+                      >
                         {formatArchiveDate(drop.date)}
                       </option>
                     ))}
