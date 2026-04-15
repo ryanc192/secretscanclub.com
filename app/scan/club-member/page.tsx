@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -167,6 +167,13 @@ export default function ClubMemberScanPage() {
 
   const isFreeUser = subscriptionTier === "free";
 
+  const blurStyle: CSSProperties = isFreeUser
+    ? {
+        filter: "blur(6px) grayscale(100%) opacity(0.5)",
+        pointerEvents: "none",
+      }
+    : {};
+
   const monthlyStreakProtectors =
     subscriptionTier === "pro" ? 2 : subscriptionTier === "plus" ? 1 : 0;
 
@@ -179,14 +186,6 @@ export default function ClubMemberScanPage() {
     monthlyStreakProtectors - storedUsedCount,
     0
   );
-
-  // 🔥 helper for blur
-  const blurStyle = isFreeUser
-    ? {
-        filter: "blur(6px) grayscale(100%) opacity(0.5)",
-        pointerEvents: "none",
-      }
-    : {};
 
   return (
     <main className="scan-page">
@@ -203,7 +202,7 @@ export default function ClubMemberScanPage() {
 
       <div className="scan-wrap">
 
-        {/* 🔒 BLURRED */}
+        {/* 🔒 BLURRED CONTENT */}
         <div style={blurStyle}>
           <section className="card">
             <div className="pill">Club Member Mode</div>
@@ -239,12 +238,11 @@ export default function ClubMemberScanPage() {
           </section>
         </div>
 
-        {/* ✅ NOT BLURRED (KEY AREAS) */}
-
-        {/* BONUS HINT */}
+        {/* ✅ BONUS HINT (VISIBLE) */}
         <section className="card-light" style={{ marginTop: 20 }}>
           <div className="pill-light">Bonus Hint</div>
           <p>{drop?.member?.bonusHint ?? "Upgrade to reveal hint"}</p>
+
           {isFreeUser && (
             <Link href="/subscribe" className="btn-primary">
               Unlock Hint
@@ -252,9 +250,10 @@ export default function ClubMemberScanPage() {
           )}
         </section>
 
-        {/* STREAK PROTECTOR */}
+        {/* ✅ STREAK PROTECTOR (VISIBLE) */}
         <section className="card" style={{ marginTop: 20 }}>
           <div className="pill">Streak Protection</div>
+
           <p>
             {isFreeUser
               ? "Free users cannot protect streaks"
@@ -268,7 +267,7 @@ export default function ClubMemberScanPage() {
           )}
         </section>
 
-        {/* YESTERDAY + BONUS LINKS */}
+        {/* ✅ YESTERDAY / BONUS LINKS (VISIBLE) */}
         <section className="card-light" style={{ marginTop: 20 }}>
           <div className="pill-light">More Puzzles</div>
 
