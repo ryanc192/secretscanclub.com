@@ -84,7 +84,7 @@ function LockedOverlay() {
       style={{
         position: "absolute",
         inset: 0,
-        zIndex: 30,
+        zIndex: 50,
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
@@ -99,7 +99,7 @@ function LockedOverlay() {
           padding: "32px 24px",
           textAlign: "center",
           border: "1px solid rgba(255,255,255,0.14)",
-          background: "rgba(10,14,24,0.78)",
+          background: "rgba(10,14,24,0.80)",
           backdropFilter: "blur(12px)",
           boxShadow: "0 25px 80px rgba(0,0,0,0.35)",
         }}
@@ -158,8 +158,7 @@ function LockedOverlay() {
           }}
         >
           Upgrade your account to unlock yesterday’s puzzle access, bonus
-          content, and the extra member-only pages designed to keep people
-          coming back for more.
+          content, and extra member-only pages.
         </p>
 
         <div
@@ -196,6 +195,7 @@ export default function YesterdayPuzzlePage() {
 
   const [authReady, setAuthReady] = useState(false);
   const [hasAccess, setHasAccess] = useState(false);
+
   const [stats, setStats] = useState<MemberStats>({
     currentStreak: 0,
     longestStreak: 0,
@@ -221,16 +221,7 @@ export default function YesterdayPuzzlePage() {
         return;
       }
 
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
-      if (!user) {
-        if (!isMounted) return;
-        setHasAccess(false);
-        setAuthReady(true);
-        return;
-      }
+      const user = session.user;
 
       const { data: profile } = await supabase
         .from("profiles")
@@ -241,41 +232,37 @@ export default function YesterdayPuzzlePage() {
       const tier = resolveAccessTier(profile);
       const allowed = tier === "club" || tier === "vip";
 
-      if (!allowed) {
+      if (allowed) {
+        const { count: attemptsCount } = await supabase
+          .from("puzzle_sessions")
+          .select("*", { count: "exact", head: true })
+          .eq("user_id", user.id)
+          .not("submitted_at", "is", null);
+
+        const { count: correctCount } = await supabase
+          .from("puzzle_sessions")
+          .select("*", { count: "exact", head: true })
+          .eq("user_id", user.id)
+          .eq("is_correct", true)
+          .not("submitted_at", "is", null);
+
+        const attempts = attemptsCount ?? 0;
+        const correct = correctCount ?? 0;
+        const accuracy =
+          attempts > 0 ? Math.round((correct / attempts) * 100) : 0;
+
         if (!isMounted) return;
-        setHasAccess(false);
-        setAuthReady(true);
-        return;
+
+        setStats({
+          currentStreak: profile?.current_streak ?? 0,
+          longestStreak: profile?.longest_streak ?? 0,
+          attempts,
+          accuracy,
+        });
       }
 
-      const { count: attemptsCount } = await supabase
-        .from("puzzle_sessions")
-        .select("*", { count: "exact", head: true })
-        .eq("user_id", user.id)
-        .not("submitted_at", "is", null);
-
-      const { count: correctCount } = await supabase
-        .from("puzzle_sessions")
-        .select("*", { count: "exact", head: true })
-        .eq("user_id", user.id)
-        .eq("is_correct", true)
-        .not("submitted_at", "is", null);
-
-      const attempts = attemptsCount ?? 0;
-      const correct = correctCount ?? 0;
-      const accuracy =
-        attempts > 0 ? Math.round((correct / attempts) * 100) : 0;
-
       if (!isMounted) return;
-
-      setStats({
-        currentStreak: profile?.current_streak ?? 0,
-        longestStreak: profile?.longest_streak ?? 0,
-        attempts,
-        accuracy,
-      });
-
-      setHasAccess(true);
+      setHasAccess(allowed);
       setAuthReady(true);
     }
 
@@ -284,8 +271,9 @@ export default function YesterdayPuzzlePage() {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      if (!isMounted) return;
+
       if (!session?.user) {
-        if (!isMounted) return;
         setHasAccess(false);
         setAuthReady(true);
         return;
@@ -298,10 +286,7 @@ export default function YesterdayPuzzlePage() {
         .maybeSingle();
 
       const tier = resolveAccessTier(profile);
-      const allowed = tier === "club" || tier === "vip";
-
-      if (!isMounted) return;
-      setHasAccess(allowed);
+      setHasAccess(tier === "club" || tier === "vip");
       setAuthReady(true);
     });
 
@@ -312,11 +297,25 @@ export default function YesterdayPuzzlePage() {
   }, [supabase]);
 
   if (!authReady) {
-    return null;
+    return (
+      <main className="scan-page">
+        <div
+          style={{
+            minHeight: "100vh",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            color: "#ffffff",
+          }}
+        >
+          Loading...
+        </div>
+      </main>
+    );
   }
 
   return (
-    <main className="scan-page">
+    <main className="scan-page" style={{ position: "relative" }}>
       <div
         style={{
           position: "fixed",
@@ -345,10 +344,10 @@ export default function YesterdayPuzzlePage() {
       <div
         className="scan-wrap"
         style={{
-          position: "relative",
-          filter: hasAccess ? "none" : "blur(16px)",
+          filter: hasAccess ? "none" : "blur(14px)",
           pointerEvents: hasAccess ? "auto" : "none",
           userSelect: hasAccess ? "auto" : "none",
+          transition: "filter 0.2s ease",
         }}
       >
         <section className="card">
@@ -486,126 +485,6 @@ export default function YesterdayPuzzlePage() {
               View Leaderboard
             </Link>
           </div>
-        </section>
-
-        <section className="card" style={{ marginTop: 20 }}>
-          <div className="pill">Your Progress</div>
-
-          <h2 className="section-title" style={{ color: "#ffffff" }}>
-            Looking Back Still Tells the Truth
-          </h2>
-
-          <div className="section-text-dark">
-            <p>Yesterday still counts as a measurement.</p>
-            <p>It shows whether you would have solved it, missed it, or guessed wrong.</p>
-            <p>That kind of feedback matters.</p>
-            <p>Progress comes from seeing the pattern clearly.</p>
-          </div>
-
-          <div className="benefit-list">
-            {[
-              `Current streak: ${stats.currentStreak}`,
-              `Best streak: ${stats.longestStreak}`,
-              `Total puzzle plays: ${stats.attempts}`,
-              `Accuracy: ${stats.accuracy}%`,
-              "Use yesterday to sharpen how you show up today",
-            ].map((item) => (
-              <div key={item} className="benefit-item">
-                <span style={{ fontSize: 18 }}>✓</span>
-                <span>{item}</span>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        <section className="card-light" style={{ marginTop: 20 }}>
-          <div className="pill-light">Member Extras</div>
-
-          <h2 className="section-title">Every extra puzzle adds another layer</h2>
-
-          <div className="section-text-light">
-            <p>
-              The more puzzles you touch, the more complete the picture becomes.
-              Yesterday’s challenge, today’s challenge, bonus content — it all
-              builds a stronger record of what your consistency actually looks like.
-            </p>
-            <p>Most people won’t go this far. That’s exactly why it matters.</p>
-          </div>
-
-          <div className="capture-points" style={{ marginTop: 20 }}>
-            <div className="capture-point">
-              <div className="capture-point-title">Yesterday reveals blind spots</div>
-              <div className="capture-point-text">
-                Going back shows where you would have been right, where you would
-                have missed, and where your instincts still need work.
-              </div>
-            </div>
-
-            <div className="capture-point">
-              <div className="capture-point-title">More reps sharpen pattern recognition</div>
-              <div className="capture-point-text">
-                The more you engage with old and new puzzles, the faster you start
-                spotting what matters.
-              </div>
-            </div>
-
-            <div className="capture-point">
-              <div className="capture-point-title">Momentum grows through repetition</div>
-              <div className="capture-point-text">
-                Looking at yesterday and showing up again today builds the kind of
-                rhythm most people never maintain.
-              </div>
-            </div>
-
-            <div className="capture-point">
-              <div className="capture-point-title">The scoreboard gets more honest</div>
-              <div className="capture-point-text">
-                Every extra attempt gives a clearer picture of your real level, not
-                just one lucky answer.
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <section className="card" style={{ marginTop: 20 }}>
-          <div className="pill">Brain Boost</div>
-
-          <h2 className="section-title" style={{ color: "#ffffff" }}>
-            Missed yesterday? Show up sharper today.
-          </h2>
-
-          <p
-            className="section-text-dark"
-            style={{ maxWidth: "none", opacity: 0.95 }}
-          >
-            If yesterday’s puzzle exposed a weak spot, use that as feedback. Better
-            focus, stronger energy, and a sharper routine can make the next challenge
-            feel very different.
-          </p>
-
-          <div className="benefit-list">
-            {[
-              "Helps you stay sharp and think faster",
-              "Built for people who want stronger mental performance",
-              "Supports a better daily focus routine",
-              "Simple addition with real upside",
-              "Made for steady use, not random effort",
-            ].map((item) => (
-              <div key={item} className="benefit-item">
-                <span style={{ fontSize: 18 }}>✓</span>
-                <span>{item}</span>
-              </div>
-            ))}
-          </div>
-
-          <a
-            href="YOUR-AMWAY-LINK-HERE"
-            target="_blank"
-            rel="noreferrer"
-            className="btn-primary"
-          >
-            Upgrade Your Focus
-          </a>
         </section>
       </div>
 
