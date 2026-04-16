@@ -71,13 +71,17 @@ export default function ManagePage() {
       setCurrentEmail(user.email ?? "");
       setNewEmail(user.email ?? "");
 
-      const { data: profile } = await supabase
+      const { data: profile, error: profileError } = await supabase
         .from("profiles")
         .select("id, first_name, last_name, username, phone, email_notifications, subscription_tier")
         .eq("id", user.id)
         .maybeSingle<ProfileRow>();
 
       if (!mounted) return;
+
+      if (profileError) {
+        setPageMessage(profileError.message);
+      }
 
       if (profile) {
         setFirstName(profile.first_name ?? "");
@@ -102,21 +106,97 @@ export default function ManagePage() {
     };
   }, [router, supabase]);
 
+  function normalizePhone(value: string) {
+    return value.replace(/[^\d+()\-\s]/g, "").trim();
+  }
+
   async function handleProfileSave(e: React.FormEvent) {
     e.preventDefault();
     setProfileMessage("");
+
+    if (!userId) {
+      setProfileMessage("Could not find your account. Please refresh and try again.");
+      return;
+    }
+
+    const cleanedFirstName = firstName.trim();
+    const cleanedLastName = lastName.trim();
+    const cleanedUsername = username.trim().toLowerCase();
+    const cleanedPhone = normalizePhone(phone);
+
+    if (!cleanedFirstName) {
+      setProfileMessage("Please enter your first name.");
+      return;
+    }
+
+    if (!cleanedLastName) {
+      setProfileMessage("Please enter your last name.");
+      return;
+    }
+
+    if (!cleanedUsername) {
+      setProfileMessage("Please enter a username.");
+      return;
+    }
+
+    if (!/^[a-z0-9._-]{3,20}$/.test(cleanedUsername)) {
+      setProfileMessage(
+        "Username must be 3 to 20 characters and use only letters, numbers, periods, underscores, or hyphens."
+      );
+      return;
+    }
+
     setSavingProfile(true);
+
+    const { data: existingUsername, error: usernameCheckError } = await supabase
+      .from("profiles")
+      .select("id")
+      .ilike("username", cleanedUsername)
+      .neq("id", userId)
+      .maybeSingle();
+
+    if (usernameCheckError) {
+      setProfileMessage(usernameCheckError.message);
+      setSavingProfile(false);
+      return;
+    }
+
+    if (existingUsername) {
+      setProfileMessage("That username is already taken. Please choose another one.");
+      setSavingProfile(false);
+      return;
+    }
 
     const { error } = await supabase.from("profiles").upsert({
       id: userId,
-      first_name: firstName.trim() || null,
-      last_name: lastName.trim() || null,
-      username: username.trim() || null,
-      phone: phone.trim() || null,
+      first_name: cleanedFirstName,
+      last_name: cleanedLastName,
+      username: cleanedUsername,
+      phone: cleanedPhone || null,
       updated_at: new Date().toISOString(),
     });
 
-    setProfileMessage(error ? error.message : "Profile updated successfully.");
+    if (error) {
+      setProfileMessage(error.message);
+      setSavingProfile(false);
+      return;
+    }
+
+    await supabase.auth.updateUser({
+      data: {
+        first_name: cleanedFirstName,
+        last_name: cleanedLastName,
+        username: cleanedUsername,
+        phone: cleanedPhone || null,
+        full_name: `${cleanedFirstName} ${cleanedLastName}`.trim(),
+      },
+    });
+
+    setFirstName(cleanedFirstName);
+    setLastName(cleanedLastName);
+    setUsername(cleanedUsername);
+    setPhone(cleanedPhone);
+    setProfileMessage("Profile updated successfully.");
     setSavingProfile(false);
   }
 
@@ -260,7 +340,9 @@ export default function ManagePage() {
         <section style={styles.hero} className="hero-grid">
           <div style={styles.heroText} className="hero-text-card">
             <div style={styles.kicker}>Account Center</div>
-            <h1 style={styles.heroTitle} className="hero-title">Manage your profile, login, and account settings.</h1>
+            <h1 style={styles.heroTitle} className="hero-title">
+              Manage your profile, login, and account settings.
+            </h1>
             <p style={styles.heroBody}>
               Update your personal details, change your username, manage your email
               preferences, update your password, and jump into billing whenever you
@@ -270,11 +352,15 @@ export default function ManagePage() {
             <div style={styles.heroUserBox} className="hero-user-box">
               <div>
                 <div style={styles.userLabel}>Signed in as</div>
-                <div style={styles.userValue} className="user-value">{userEmail || "Unknown User"}</div>
+                <div style={styles.userValue} className="user-value">
+                  {userEmail || "Unknown User"}
+                </div>
               </div>
               <div>
                 <div style={styles.userLabel}>Current membership</div>
-                <div style={styles.userValue} className="user-value">{membership}</div>
+                <div style={styles.userValue} className="user-value">
+                  {membership}
+                </div>
               </div>
             </div>
 
@@ -303,7 +389,9 @@ export default function ManagePage() {
         <section style={styles.infoGridTwo} className="info-grid-two">
           <div style={styles.infoCard} className="info-card">
             <div style={styles.sectionKicker}>Profile Details</div>
-            <h2 style={styles.infoTitle} className="info-title">Your identity on the platform</h2>
+            <h2 style={styles.infoTitle} className="info-title">
+              Your identity on the platform
+            </h2>
             <p style={styles.infoText}>
               Update the basic information attached to your account so your profile
               stays current and clean.
@@ -337,6 +425,8 @@ export default function ManagePage() {
                   onChange={(e) => setUsername(e.target.value)}
                   placeholder="Username"
                   style={styles.input}
+                  autoCapitalize="off"
+                  autoCorrect="off"
                 />
               </div>
 
@@ -344,9 +434,10 @@ export default function ManagePage() {
                 <label style={styles.label}>Phone</label>
                 <input
                   value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
+                  onChange={(e) => setPhone(normalizePhone(e.target.value))}
                   placeholder="Phone number"
                   style={styles.input}
+                  inputMode="tel"
                 />
               </div>
 
@@ -368,7 +459,9 @@ export default function ManagePage() {
 
           <div style={styles.infoCard} className="info-card">
             <div style={styles.sectionKicker}>Personal Info</div>
-            <h2 style={styles.infoTitle} className="info-title">Account details at a glance</h2>
+            <h2 style={styles.infoTitle} className="info-title">
+              Account details at a glance
+            </h2>
             <p style={styles.infoText}>
               Review the core details tied to your account and where important
               updates are sent.
@@ -398,7 +491,11 @@ export default function ManagePage() {
               </div>
             </div>
 
-            <Link href="/account" style={styles.secondaryCta} className="full-width-mobile cta-link-mobile">
+            <Link
+              href="/account"
+              style={styles.secondaryCta}
+              className="full-width-mobile cta-link-mobile"
+            >
               Billing Account
             </Link>
           </div>
@@ -531,7 +628,9 @@ export default function ManagePage() {
 
           <div style={styles.infoCard} className="info-card">
             <div style={styles.sectionKicker}>Membership</div>
-            <h2 style={styles.infoTitle} className="info-title">Manage billing and subscription access</h2>
+            <h2 style={styles.infoTitle} className="info-title">
+              Manage billing and subscription access
+            </h2>
             <p style={styles.infoText}>
               Need to upgrade, downgrade, update billing details, or review your
               membership? Use your billing account page.
@@ -544,7 +643,11 @@ export default function ManagePage() {
               <div style={styles.heroListItem}>Access your membership controls</div>
             </div>
 
-            <Link href="/account" style={styles.primaryCtaLink} className="full-width-mobile cta-link-mobile">
+            <Link
+              href="/account"
+              style={styles.primaryCtaLink}
+              className="full-width-mobile cta-link-mobile"
+            >
               Billing Account
             </Link>
           </div>
