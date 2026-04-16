@@ -245,7 +245,7 @@ export default function WinnersPage() {
           <div style={styles.heroText} className="hero-text-card">
             <div style={styles.kicker}>Winners Archive</div>
             <h1 style={styles.heroTitle} className="hero-title">
-              See this month’s winners and the recent winner history.
+              See all the recent winners.
             </h1>
           </div>
         </section>
