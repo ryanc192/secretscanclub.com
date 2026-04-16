@@ -7,17 +7,23 @@ import { startPuzzleSession } from "../../lib/puzzles/startPuzzleSession";
 import { submitPuzzleAnswer } from "../../lib/puzzles/submitPuzzleAnswer";
 
 type StartResult = {
-  session_id?: string;
-  session_puzzle_id?: string;
-  session_started_at?: string;
+  id?: string;
+  puzzle_id?: string;
+  started_at?: string;
   already_submitted?: boolean;
   existing_is_correct?: boolean | null;
+  attempt_count?: number | null;
 };
 
 type SubmitResult = {
   is_correct: boolean;
   already_submitted: boolean;
+  attempts_used?: number | null;
+  max_attempts?: number | null;
+  accuracy_value?: number | null;
 };
+
+type SubscriptionTier = "free" | "plus" | "pro";
 
 type MemberDailyPuzzleProps = {
   puzzleDate: string;
@@ -25,7 +31,20 @@ type MemberDailyPuzzleProps = {
   explanation?: string;
   submitLabel?: string;
   submittedLabel?: string;
+  subscriptionTier: SubscriptionTier;
 };
+
+function getMaxAttempts(tier: SubscriptionTier): number {
+  if (tier === "pro") return Number.POSITIVE_INFINITY;
+  if (tier === "plus") return 2;
+  return 1;
+}
+
+function getTierName(tier: SubscriptionTier): string {
+  if (tier === "pro") return "VIP";
+  if (tier === "plus") return "Club";
+  return "Member";
+}
 
 export default function MemberDailyPuzzle({
   puzzleDate,
@@ -33,6 +52,7 @@ export default function MemberDailyPuzzle({
   explanation = "",
   submitLabel = "Submit Answer",
   submittedLabel = "Answer Submitted",
+  subscriptionTier,
 }: MemberDailyPuzzleProps) {
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
 
@@ -43,6 +63,13 @@ export default function MemberDailyPuzzle({
   const [submitted, setSubmitted] = useState(false);
   const [result, setResult] = useState<SubmitResult | null>(null);
   const [error, setError] = useState("");
+  const [attemptsUsed, setAttemptsUsed] = useState(0);
+
+  const maxAttempts = getMaxAttempts(subscriptionTier);
+  const isUnlimited = !Number.isFinite(maxAttempts);
+  const remainingAttempts = isUnlimited
+    ? null
+    : Math.max(maxAttempts - attemptsUsed, 0);
 
   useEffect(() => {
     let cancelled = false;
@@ -53,6 +80,8 @@ export default function MemberDailyPuzzle({
       setSubmitted(false);
       setResult(null);
       setError("");
+      setAnswer("");
+      setAttemptsUsed(0);
 
       try {
         const {
@@ -87,20 +116,39 @@ export default function MemberDailyPuzzle({
 
         if (cancelled) return;
 
-        if (!sessionResult?.session_id) {
+        if (!sessionResult?.id) {
           console.error("member start puzzle session failed:", startError);
           setError("Could not start puzzle session. Please refresh and try again.");
           return;
         }
 
-        setStarted(true);
+        const existingAttemptCount = Number(sessionResult.attempt_count ?? 0);
+        const existingIsCorrect = !!sessionResult.existing_is_correct;
+        const lockedForTier =
+          subscriptionTier !== "pro" && existingAttemptCount >= maxAttempts;
 
-        if (sessionResult.already_submitted) {
+        setStarted(true);
+        setAttemptsUsed(existingAttemptCount);
+
+        if (existingIsCorrect || lockedForTier) {
           setSubmitted(true);
           setResult({
-            is_correct: !!sessionResult.existing_is_correct,
-            already_submitted: true,
+            is_correct: existingIsCorrect,
+            already_submitted: existingIsCorrect || lockedForTier,
+            attempts_used: existingAttemptCount,
+            max_attempts: isUnlimited ? null : maxAttempts,
+            accuracy_value: existingIsCorrect
+              ? Math.round((100 / Math.max(existingAttemptCount, 1)) * 100) / 100
+              : 0,
           });
+
+          if (!existingIsCorrect && lockedForTier) {
+            if (subscriptionTier === "free") {
+              setError("You already used today’s attempt.");
+            } else if (subscriptionTier === "plus") {
+              setError("You already used both of today’s attempts.");
+            }
+          }
         }
       } catch (err) {
         console.error("member puzzle boot failed:", err);
@@ -119,7 +167,7 @@ export default function MemberDailyPuzzle({
     return () => {
       cancelled = true;
     };
-  }, [puzzleDate, supabase]);
+  }, [maxAttempts, puzzleDate, subscriptionTier, supabase, isUnlimited]);
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -170,11 +218,39 @@ export default function MemberDailyPuzzle({
         return;
       }
 
-      setResult(submitResult);
-      setSubmitted(true);
+      const used = Number(submitResult.attempts_used ?? 0);
+      const maxAllowed = submitResult.max_attempts ?? (isUnlimited ? null : maxAttempts);
+      const lockedForTier =
+        maxAllowed !== null && Number.isFinite(maxAllowed) && used >= maxAllowed;
 
-      if (submitResult.already_submitted) {
-        setError("You already used today’s attempt.");
+      setAttemptsUsed(used);
+      setResult(submitResult);
+
+      if (submitResult.is_correct || submitResult.already_submitted || lockedForTier) {
+        setSubmitted(true);
+      }
+
+      if (submitResult.already_submitted && !submitResult.is_correct) {
+        if (subscriptionTier === "free") {
+          setError("You already used today’s attempt.");
+        } else if (subscriptionTier === "plus") {
+          setError("You already used both of today’s attempts.");
+        } else {
+          setError("No additional attempts are available right now.");
+        }
+        return;
+      }
+
+      if (!submitResult.is_correct && lockedForTier) {
+        if (subscriptionTier === "free") {
+          setError("Incorrect. You have no attempts left for today.");
+        } else if (subscriptionTier === "plus") {
+          setError("Incorrect. You have used both attempts for today.");
+        }
+      }
+
+      if (!submitResult.is_correct && !lockedForTier && subscriptionTier === "plus") {
+        setError("Incorrect. You still have one more attempt today.");
       }
     } catch (err) {
       console.error("member puzzle submit failed:", err);
@@ -186,8 +262,105 @@ export default function MemberDailyPuzzle({
 
   const formDisabled = loading || booting || !started || submitted;
 
+  const attemptsSummaryText = isUnlimited
+    ? `${getTierName(subscriptionTier)} has unlimited attempts. Accuracy drops with every guess.`
+    : `${getTierName(subscriptionTier)} attempts today: ${attemptsUsed} used, ${remainingAttempts} left.`;
+
+  function renderResultMessage() {
+    if (!result) return null;
+
+    const used = Number(result.attempts_used ?? attemptsUsed ?? 0);
+    const accuracyValue =
+      result.accuracy_value !== null && result.accuracy_value !== undefined
+        ? Number(result.accuracy_value)
+        : null;
+
+    if (result.is_correct) {
+      return (
+        <>
+          <div
+            style={{
+              fontSize: 16,
+              fontWeight: 800,
+              color: "#86efac",
+              marginBottom: explanation ? 8 : 0,
+            }}
+          >
+            Correct! You solved it on attempt {used}.
+          </div>
+
+          <div
+            style={{
+              color: "rgba(255,255,255,0.88)",
+              fontSize: 14,
+              lineHeight: 1.6,
+              marginBottom: explanation ? 10 : 0,
+            }}
+          >
+            Accuracy earned for this puzzle:{" "}
+            <strong>{accuracyValue !== null ? `${accuracyValue}%` : "N/A"}</strong>
+          </div>
+        </>
+      );
+    }
+
+    if (subscriptionTier === "plus" && attemptsUsed < 2) {
+      return (
+        <div
+          style={{
+            fontSize: 16,
+            fontWeight: 800,
+            color: "#fca5a5",
+          }}
+        >
+          Incorrect. You still have one more attempt today.
+        </div>
+      );
+    }
+
+    return (
+      <>
+        <div
+          style={{
+            fontSize: 16,
+            fontWeight: 800,
+            color: "#fca5a5",
+            marginBottom: 8,
+          }}
+        >
+          Incorrect.
+        </div>
+
+        <div
+          style={{
+            color: "rgba(255,255,255,0.88)",
+            fontSize: 14,
+            lineHeight: 1.6,
+          }}
+        >
+          Accuracy earned for this puzzle: <strong>0%</strong>
+        </div>
+      </>
+    );
+  }
+
   return (
     <div style={{ marginTop: 18 }}>
+      <div
+        style={{
+          marginBottom: 14,
+          padding: "12px 14px",
+          borderRadius: 14,
+          border: "1px solid rgba(255,255,255,0.12)",
+          background: "rgba(255,255,255,0.06)",
+          color: "rgba(255,255,255,0.9)",
+          fontSize: 14,
+          lineHeight: 1.5,
+        }}
+      >
+        {attemptsSummaryText}
+      </div>
+
       {booting && !error && (
         <div
           style={{
@@ -282,30 +455,20 @@ export default function MemberDailyPuzzle({
             background: "rgba(255,255,255,0.05)",
           }}
         >
-          <div
-            style={{
-              fontSize: 16,
-              fontWeight: 800,
-              color: result.is_correct ? "#86efac" : "#fca5a5",
-              marginBottom: explanation ? 8 : 0,
-            }}
-          >
-            {result.is_correct
-              ? "Correct! Your answer has been locked in."
-              : "Incorrect. Your answer has been submitted."}
-          </div>
+          {renderResultMessage()}
 
-          {explanation ? (
+          {explanation && (
             <div
               style={{
                 color: "rgba(255,255,255,0.9)",
                 fontSize: 14,
                 lineHeight: 1.6,
+                marginTop: 10,
               }}
             >
               {explanation}
             </div>
-          ) : null}
+          )}
         </div>
       )}
     </div>
