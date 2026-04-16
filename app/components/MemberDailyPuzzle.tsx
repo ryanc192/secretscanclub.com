@@ -249,8 +249,12 @@ export default function MemberDailyPuzzle({
         }
       }
 
-      if (!submitResult.is_correct && !lockedForTier && subscriptionTier === "plus") {
-        setError("Incorrect. You still have one more attempt today.");
+      if (!submitResult.is_correct && !lockedForTier) {
+        if (subscriptionTier === "plus") {
+          setError("Incorrect. You still have one more attempt today.");
+        } else if (subscriptionTier === "pro") {
+          setError("Incorrect. Try again.");
+        }
       }
     } catch (err) {
       console.error("member puzzle submit failed:", err);
@@ -301,6 +305,20 @@ export default function MemberDailyPuzzle({
             <strong>{accuracyValue !== null ? `${accuracyValue}%` : "N/A"}</strong>
           </div>
         </>
+      );
+    }
+
+    if (subscriptionTier === "pro" && !result.already_submitted) {
+      return (
+        <div
+          style={{
+            fontSize: 16,
+            fontWeight: 800,
+            color: "#fca5a5",
+          }}
+        >
+          Incorrect. Try again.
+        </div>
       );
     }
 
@@ -457,7 +475,7 @@ export default function MemberDailyPuzzle({
         >
           {renderResultMessage()}
 
-          {explanation && (
+          {result.is_correct && explanation && (
             <div
               style={{
                 color: "rgba(255,255,255,0.9)",
