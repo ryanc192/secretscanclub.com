@@ -39,6 +39,13 @@ type SessionSummary = {
   accuracy_value: number | null;
 };
 
+type ProtectionRpcResult = {
+  status?: string;
+  used_protector?: boolean;
+  remaining?: number;
+  message?: string;
+} | null;
+
 function loadDrop(date: string): Drop | null {
   try {
     return require(`../../../content/drops/${date}.json`);
@@ -84,6 +91,8 @@ export default function ClubMemberScanPage() {
     attempts: 0,
     accuracy: 0,
   });
+  const [remainingProtectors, setRemainingProtectors] = useState(0);
+  const [protectionMessage, setProtectionMessage] = useState("");
 
   const today = todayET();
   const monthKey = getMonthKey();
@@ -112,10 +121,18 @@ export default function ClubMemberScanPage() {
           return;
         }
 
+        const { data: protectionData } = await supabase.rpc(
+          "apply_streak_protection"
+        );
+
+        const protection = protectionData as ProtectionRpcResult;
+
         const [{ data: profile }, { data: sessionRows }] = await Promise.all([
           supabase
             .from("profiles")
-            .select("current_streak, longest_streak, subscription_tier")
+            .select(
+              "current_streak, longest_streak, subscription_tier, streak_protectors_used, streak_protector_month"
+            )
             .eq("id", user.id)
             .maybeSingle(),
           supabase
@@ -126,6 +143,16 @@ export default function ClubMemberScanPage() {
         ]);
 
         if (!isMounted) return;
+
+        const tier = mapSubscriptionTier(profile?.subscription_tier);
+        const monthlyAllowance = tier === "pro" ? 2 : tier === "plus" ? 1 : 0;
+
+        const usedThisMonth =
+          profile?.streak_protector_month === monthKey
+            ? Number(profile?.streak_protectors_used ?? 0)
+            : 0;
+
+        const computedRemaining = Math.max(monthlyAllowance - usedThisMonth, 0);
 
         const rows = (sessionRows as SessionSummary[] | null) ?? [];
         const attempts = rows.reduce(
@@ -144,7 +171,13 @@ export default function ClubMemberScanPage() {
               ) / 100
             : 0;
 
-        setSubscriptionTier(mapSubscriptionTier(profile?.subscription_tier));
+        setSubscriptionTier(tier);
+        setRemainingProtectors(
+          typeof protection?.remaining === "number"
+            ? protection.remaining
+            : computedRemaining
+        );
+        setProtectionMessage(protection?.message ?? "");
         setStats({
           currentStreak: profile?.current_streak ?? 0,
           longestStreak: profile?.longest_streak ?? 0,
@@ -172,7 +205,7 @@ export default function ClubMemberScanPage() {
       isMounted = false;
       subscription.unsubscribe();
     };
-  }, [router, supabase]);
+  }, [router, supabase, monthKey]);
 
   if (!authReady) {
     return (
@@ -188,19 +221,10 @@ export default function ClubMemberScanPage() {
     );
   }
 
-  const showBonusHint = subscriptionTier === "plus" || subscriptionTier === "pro";
+  const showBonusHint =
+    subscriptionTier === "plus" || subscriptionTier === "pro";
   const monthlyStreakProtectors =
     subscriptionTier === "pro" ? 2 : subscriptionTier === "plus" ? 1 : 0;
-
-  const storedUsedCount =
-    typeof window !== "undefined"
-      ? Number(localStorage.getItem(`ssc-streak-protectors-used-${monthKey}`) ?? "0")
-      : 0;
-
-  const remainingProtectors = Math.max(
-    monthlyStreakProtectors - storedUsedCount,
-    0
-  );
 
   const isFreeUser = subscriptionTier === "free";
 
@@ -298,20 +322,25 @@ export default function ClubMemberScanPage() {
                 >
                   Today’s Brain Tester
                 </div>
-                <div>{drop?.free?.puzzle ?? "Come back soon for today’s puzzle."}</div>
+                <div>
+                  {drop?.free?.puzzle ?? "Come back soon for today’s puzzle."}
+                </div>
               </div>
             </div>
           </section>
         </div>
 
-        <section className="card-light" style={{ marginTop: 20, position: "relative" }}>
+        <section
+          className="card-light"
+          style={{ marginTop: 20, position: "relative" }}
+        >
           <div className="pill-light">Bonus Hint</div>
 
           <h2 className="section-title">A little edge, if you’ve earned it</h2>
 
           <p className="section-text-light">
-            Club Members can unlock an extra push when they need it. Use the hint,
-            stay alive, and keep your streak from slipping for no reason.
+            Club Members can unlock an extra push when they need it. Use the
+            hint, stay alive, and keep your streak from slipping for no reason.
           </p>
 
           <div style={{ position: "relative", marginTop: 18 }}>
@@ -403,9 +432,9 @@ export default function ClubMemberScanPage() {
             </h2>
 
             <p className="section-text-dark">
-              Club members get two attempts on each daily puzzle. First try earns
-              full accuracy. Second try earns 50%. Miss both and the puzzle scores
-              0% for accuracy.
+              Club members get two attempts on each daily puzzle. First try
+              earns full accuracy. Second try earns 50%. Miss both and the
+              puzzle scores 0% for accuracy.
             </p>
 
             {drop ? (
@@ -428,7 +457,8 @@ export default function ClubMemberScanPage() {
                   lineHeight: 1.5,
                 }}
               >
-                Today’s puzzle is not available yet, so answer submission is disabled.
+                Today’s puzzle is not available yet, so answer submission is
+                disabled.
               </div>
             )}
           </section>
@@ -447,7 +477,10 @@ export default function ClubMemberScanPage() {
             }}
           >
             <div>
-              <h2 className="section-title" style={{ color: "#ffffff", marginBottom: 8 }}>
+              <h2
+                className="section-title"
+                style={{ color: "#ffffff", marginBottom: 8 }}
+              >
                 Monthly Streak Protector
               </h2>
               <p className="section-text-dark" style={{ maxWidth: "none" }}>
@@ -457,8 +490,9 @@ export default function ClubMemberScanPage() {
                     ? "2 streak protectors per month"
                     : "1 streak protector per month"}
                 </strong>
-                . Use it carefully — once it is used, you do not get another one
-                until next month.
+                . If you miss exactly one day, your protector will be used
+                automatically to save your streak. Once it is used, you do not
+                get another one until next month.
               </p>
             </div>
 
@@ -501,18 +535,36 @@ export default function ClubMemberScanPage() {
             <div style={{ fontSize: 16, color: "#ffffff", lineHeight: 1.7 }}>
               {subscriptionTier === "free" ? (
                 <>
-                  Club members get 1 streak protector each month to protect their streak.
+                  Club members get 1 streak protector each month to protect
+                  their streak.
                 </>
+              ) : protectionMessage ? (
+                <>{protectionMessage}</>
               ) : remainingProtectors > 0 ? (
                 <>
-                  You still have <strong>{remainingProtectors}</strong>{" "}
-                  streak protector{remainingProtectors === 1 ? "" : "s"} available
-                  this month.
+                  You still have <strong>{remainingProtectors}</strong> streak
+                  protector{remainingProtectors === 1 ? "" : "s"} available this
+                  month.
                 </>
               ) : (
                 <>You have already used your streak protector allocation this month.</>
               )}
             </div>
+
+            {subscriptionTier !== "free" && (
+              <div
+                style={{
+                  marginTop: 14,
+                  fontSize: 14,
+                  lineHeight: 1.6,
+                  color: "rgba(255,255,255,0.78)",
+                }}
+              >
+                Miss one day and the system will automatically spend a protector
+                for you if one is available. Miss more than one day and the
+                streak resets.
+              </div>
+            )}
 
             {subscriptionTier === "free" && (
               <div style={{ marginTop: 16 }}>
@@ -599,8 +651,8 @@ export default function ClubMemberScanPage() {
             <div className="section-text-light">
               <p>
                 This isn’t a one-time puzzle visit. Every time you show up, your
-                progress stacks, your streak grows, and the system tightens around
-                your consistency. Each return matters more than the last.
+                progress stacks, your streak grows, and the system tightens
+                around your consistency. Each return matters more than the last.
               </p>
               <p>Most people don’t stick with it. That’s why nothing changes for them.</p>
             </div>
