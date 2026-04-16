@@ -5,7 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { createBrowserSupabaseClient } from "../../../lib/supabase/client";
 import AuthStatus from "../../components/AuthStatus";
-import DailyPuzzle from "../../components/DailyPuzzle";
+import YesterdayPracticeCheck from "../../components/YesterdayPracticeCheck";
 
 export const dynamic = "force-dynamic";
 
@@ -58,7 +58,9 @@ function getETDate(offsetDays = 0): string {
   return etMidday.toISOString().slice(0, 10);
 }
 
-function resolveAccessTier(profile: Record<string, any> | null | undefined): AccessTier {
+function resolveAccessTier(
+  profile: Record<string, any> | null | undefined
+): AccessTier {
   if (!profile) return "free";
 
   const possibleTier =
@@ -357,7 +359,9 @@ export default function YesterdayPuzzlePage() {
 
           <div className="hero-text">
             <p>Yesterday is still sitting there.</p>
-            <p>You can either ignore it or see if you would have gotten it right.</p>
+            <p>
+              You can either ignore it or see if you would have gotten it right.
+            </p>
             <p>That’s the point of this page.</p>
             <p>
               This is your chance to look back, take the shot, and measure
@@ -411,7 +415,8 @@ export default function YesterdayPuzzlePage() {
                 Yesterday’s Brain Tester
               </div>
               <div>
-                {drop?.free?.puzzle ?? "Yesterday’s puzzle is not available right now."}
+                {drop?.free?.puzzle ??
+                  "Yesterday’s puzzle is not available right now."}
               </div>
             </div>
           </div>
@@ -429,9 +434,10 @@ export default function YesterdayPuzzlePage() {
           </p>
 
           {drop ? (
-            <DailyPuzzle
-              puzzleDate={drop.date}
+            <YesterdayPracticeCheck
               acceptedAnswers={drop.free.acceptedAnswers ?? [drop.free.answer]}
+              correctAnswer={drop.free.answer}
+              explanation={drop.free.explanation}
             />
           ) : (
             <div
@@ -446,7 +452,8 @@ export default function YesterdayPuzzlePage() {
                 lineHeight: 1.5,
               }}
             >
-              Yesterday’s puzzle is not available yet, so answer submission is disabled.
+              Yesterday’s puzzle is not available yet, so answer submission is
+              disabled.
             </div>
           )}
         </section>
