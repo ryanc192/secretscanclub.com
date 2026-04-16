@@ -14,13 +14,16 @@ type DashboardStats = {
   totalCorrect: number;
   joinedAt: string | null;
   plan: DashboardPlan;
+  accuracy: number;
 };
 
 type RecentAttempt = {
   id: string;
   latest_answer_text: string | null;
-  is_correct: boolean;
+  is_correct: boolean | null;
   submitted_at: string | null;
+  attempt_count: number | null;
+  accuracy_value: number | null;
   daily_puzzles: {
     puzzle_date: string;
   }[];
@@ -107,6 +110,7 @@ export default function DashboardPage() {
     totalCorrect: 0,
     joinedAt: null,
     plan: "Free",
+    accuracy: 0,
   });
   const [recentAttempts, setRecentAttempts] = useState<RecentAttempt[]>([]);
   const [error, setError] = useState("");
@@ -136,6 +140,7 @@ export default function DashboardPage() {
         let longestStreak = 0;
         let totalAttempts = 0;
         let totalCorrect = 0;
+        let accuracy = 0;
         let attempts: RecentAttempt[] = [];
         let firstError = "";
 
@@ -160,8 +165,6 @@ export default function DashboardPage() {
           { data: profileData, error: profileError },
           { data: userSubscription, error: subscriptionError },
           { data: recentAttemptsData, error: recentAttemptsError },
-          { count: totalAttemptsCount, error: totalAttemptsError },
-          { count: totalCorrectCount, error: totalCorrectError },
         ] = await Promise.all([
           supabase
             .from("profiles")
@@ -175,22 +178,12 @@ export default function DashboardPage() {
             .maybeSingle(),
           supabase
             .from("puzzle_sessions")
-            .select("id, latest_answer_text, is_correct, submitted_at, daily_puzzles(puzzle_date)")
+            .select(
+              "id, latest_answer_text, is_correct, submitted_at, attempt_count, accuracy_value, daily_puzzles(puzzle_date)"
+            )
             .eq("user_id", user.id)
             .not("submitted_at", "is", null)
-            .order("submitted_at", { ascending: false })
-            .limit(8),
-          supabase
-            .from("puzzle_sessions")
-            .select("*", { count: "exact", head: true })
-            .eq("user_id", user.id)
-            .not("submitted_at", "is", null),
-          supabase
-            .from("puzzle_sessions")
-            .select("*", { count: "exact", head: true })
-            .eq("user_id", user.id)
-            .eq("is_correct", true)
-            .not("submitted_at", "is", null),
+            .order("submitted_at", { ascending: false }),
         ]);
 
         if (profileError) {
@@ -226,23 +219,27 @@ export default function DashboardPage() {
           attempts = (recentAttemptsData as RecentAttempt[]) ?? [];
         }
 
-        if (totalAttemptsError) {
-          if (!firstError) {
-            firstError = `Attempts count failed: ${getErrorMessage(totalAttemptsError)}`;
-          }
-          console.error("Attempts count failed:", totalAttemptsError);
-        } else {
-          totalAttempts = totalAttemptsCount ?? 0;
-        }
+        totalAttempts = attempts.reduce(
+          (sum, attempt) => sum + Number(attempt.attempt_count ?? 0),
+          0
+        );
 
-        if (totalCorrectError) {
-          if (!firstError) {
-            firstError = `Correct count failed: ${getErrorMessage(totalCorrectError)}`;
-          }
-          console.error("Correct count failed:", totalCorrectError);
-        } else {
-          totalCorrect = totalCorrectCount ?? 0;
-        }
+        totalCorrect = attempts.reduce(
+          (sum, attempt) => sum + (attempt.is_correct ? 1 : 0),
+          0
+        );
+
+        accuracy =
+          attempts.length > 0
+            ? Math.round(
+                (attempts.reduce(
+                  (sum, attempt) => sum + Number(attempt.accuracy_value ?? 0),
+                  0
+                ) /
+                  attempts.length) *
+                  100
+              ) / 100
+            : 0;
 
         setStats({
           currentStreak,
@@ -251,9 +248,10 @@ export default function DashboardPage() {
           totalCorrect,
           joinedAt,
           plan,
+          accuracy,
         });
 
-        setRecentAttempts(attempts);
+        setRecentAttempts(attempts.slice(0, 8));
 
         if (firstError) {
           setError(firstError);
@@ -274,11 +272,6 @@ export default function DashboardPage() {
     await supabase.auth.signOut();
     router.replace("/login");
   }
-
-  const accuracy =
-    stats.totalAttempts > 0
-      ? Math.round((stats.totalCorrect / stats.totalAttempts) * 100)
-      : 0;
 
   const joinedText = stats.joinedAt
     ? new Date(stats.joinedAt).toLocaleDateString("en-US", {
@@ -587,8 +580,8 @@ export default function DashboardPage() {
         >
           <StatCard label="Current Streak" value={stats.currentStreak.toString()} />
           <StatCard label="Longest Streak" value={stats.longestStreak.toString()} />
-          <StatCard label="Attempts" value={stats.totalAttempts.toString()} />
-          <StatCard label="Accuracy" value={`${accuracy}%`} />
+          <StatCard label="Total Guesses" value={stats.totalAttempts.toString()} />
+          <StatCard label="Accuracy" value={`${stats.accuracy}%`} />
         </section>
 
         <section
@@ -668,6 +661,17 @@ export default function DashboardPage() {
                       >
                         Answer: {attempt.latest_answer_text || "No answer recorded"}
                       </div>
+                      <div
+                        style={{
+                          fontSize: "13px",
+                          color: "rgba(255,255,255,0.68)",
+                          wordBreak: "break-word",
+                          marginTop: "4px",
+                        }}
+                      >
+                        Guesses used: {Number(attempt.attempt_count ?? 0)} • Accuracy earned:{" "}
+                        {Number(attempt.accuracy_value ?? 0)}%
+                      </div>
                     </div>
 
                     <div
@@ -686,7 +690,7 @@ export default function DashboardPage() {
                           : "1px solid rgba(239,68,68,0.25)",
                       }}
                     >
-                      {attempt.is_correct ? "Correct" : "Incorrect"}
+                      {attempt.is_correct ? "Solved" : "Missed"}
                     </div>
                   </div>
                 ))}
