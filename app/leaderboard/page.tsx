@@ -8,6 +8,7 @@ import AuthStatus from "../components/AuthStatus";
 type LeaderboardRow = {
   rank: number;
   user_id: string;
+  display_name: string | null;
   longest_monthly_streak: number;
   monthly_accuracy: number;
   avg_correct_time_ms: number | null;
@@ -53,9 +54,9 @@ function formatTimeMs(ms: number | null) {
   return `${hours}h ${remainingMinutes}m`;
 }
 
-function getSafeDisplayName(userId?: string | null) {
-  if (userId) return `Player ${userId.slice(0, 6)}`;
-  return "Player";
+function getSafeDisplayName(displayName?: string | null) {
+  if (!displayName || !displayName.trim()) return "Player";
+  return displayName.trim();
 }
 
 export default function LeaderboardPage() {
@@ -167,7 +168,7 @@ export default function LeaderboardPage() {
                         </span>
                       </td>
                       <td className="player-name">
-                        {getSafeDisplayName(player.user_id)}
+                        {getSafeDisplayName(player.display_name)}
                       </td>
                       <td>{player.longest_monthly_streak}</td>
                       <td>{Number(player.monthly_accuracy ?? 0)}%</td>
