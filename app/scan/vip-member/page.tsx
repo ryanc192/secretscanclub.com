@@ -39,6 +39,13 @@ type SessionSummary = {
   accuracy_value: number | null;
 };
 
+type ProtectionRpcResult = {
+  status?: string;
+  used_protector?: boolean;
+  remaining?: number;
+  message?: string;
+} | null;
+
 function loadDrop(date: string): Drop | null {
   try {
     return require(`../../../content/drops/${date}.json`);
@@ -78,13 +85,14 @@ export default function VipMemberScanPage() {
   const [authReady, setAuthReady] = useState(false);
   const [subscriptionTier, setSubscriptionTier] =
     useState<SubscriptionTier>("free");
-
   const [stats, setStats] = useState<MemberStats>({
     currentStreak: 0,
     longestStreak: 0,
     attempts: 0,
     accuracy: 0,
   });
+  const [remainingProtectors, setRemainingProtectors] = useState(0);
+  const [protectionMessage, setProtectionMessage] = useState("");
 
   const today = todayET();
   const monthKey = getMonthKey();
@@ -113,10 +121,18 @@ export default function VipMemberScanPage() {
           return;
         }
 
+        const { data: protectionData } = await supabase.rpc(
+          "apply_streak_protection"
+        );
+
+        const protection = protectionData as ProtectionRpcResult;
+
         const [{ data: profile }, { data: sessionRows }] = await Promise.all([
           supabase
             .from("profiles")
-            .select("current_streak, longest_streak, subscription_tier")
+            .select(
+              "current_streak, longest_streak, subscription_tier, streak_protectors_used, streak_protector_month"
+            )
             .eq("id", user.id)
             .maybeSingle(),
           supabase
@@ -127,6 +143,16 @@ export default function VipMemberScanPage() {
         ]);
 
         if (!isMounted) return;
+
+        const tier = mapSubscriptionTier(profile?.subscription_tier);
+        const monthlyAllowance = tier === "pro" ? 2 : tier === "plus" ? 1 : 0;
+
+        const usedThisMonth =
+          profile?.streak_protector_month === monthKey
+            ? Number(profile?.streak_protectors_used ?? 0)
+            : 0;
+
+        const computedRemaining = Math.max(monthlyAllowance - usedThisMonth, 0);
 
         const rows = (sessionRows as SessionSummary[] | null) ?? [];
         const attempts = rows.reduce(
@@ -145,7 +171,13 @@ export default function VipMemberScanPage() {
               ) / 100
             : 0;
 
-        setSubscriptionTier(mapSubscriptionTier(profile?.subscription_tier));
+        setSubscriptionTier(tier);
+        setRemainingProtectors(
+          typeof protection?.remaining === "number"
+            ? protection.remaining
+            : computedRemaining
+        );
+        setProtectionMessage(protection?.message ?? "");
         setStats({
           currentStreak: profile?.current_streak ?? 0,
           longestStreak: profile?.longest_streak ?? 0,
@@ -173,7 +205,7 @@ export default function VipMemberScanPage() {
       isMounted = false;
       subscription.unsubscribe();
     };
-  }, [router, supabase]);
+  }, [router, supabase, monthKey]);
 
   if (!authReady) {
     return (
@@ -190,19 +222,6 @@ export default function VipMemberScanPage() {
   }
 
   const isVip = subscriptionTier === "pro";
-
-  const monthlyStreakProtectors = 2;
-  const storedUsedCount =
-    typeof window !== "undefined"
-      ? Number(
-          localStorage.getItem(`ssc-streak-protectors-used-${monthKey}`) ?? "0"
-        )
-      : 0;
-
-  const remainingProtectors = Math.max(
-    monthlyStreakProtectors - storedUsedCount,
-    0
-  );
 
   const blurredSectionStyle: CSSProperties = !isVip
     ? {
@@ -250,8 +269,14 @@ export default function VipMemberScanPage() {
             <div className="hero-text">
               <p>VIP members get unlimited guesses.</p>
               <p>Every extra guess lowers the accuracy earned for that puzzle.</p>
-              <p>First try is 100%, second is 50%, third is 33.33%, and it keeps dropping from there.</p>
-              <p>You can keep firing until you land it — but the scoreboard remembers how long it took.</p>
+              <p>
+                First try is 100%, second is 50%, third is 33.33%, and it keeps
+                dropping from there.
+              </p>
+              <p>
+                You can keep firing until you land it — but the scoreboard
+                remembers how long it took.
+              </p>
             </div>
 
             <div className="meta-row">
@@ -272,7 +297,8 @@ export default function VipMemberScanPage() {
 
           <section className="card-light" style={{ marginTop: 20 }}>
             <div className="pill-light">
-              Today’s Puzzle: Unlimited Attempts, Accuracy Drops With Every Guess
+              Today’s Puzzle: Unlimited Attempts, Accuracy Drops With Every
+              Guess
             </div>
 
             <h2 className="section-title">
@@ -298,13 +324,18 @@ export default function VipMemberScanPage() {
                 >
                   Today’s Brain Tester
                 </div>
-                <div>{drop?.free?.puzzle ?? "Come back soon for today’s puzzle."}</div>
+                <div>
+                  {drop?.free?.puzzle ?? "Come back soon for today’s puzzle."}
+                </div>
               </div>
             </div>
           </section>
         </div>
 
-        <section className="card-light" style={{ marginTop: 20, position: "relative" }}>
+        <section
+          className="card-light"
+          style={{ marginTop: 20, position: "relative" }}
+        >
           <div className="pill-light">Bonus Hint</div>
 
           <h2 className="section-title">VIP Bonus Hint</h2>
@@ -405,8 +436,8 @@ export default function VipMemberScanPage() {
 
             <p className="section-text-dark">
               VIP members get unlimited attempts. Every extra guess lowers the
-              accuracy earned for that puzzle, so the fastest solves still rise to
-              the top.
+              accuracy earned for that puzzle, so the fastest solves still rise
+              to the top.
             </p>
 
             {drop ? (
@@ -429,7 +460,8 @@ export default function VipMemberScanPage() {
                   lineHeight: 1.5,
                 }}
               >
-                Today’s puzzle is not available yet, so answer submission is disabled.
+                Today’s puzzle is not available yet, so answer submission is
+                disabled.
               </div>
             )}
           </section>
@@ -456,8 +488,9 @@ export default function VipMemberScanPage() {
               </h2>
               <p className="section-text-dark" style={{ maxWidth: "none" }}>
                 VIP Members receive <strong>2 streak protectors per month</strong>.
-                Use them carefully — once both are used, you do not get another
-                one until next month.
+                If you miss exactly one day, your protector will be used
+                automatically to save your streak. Once both are used, you do
+                not get another one until next month.
               </p>
             </div>
 
@@ -500,6 +533,8 @@ export default function VipMemberScanPage() {
             <div style={{ fontSize: 16, color: "#ffffff", lineHeight: 1.7 }}>
               {!isVip ? (
                 <>VIP members get 2 streak protectors each month to protect their streak.</>
+              ) : protectionMessage ? (
+                <>{protectionMessage}</>
               ) : remainingProtectors > 0 ? (
                 <>
                   You still have <strong>{remainingProtectors}</strong> streak
@@ -510,6 +545,21 @@ export default function VipMemberScanPage() {
                 <>You have already used both streak protectors for this month.</>
               )}
             </div>
+
+            {isVip && (
+              <div
+                style={{
+                  marginTop: 14,
+                  fontSize: 14,
+                  lineHeight: 1.6,
+                  color: "rgba(255,255,255,0.78)",
+                }}
+              >
+                Miss one day and the system will automatically spend a protector
+                for you if one is available. Miss more than one day and the
+                streak resets.
+              </div>
+            )}
 
             {!isVip && (
               <div style={{ marginTop: 16 }}>
