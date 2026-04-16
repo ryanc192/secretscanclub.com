@@ -5,20 +5,14 @@ import { useEffect, useMemo, useState } from "react";
 import { createBrowserSupabaseClient } from "../../lib/supabase/client";
 import AuthStatus from "../components/AuthStatus";
 
-type AttemptRow = {
-  user_id: string | null;
-  is_correct: boolean | null;
-  submitted_at: string | null;
-};
-
 type LeaderboardRow = {
   rank: number;
   user_id: string;
-  display_name: string;
-  points: number;
+  longest_monthly_streak: number;
+  monthly_accuracy: number;
+  avg_correct_time_ms: number | null;
   correct_answers: number;
-  total_attempts: number;
-  current_streak: number;
+  puzzles_played: number;
   last_activity: string | null;
 };
 
@@ -35,6 +29,28 @@ function formatDate(dateString: string | null) {
   } catch {
     return "—";
   }
+}
+
+function formatTimeMs(ms: number | null) {
+  if (ms === null || ms === undefined) return "—";
+
+  const totalSeconds = Math.round(ms / 1000);
+
+  if (totalSeconds < 60) {
+    return `${totalSeconds}s`;
+  }
+
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+
+  if (minutes < 60) {
+    return `${minutes}m ${seconds}s`;
+  }
+
+  const hours = Math.floor(minutes / 60);
+  const remainingMinutes = minutes % 60;
+
+  return `${hours}h ${remainingMinutes}m`;
 }
 
 function getSafeDisplayName(userId?: string | null) {
@@ -54,83 +70,18 @@ export default function LeaderboardPage() {
     async function loadLeaderboardPage() {
       setLoading(true);
 
-      const { data: attemptRows, error } = await supabase
-        .from("puzzle_attempts")
-        .select("user_id, is_correct, submitted_at")
-        .not("user_id", "is", null)
-        .order("submitted_at", { ascending: true });
+      const { data, error } = await supabase
+        .from("monthly_leaderboard")
+        .select("*")
+        .order("rank", { ascending: true });
 
       if (error) {
-        console.error("Leaderboard attempts error:", error);
+        console.error("Monthly leaderboard error:", error);
       }
-
-      const attempts = ((attemptRows as AttemptRow[] | null) || []).filter(
-        (row) => row.user_id
-      );
-
-      const grouped = new Map<
-        string,
-        {
-          user_id: string;
-          display_name: string;
-          points: number;
-          correct_answers: number;
-          total_attempts: number;
-          current_streak: number;
-          last_activity: string | null;
-        }
-      >();
-
-      for (const attempt of attempts) {
-        const userId = attempt.user_id as string;
-
-        const current = grouped.get(userId) || {
-          user_id: userId,
-          display_name: getSafeDisplayName(userId),
-          points: 0,
-          correct_answers: 0,
-          total_attempts: 0,
-          current_streak: 0,
-          last_activity: null,
-        };
-
-        current.total_attempts += 1;
-        current.last_activity = attempt.submitted_at || current.last_activity;
-
-        if (attempt.is_correct) {
-          current.correct_answers += 1;
-          current.points += 10;
-          current.current_streak += 1;
-        } else {
-          current.current_streak = 0;
-        }
-
-        grouped.set(userId, current);
-      }
-
-      const ranked: LeaderboardRow[] = Array.from(grouped.values())
-        .sort((a, b) => {
-          if (b.points !== a.points) return b.points - a.points;
-          if (b.correct_answers !== a.correct_answers) {
-            return b.correct_answers - a.correct_answers;
-          }
-          if (b.current_streak !== a.current_streak) {
-            return b.current_streak - a.current_streak;
-          }
-
-          const aTime = a.last_activity ? new Date(a.last_activity).getTime() : 0;
-          const bTime = b.last_activity ? new Date(b.last_activity).getTime() : 0;
-
-          return bTime - aTime;
-        })
-        .map((row, index) => ({
-          ...row,
-          rank: index + 1,
-        }));
 
       if (!active) return;
 
-      setLeaderboard(ranked);
+      setLeaderboard((data as LeaderboardRow[] | null) ?? []);
       setLoading(false);
     }
 
@@ -173,7 +124,9 @@ export default function LeaderboardPage() {
               <div className="panel-label">Top Players</div>
               <h1>Monthly Leaderboard</h1>
               <p className="panel-subcopy">
-                This board shows overall player performance across the current month.
+                Rankings are based on longest monthly streak first, then highest
+                answer accuracy, with fastest average correct solve time used as
+                the next tie breaker.
               </p>
             </div>
             <div className="leaderboard-badge">Live rankings</div>
@@ -193,10 +146,11 @@ export default function LeaderboardPage() {
                   <tr>
                     <th>Rank</th>
                     <th>Player</th>
-                    <th>Points</th>
+                    <th>Longest Streak</th>
+                    <th>Accuracy</th>
+                    <th>Avg Solve Time</th>
                     <th>Correct</th>
-                    <th>Attempts</th>
-                    <th>Streak</th>
+                    <th>Puzzles Played</th>
                     <th>Last Active</th>
                   </tr>
                 </thead>
@@ -212,11 +166,14 @@ export default function LeaderboardPage() {
                           #{player.rank}
                         </span>
                       </td>
-                      <td className="player-name">{player.display_name}</td>
-                      <td>{player.points}</td>
+                      <td className="player-name">
+                        {getSafeDisplayName(player.user_id)}
+                      </td>
+                      <td>{player.longest_monthly_streak}</td>
+                      <td>{Number(player.monthly_accuracy ?? 0)}%</td>
+                      <td>{formatTimeMs(player.avg_correct_time_ms)}</td>
                       <td>{player.correct_answers}</td>
-                      <td>{player.total_attempts}</td>
-                      <td>{player.current_streak}</td>
+                      <td>{player.puzzles_played}</td>
                       <td>{formatDate(player.last_activity)}</td>
                     </tr>
                   ))}
@@ -316,6 +273,7 @@ export default function LeaderboardPage() {
           color: rgba(255, 255, 255, 0.84);
           line-height: 1.7;
           font-size: 1.05rem;
+          max-width: 820px;
         }
 
         .leaderboard-badge {
@@ -334,7 +292,7 @@ export default function LeaderboardPage() {
 
         .leaderboard-table {
           width: 100%;
-          min-width: 820px;
+          min-width: 980px;
           border-collapse: collapse;
         }
 
