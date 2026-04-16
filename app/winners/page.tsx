@@ -13,47 +13,9 @@ type WinnerRecord = {
   membershipTier: string;
   prizeAmount: string;
   sortOrder: number;
-  isPlaceholder?: boolean;
 };
 
 const DISPLAY_MONTH_COUNT = 2;
-
-const DEFAULT_CATEGORIES = [
-  { key: "first_place", label: "1st Place", prize: "$100", sortOrder: 1 },
-  { key: "second_place", label: "2nd Place", prize: "$50", sortOrder: 2 },
-  { key: "third_place", label: "3rd Place", prize: "$20", sortOrder: 3 },
-  { key: "random_1", label: "Random Winner 1", prize: "$10", sortOrder: 4 },
-  { key: "random_2", label: "Random Winner 2", prize: "$10", sortOrder: 5 },
-  { key: "random_3", label: "Random Winner 3", prize: "$10", sortOrder: 6 },
-  { key: "random_4", label: "Random Winner 4", prize: "$10", sortOrder: 7 },
-  { key: "random_5", label: "Random Winner 5", prize: "$10", sortOrder: 8 },
-];
-
-const PLACEHOLDER_WINNERS_BY_MONTH_OFFSET: Record<
-  number,
-  { winnerName: string; membershipTier: string }[]
-> = {
-  0: [
-    { winnerName: "Avery M.", membershipTier: "VIP Member" },
-    { winnerName: "Jordan T.", membershipTier: "Club Member" },
-    { winnerName: "Cameron L.", membershipTier: "Member" },
-    { winnerName: "Riley P.", membershipTier: "VIP Member" },
-    { winnerName: "Morgan S.", membershipTier: "Club Member" },
-    { winnerName: "Taylor B.", membershipTier: "Member" },
-    { winnerName: "Parker H.", membershipTier: "Club Member" },
-    { winnerName: "Skyler D.", membershipTier: "VIP Member" },
-  ],
-  1: [
-    { winnerName: "Casey J.", membershipTier: "Club Member" },
-    { winnerName: "Dakota R.", membershipTier: "VIP Member" },
-    { winnerName: "Quinn F.", membershipTier: "Member" },
-    { winnerName: "Reese K.", membershipTier: "Club Member" },
-    { winnerName: "Logan N.", membershipTier: "VIP Member" },
-    { winnerName: "Jamie W.", membershipTier: "Member" },
-    { winnerName: "Emerson C.", membershipTier: "Club Member" },
-    { winnerName: "Hayden V.", membershipTier: "VIP Member" },
-  ],
-};
 
 function getMonthStart(date: Date) {
   return new Date(date.getFullYear(), date.getMonth(), 1);
@@ -78,12 +40,15 @@ function normalizeCategory(value: unknown) {
   const raw = String(value ?? "").trim().toLowerCase();
 
   if (!raw) return "";
-  if (raw === "1st" || raw === "1st place" || raw === "first" || raw === "first_place")
+  if (raw === "1st" || raw === "1st place" || raw === "first" || raw === "first_place") {
     return "first_place";
-  if (raw === "2nd" || raw === "2nd place" || raw === "second" || raw === "second_place")
+  }
+  if (raw === "2nd" || raw === "2nd place" || raw === "second" || raw === "second_place") {
     return "second_place";
-  if (raw === "3rd" || raw === "3rd place" || raw === "third" || raw === "third_place")
+  }
+  if (raw === "3rd" || raw === "3rd place" || raw === "third" || raw === "third_place") {
     return "third_place";
+  }
 
   if (raw.includes("random")) {
     const match = raw.match(/(\d+)/);
@@ -94,41 +59,24 @@ function normalizeCategory(value: unknown) {
 }
 
 function categoryLabelFromKey(key: string) {
-  const found = DEFAULT_CATEGORIES.find((item) => item.key === key);
-  if (found) return found.label;
-
   return key
     .replace(/_/g, " ")
-    .replace(/\b\w/g, (c) => c.toUpperCase());
+    .replace(/\b\w/g, (c) => c.toUpperCase())
+    .replace("First Place", "1st Place")
+    .replace("Second Place", "2nd Place")
+    .replace("Third Place", "3rd Place");
 }
 
 function categorySortOrder(key: string) {
-  const found = DEFAULT_CATEGORIES.find((item) => item.key === key);
-  if (found) return found.sortOrder;
+  if (key === "first_place") return 1;
+  if (key === "second_place") return 2;
+  if (key === "third_place") return 3;
+  if (key === "random_1") return 4;
+  if (key === "random_2") return 5;
+  if (key === "random_3") return 6;
+  if (key === "random_4") return 7;
+  if (key === "random_5") return 8;
   return 999;
-}
-
-function defaultPrizeForCategory(key: string) {
-  const found = DEFAULT_CATEGORIES.find((item) => item.key === key);
-  return found?.prize ?? "?";
-}
-
-function buildPlaceholderWinners(monthKey: string, monthLabel: string, monthOffset: number) {
-  const monthSet =
-    PLACEHOLDER_WINNERS_BY_MONTH_OFFSET[monthOffset] ??
-    PLACEHOLDER_WINNERS_BY_MONTH_OFFSET[0];
-
-  return DEFAULT_CATEGORIES.map((category, index) => ({
-    id: `placeholder-${monthKey}-${category.key}`,
-    monthKey,
-    monthLabel,
-    category: category.label,
-    winnerName: monthSet[index]?.winnerName ?? "TBD Winner",
-    membershipTier: monthSet[index]?.membershipTier ?? "TBD",
-    prizeAmount: category.prize,
-    sortOrder: category.sortOrder,
-    isPlaceholder: true,
-  }));
 }
 
 export default function WinnersPage() {
@@ -222,7 +170,7 @@ export default function WinnersPage() {
           const prizeAmount =
             row.prize_amount ??
             row.prize ??
-            defaultPrizeForCategory(categoryKey);
+            "?";
 
           nextMap[monthKey].push({
             id: String(row.id ?? `${monthKey}-${categoryKey}-${winnerName}`),
@@ -239,44 +187,20 @@ export default function WinnersPage() {
                   row.position ??
                   categorySortOrder(categoryKey)
               ) || categorySortOrder(categoryKey),
-            isPlaceholder: false,
           });
         }
 
         for (const month of monthsToShow) {
-          const existingRows = nextMap[month.monthKey] ?? [];
-
-          if (existingRows.length > 0) {
-            nextMap[month.monthKey] = existingRows.sort(
-              (a, b) => a.sortOrder - b.sortOrder
-            );
-          } else {
-            nextMap[month.monthKey] = buildPlaceholderWinners(
-              month.monthKey,
-              month.monthLabel.replace(/^This Month — /, ""),
-              month.monthOffset
-            );
-          }
+          nextMap[month.monthKey] = (nextMap[month.monthKey] ?? []).sort(
+            (a, b) => a.sortOrder - b.sortOrder
+          );
         }
 
         setWinnerMap(nextMap);
       } catch (error) {
         console.error("Failed to load winners:", error);
-
-        const fallbackMap: Record<string, WinnerRecord[]> = {};
-        for (const month of monthsToShow) {
-          fallbackMap[month.monthKey] = buildPlaceholderWinners(
-            month.monthKey,
-            month.monthLabel.replace(/^This Month — /, ""),
-            month.monthOffset
-          );
-        }
-
         if (mounted) {
-          setWinnerMap(fallbackMap);
-          setErrorMessage(
-            "Could not load winners from Supabase right now. Showing placeholder winners for layout preview."
-          );
+          setErrorMessage("Could not load winners from Supabase right now.");
         }
       } finally {
         if (mounted) setLoading(false);
@@ -325,9 +249,8 @@ export default function WinnersPage() {
               See this month’s winners and the recent winner history.
             </h1>
             <p style={styles.heroBody}>
-              This page pulls in winners from Supabase when they exist. Until then,
-              it shows styled placeholder winners so the page still looks full and
-              polished while you get everything set up.
+              This page now pulls winner records directly from Supabase. As real winners
+              are added, they appear automatically in the monthly archive.
             </p>
           </div>
 
@@ -336,7 +259,7 @@ export default function WinnersPage() {
             <div style={styles.heroCardList}>
               <div style={styles.heroListItem}>This month’s winners stay at the top</div>
               <div style={styles.heroListItem}>Older months shift down automatically</div>
-              <div style={styles.heroListItem}>Real winners override placeholders instantly</div>
+              <div style={styles.heroListItem}>Winner cards are fully driven by Supabase</div>
               <div style={styles.heroListItem}>Built to expand to 4 months whenever you want</div>
             </div>
           </div>
@@ -366,30 +289,35 @@ export default function WinnersPage() {
                     </div>
                   </div>
 
-                  <div style={styles.winnerGrid}>
-                    {rows.map((item, index) => (
-                      <div
-                        key={item.id}
-                        style={styles.winnerRow}
-                        className="winner-row"
-                      >
-                        <div style={styles.winnerLeft} className="winner-left">
-                          <div style={styles.rankBadge}>{index + 1}</div>
-                          <div style={{ minWidth: 0 }}>
-                            <div style={styles.winnerCategory}>{item.category}</div>
-                            <div style={styles.winnerMeta} className="winner-meta">
-                              Winner: {item.winnerName} • Tier: {item.membershipTier}
-                              {item.isPlaceholder ? " • Placeholder" : ""}
+                  {rows.length === 0 ? (
+                    <div style={styles.emptyMonthCard}>
+                      No winners have been added for this month yet.
+                    </div>
+                  ) : (
+                    <div style={styles.winnerGrid}>
+                      {rows.map((item, index) => (
+                        <div
+                          key={item.id}
+                          style={styles.winnerRow}
+                          className="winner-row"
+                        >
+                          <div style={styles.winnerLeft} className="winner-left">
+                            <div style={styles.rankBadge}>{index + 1}</div>
+                            <div style={{ minWidth: 0 }}>
+                              <div style={styles.winnerCategory}>{item.category}</div>
+                              <div style={styles.winnerMeta} className="winner-meta">
+                                Winner: {item.winnerName} • Tier: {item.membershipTier}
+                              </div>
                             </div>
                           </div>
-                        </div>
 
-                        <div style={styles.prizePill} className="prize-pill">
-                          {item.prizeAmount}
+                          <div style={styles.prizePill} className="prize-pill">
+                            {item.prizeAmount}
+                          </div>
                         </div>
-                      </div>
-                    ))}
-                  </div>
+                      ))}
+                    </div>
+                  )}
                 </article>
               );
             })}
@@ -709,6 +637,15 @@ const styles: Record<string, React.CSSProperties> = {
     margin: 0,
     fontSize: 28,
     fontWeight: 900,
+  },
+  emptyMonthCard: {
+    padding: "18px",
+    borderRadius: 18,
+    background: "rgba(255,255,255,0.04)",
+    border: "1px solid rgba(255,255,255,0.07)",
+    color: "rgba(255,255,255,0.8)",
+    lineHeight: 1.6,
+    fontSize: 15,
   },
   winnerGrid: {
     display: "grid",
