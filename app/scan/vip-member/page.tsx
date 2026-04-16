@@ -34,6 +34,11 @@ type MemberStats = {
 
 type SubscriptionTier = "free" | "plus" | "pro";
 
+type SessionSummary = {
+  attempt_count: number | null;
+  accuracy_value: number | null;
+};
+
 function loadDrop(date: string): Drop | null {
   try {
     return require(`../../../content/drops/${date}.json`);
@@ -108,31 +113,37 @@ export default function VipMemberScanPage() {
           return;
         }
 
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("current_streak, longest_streak, subscription_tier")
-          .eq("id", user.id)
-          .maybeSingle();
-
-        const { count: attemptsCount } = await supabase
-          .from("puzzle_sessions")
-          .select("*", { count: "exact", head: true })
-          .eq("user_id", user.id)
-          .not("submitted_at", "is", null);
-
-        const { count: correctCount } = await supabase
-          .from("puzzle_sessions")
-          .select("*", { count: "exact", head: true })
-          .eq("user_id", user.id)
-          .eq("is_correct", true)
-          .not("submitted_at", "is", null);
+        const [{ data: profile }, { data: sessionRows }] = await Promise.all([
+          supabase
+            .from("profiles")
+            .select("current_streak, longest_streak, subscription_tier")
+            .eq("id", user.id)
+            .maybeSingle(),
+          supabase
+            .from("puzzle_sessions")
+            .select("attempt_count, accuracy_value")
+            .eq("user_id", user.id)
+            .not("submitted_at", "is", null),
+        ]);
 
         if (!isMounted) return;
 
-        const attempts = attemptsCount ?? 0;
-        const correct = correctCount ?? 0;
+        const rows = (sessionRows as SessionSummary[] | null) ?? [];
+        const attempts = rows.reduce(
+          (sum, row) => sum + Number(row.attempt_count ?? 0),
+          0
+        );
         const accuracy =
-          attempts > 0 ? Math.round((correct / attempts) * 100) : 0;
+          rows.length > 0
+            ? Math.round(
+                (rows.reduce(
+                  (sum, row) => sum + Number(row.accuracy_value ?? 0),
+                  0
+                ) /
+                  rows.length) *
+                  100
+              ) / 100
+            : 0;
 
         setSubscriptionTier(mapSubscriptionTier(profile?.subscription_tier));
         setStats({
@@ -237,14 +248,10 @@ export default function VipMemberScanPage() {
             <h1 className="hero-title">Keep your streak moving.</h1>
 
             <div className="hero-text">
-              <p>Let’s be real — consistency breaks most people.</p>
-              <p>Not because it’s hard… but because they stop showing up.</p>
-              <p>So here’s the test:</p>
-              <p>
-                Solve today’s puzzle. Keep your streak alive. Then take another
-                shot — bonus challenge, locked content, whatever’s below.
-              </p>
-              <p>Or prove you’re no different from the rest of them.</p>
+              <p>VIP members get unlimited guesses.</p>
+              <p>Every extra guess lowers the accuracy earned for that puzzle.</p>
+              <p>First try is 100%, second is 50%, third is 33.33%, and it keeps dropping from there.</p>
+              <p>You can keep firing until you land it — but the scoreboard remembers how long it took.</p>
             </div>
 
             <div className="meta-row">
@@ -255,7 +262,7 @@ export default function VipMemberScanPage() {
                 <strong>Best Streak:</strong> {stats.longestStreak}
               </div>
               <div className="meta-box">
-                <strong>Total Plays:</strong> {stats.attempts}
+                <strong>Total Guesses:</strong> {stats.attempts}
               </div>
               <div className="meta-box">
                 <strong>Accuracy:</strong> {stats.accuracy}%
@@ -265,7 +272,7 @@ export default function VipMemberScanPage() {
 
           <section className="card-light" style={{ marginTop: 20 }}>
             <div className="pill-light">
-              Today’s Puzzle: You Get One Shot and One Shot Only
+              Today’s Puzzle: Unlimited Attempts, Accuracy Drops With Every Guess
             </div>
 
             <h2 className="section-title">
@@ -274,7 +281,7 @@ export default function VipMemberScanPage() {
 
             <p className="section-text-light">
               {drop
-                ? "Today’s challenge is live. Solve it, protect your streak, and keep your momentum going before tomorrow’s drop resets the pressure. VIP members can keep firing until they land it — but only the first three attempts count toward accuracy."
+                ? "Today’s challenge is live. VIP members can keep guessing until they solve it, but every extra guess lowers the accuracy earned for that puzzle."
                 : "Today’s puzzle file has not been added yet. Come back soon."}
             </p>
 
@@ -397,10 +404,9 @@ export default function VipMemberScanPage() {
             </h2>
 
             <p className="section-text-dark">
-              Lock in your answer now. Every correct play strengthens your stats,
-              extends your streak, and keeps you moving toward a stronger member
-              profile. VIP members get unlimited attempts, but only the first three
-              tries for each day count toward accuracy.
+              VIP members get unlimited attempts. Every extra guess lowers the
+              accuracy earned for that puzzle, so the fastest solves still rise to
+              the top.
             </p>
 
             {drop ? (
@@ -408,6 +414,7 @@ export default function VipMemberScanPage() {
                 puzzleDate={drop.date}
                 acceptedAnswers={drop.free.acceptedAnswers ?? [drop.free.answer]}
                 explanation={drop.free.explanation ?? ""}
+                subscriptionTier={subscriptionTier}
               />
             ) : (
               <div
@@ -573,7 +580,7 @@ export default function VipMemberScanPage() {
               {[
                 `Current streak: ${stats.currentStreak}`,
                 `Best streak: ${stats.longestStreak}`,
-                `Total puzzle plays: ${stats.attempts}`,
+                `Total guesses: ${stats.attempts}`,
                 `Accuracy: ${stats.accuracy}%`,
                 "Come back tomorrow to protect your streak",
               ].map((item) => (
