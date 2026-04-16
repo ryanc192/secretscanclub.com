@@ -47,6 +47,7 @@ function SignupForm() {
 
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
+  const [username, setUsername] = useState("");
   const [email, setEmail] = useState(emailFromQuery);
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -56,12 +57,24 @@ function SignupForm() {
   async function handleSignup(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
 
-    if (!firstName.trim() || !lastName.trim()) {
-      setMessage("Please enter your first and last name.");
+    const cleanedFirstName = firstName.trim();
+    const cleanedLastName = lastName.trim();
+    const cleanedUsername = username.trim().toLowerCase();
+    const cleanedEmail = email.trim().toLowerCase();
+
+    if (!cleanedFirstName || !cleanedLastName || !cleanedUsername) {
+      setMessage("Please enter your first name, last name, and username.");
       return;
     }
 
-    if (!email.trim() || !password.trim()) {
+    if (!/^[a-z0-9_]{3,20}$/.test(cleanedUsername)) {
+      setMessage(
+        "Username must be 3–20 characters and can only contain lowercase letters, numbers, and underscores."
+      );
+      return;
+    }
+
+    if (!cleanedEmail || !password.trim()) {
       setMessage("Please enter your email and password.");
       return;
     }
@@ -82,15 +95,32 @@ function SignupForm() {
     try {
       const supabase = createBrowserSupabaseClient();
 
+      const { data: existingProfile, error: usernameCheckError } = await supabase
+        .from("profiles")
+        .select("id")
+        .ilike("username", cleanedUsername)
+        .maybeSingle();
+
+      if (usernameCheckError) {
+        console.error("username check error:", usernameCheckError);
+      }
+
+      if (existingProfile) {
+        setMessage("That username is already taken. Please choose another one.");
+        setLoading(false);
+        return;
+      }
+
       const { data, error } = await supabase.auth.signUp({
-        email: email.trim().toLowerCase(),
+        email: cleanedEmail,
         password,
         options: {
           data: {
-            first_name: firstName.trim(),
-            last_name: lastName.trim(),
-            full_name: `${firstName.trim()} ${lastName.trim()}`,
-            name: firstName.trim(),
+            first_name: cleanedFirstName,
+            last_name: cleanedLastName,
+            full_name: `${cleanedFirstName} ${cleanedLastName}`,
+            name: cleanedFirstName,
+            username: cleanedUsername,
           },
         },
       });
@@ -101,6 +131,11 @@ function SignupForm() {
       if (error) {
         if (error.message.toLowerCase().includes("rate limit")) {
           setMessage("Too many signup attempts. Please wait a few minutes and try again.");
+          return;
+        }
+
+        if (error.message.toLowerCase().includes("user already registered")) {
+          setMessage("An account with this email already exists.");
           return;
         }
 
@@ -129,8 +164,9 @@ function SignupForm() {
           },
           body: JSON.stringify({
             guestToken,
-            firstName: firstName.trim(),
-            lastName: lastName.trim(),
+            firstName: cleanedFirstName,
+            lastName: cleanedLastName,
+            username: cleanedUsername,
           }),
         });
 
@@ -189,6 +225,17 @@ function SignupForm() {
           placeholder="Last name"
           value={lastName}
           onChange={(e) => setLastName(e.target.value)}
+        />
+
+        <input
+          type="text"
+          className="email-input"
+          placeholder="Username"
+          value={username}
+          onChange={(e) => setUsername(e.target.value)}
+          autoCapitalize="none"
+          autoCorrect="off"
+          spellCheck={false}
         />
 
         <input
