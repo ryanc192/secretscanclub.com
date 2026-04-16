@@ -34,6 +34,11 @@ type MemberStats = {
 
 type SubscriptionTier = "free" | "plus" | "pro";
 
+type SessionSummary = {
+  attempt_count: number | null;
+  accuracy_value: number | null;
+};
+
 function loadDrop(date: string): Drop | null {
   try {
     return require(`../../../content/drops/${date}.json`);
@@ -107,31 +112,37 @@ export default function ClubMemberScanPage() {
           return;
         }
 
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("current_streak, longest_streak, subscription_tier")
-          .eq("id", user.id)
-          .maybeSingle();
-
-        const { count: attemptsCount } = await supabase
-          .from("puzzle_sessions")
-          .select("*", { count: "exact", head: true })
-          .eq("user_id", user.id)
-          .not("submitted_at", "is", null);
-
-        const { count: correctCount } = await supabase
-          .from("puzzle_sessions")
-          .select("*", { count: "exact", head: true })
-          .eq("user_id", user.id)
-          .eq("is_correct", true)
-          .not("submitted_at", "is", null);
+        const [{ data: profile }, { data: sessionRows }] = await Promise.all([
+          supabase
+            .from("profiles")
+            .select("current_streak, longest_streak, subscription_tier")
+            .eq("id", user.id)
+            .maybeSingle(),
+          supabase
+            .from("puzzle_sessions")
+            .select("attempt_count, accuracy_value")
+            .eq("user_id", user.id)
+            .not("submitted_at", "is", null),
+        ]);
 
         if (!isMounted) return;
 
-        const attempts = attemptsCount ?? 0;
-        const correct = correctCount ?? 0;
+        const rows = (sessionRows as SessionSummary[] | null) ?? [];
+        const attempts = rows.reduce(
+          (sum, row) => sum + Number(row.attempt_count ?? 0),
+          0
+        );
         const accuracy =
-          attempts > 0 ? Math.round((correct / attempts) * 100) : 0;
+          rows.length > 0
+            ? Math.round(
+                (rows.reduce(
+                  (sum, row) => sum + Number(row.accuracy_value ?? 0),
+                  0
+                ) /
+                  rows.length) *
+                  100
+              ) / 100
+            : 0;
 
         setSubscriptionTier(mapSubscriptionTier(profile?.subscription_tier));
         setStats({
@@ -237,14 +248,10 @@ export default function ClubMemberScanPage() {
             <h1 className="hero-title">Keep your streak moving.</h1>
 
             <div className="hero-text">
-              <p>Let’s be real — consistency breaks most people.</p>
-              <p>Not because it’s hard… but because they stop showing up.</p>
-              <p>So here’s the test:</p>
-              <p>
-                Solve today’s puzzle. Keep your streak alive. Then take another
-                shot — bonus challenge, locked content, whatever’s below.
-              </p>
-              <p>Or prove you’re no different from the rest of them.</p>
+              <p>Club members get two shots at today’s riddle.</p>
+              <p>Hit it on the first guess and you keep 100% accuracy.</p>
+              <p>Need the second try and that puzzle scores 50% accuracy.</p>
+              <p>Miss both, and today’s accuracy for that puzzle is 0%.</p>
             </div>
 
             <div className="meta-row">
@@ -255,7 +262,7 @@ export default function ClubMemberScanPage() {
                 <strong>Best Streak:</strong> {stats.longestStreak}
               </div>
               <div className="meta-box">
-                <strong>Total Plays:</strong> {stats.attempts}
+                <strong>Total Guesses:</strong> {stats.attempts}
               </div>
               <div className="meta-box">
                 <strong>Accuracy:</strong> {stats.accuracy}%
@@ -265,7 +272,7 @@ export default function ClubMemberScanPage() {
 
           <section className="card-light" style={{ marginTop: 20 }}>
             <div className="pill-light">
-              Today’s Puzzle: You Get One Shot and One Shot Only
+              Today’s Puzzle: Two Chances to Land It
             </div>
 
             <h2 className="section-title">
@@ -274,7 +281,7 @@ export default function ClubMemberScanPage() {
 
             <p className="section-text-light">
               {drop
-                ? "Today’s challenge is live. Solve it, protect your streak, and keep your momentum going before tomorrow’s drop resets the pressure. And remember, don't mess up. You only get one try."
+                ? "Today’s challenge is live. Club members get two attempts. Solve it on the first try for 100% accuracy, or use your second shot and earn 50% if you land it there."
                 : "Today’s puzzle file has not been added yet. Come back soon."}
             </p>
 
@@ -396,9 +403,9 @@ export default function ClubMemberScanPage() {
             </h2>
 
             <p className="section-text-dark">
-              Lock in your answer now. Every correct play strengthens your stats,
-              extends your streak, and keeps you moving toward a stronger member
-              profile.
+              Club members get two attempts on each daily puzzle. First try earns
+              full accuracy. Second try earns 50%. Miss both and the puzzle scores
+              0% for accuracy.
             </p>
 
             {drop ? (
@@ -406,6 +413,7 @@ export default function ClubMemberScanPage() {
                 puzzleDate={drop.date}
                 acceptedAnswers={drop.free.acceptedAnswers ?? [drop.free.answer]}
                 explanation={drop.free.explanation ?? ""}
+                subscriptionTier={subscriptionTier}
               />
             ) : (
               <div
@@ -571,7 +579,7 @@ export default function ClubMemberScanPage() {
               {[
                 `Current streak: ${stats.currentStreak}`,
                 `Best streak: ${stats.longestStreak}`,
-                `Total puzzle plays: ${stats.attempts}`,
+                `Total guesses: ${stats.attempts}`,
                 `Accuracy: ${stats.accuracy}%`,
                 "Come back tomorrow to protect your streak",
               ].map((item) => (
