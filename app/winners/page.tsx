@@ -1,3 +1,10 @@
+Replace **`app/winners/page.tsx`** with this full file. It will:
+
+* pull real winner records from `monthly_winners`
+* show recent months
+* automatically fall back to fake placeholder winners when there is no data yet
+
+```tsx
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
@@ -13,9 +20,10 @@ type WinnerRecord = {
   membershipTier: string;
   prizeAmount: string;
   sortOrder: number;
+  isPlaceholder?: boolean;
 };
 
-const DISPLAY_MONTH_COUNT = 2; // change to 4 later when you want this month + previous 3 months
+const DISPLAY_MONTH_COUNT = 2;
 
 const DEFAULT_CATEGORIES = [
   { key: "first_place", label: "1st Place", prize: "$100", sortOrder: 1 },
@@ -27,6 +35,32 @@ const DEFAULT_CATEGORIES = [
   { key: "random_4", label: "Random Winner 4", prize: "$10", sortOrder: 7 },
   { key: "random_5", label: "Random Winner 5", prize: "$10", sortOrder: 8 },
 ];
+
+const PLACEHOLDER_WINNERS_BY_MONTH_OFFSET: Record<
+  number,
+  { winnerName: string; membershipTier: string }[]
+> = {
+  0: [
+    { winnerName: "Avery M.", membershipTier: "VIP Member" },
+    { winnerName: "Jordan T.", membershipTier: "Club Member" },
+    { winnerName: "Cameron L.", membershipTier: "Member" },
+    { winnerName: "Riley P.", membershipTier: "VIP Member" },
+    { winnerName: "Morgan S.", membershipTier: "Club Member" },
+    { winnerName: "Taylor B.", membershipTier: "Member" },
+    { winnerName: "Parker H.", membershipTier: "Club Member" },
+    { winnerName: "Skyler D.", membershipTier: "VIP Member" },
+  ],
+  1: [
+    { winnerName: "Casey J.", membershipTier: "Club Member" },
+    { winnerName: "Dakota R.", membershipTier: "VIP Member" },
+    { winnerName: "Quinn F.", membershipTier: "Member" },
+    { winnerName: "Reese K.", membershipTier: "Club Member" },
+    { winnerName: "Logan N.", membershipTier: "VIP Member" },
+    { winnerName: "Jamie W.", membershipTier: "Member" },
+    { winnerName: "Emerson C.", membershipTier: "Club Member" },
+    { winnerName: "Hayden V.", membershipTier: "VIP Member" },
+  ],
+};
 
 function getMonthStart(date: Date) {
   return new Date(date.getFullYear(), date.getMonth(), 1);
@@ -86,6 +120,24 @@ function defaultPrizeForCategory(key: string) {
   return found?.prize ?? "?";
 }
 
+function buildPlaceholderWinners(monthKey: string, monthLabel: string, monthOffset: number) {
+  const monthSet =
+    PLACEHOLDER_WINNERS_BY_MONTH_OFFSET[monthOffset] ??
+    PLACEHOLDER_WINNERS_BY_MONTH_OFFSET[0];
+
+  return DEFAULT_CATEGORIES.map((category, index) => ({
+    id: `placeholder-${monthKey}-${category.key}`,
+    monthKey,
+    monthLabel,
+    category: category.label,
+    winnerName: monthSet[index]?.winnerName ?? "TBD Winner",
+    membershipTier: monthSet[index]?.membershipTier ?? "TBD",
+    prizeAmount: category.prize,
+    sortOrder: category.sortOrder,
+    isPlaceholder: true,
+  }));
+}
+
 export default function WinnersPage() {
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
   const [loading, setLoading] = useState(true);
@@ -97,8 +149,12 @@ export default function WinnersPage() {
     return Array.from({ length: DISPLAY_MONTH_COUNT }, (_, index) => {
       const date = shiftMonth(currentMonth, -index);
       return {
+        monthOffset: index,
         monthKey: formatMonthKey(date),
-        monthLabel: index === 0 ? `This Month — ${formatMonthLabel(date)}` : formatMonthLabel(date),
+        monthLabel:
+          index === 0
+            ? `This Month — ${formatMonthLabel(date)}`
+            : formatMonthLabel(date),
       };
     });
   }, []);
@@ -112,6 +168,7 @@ export default function WinnersPage() {
 
       try {
         const earliestMonth = monthsToShow[monthsToShow.length - 1]?.monthKey;
+
         const { data, error } = await supabase
           .from("monthly_winners")
           .select("*")
@@ -160,14 +217,14 @@ export default function WinnersPage() {
             row.full_name ??
             row.username ??
             row.name ??
-            "?";
+            "TBD Winner";
 
           const membershipTier =
             row.membership_tier ??
             row.subscription_tier ??
             row.tier ??
             row.plan ??
-            "?";
+            "TBD";
 
           const prizeAmount =
             row.prize_amount ??
@@ -179,24 +236,54 @@ export default function WinnersPage() {
             monthKey,
             monthLabel: formatMonthLabel(parsedDate),
             category: categoryLabelFromKey(categoryKey),
-            winnerName: String(winnerName || "?"),
-            membershipTier: String(membershipTier || "?"),
+            winnerName: String(winnerName || "TBD Winner"),
+            membershipTier: String(membershipTier || "TBD"),
             prizeAmount: String(prizeAmount || "?"),
             sortOrder:
-              Number(row.sort_order ?? row.place_order ?? row.position ?? categorySortOrder(categoryKey)) ||
-              categorySortOrder(categoryKey),
+              Number(
+                row.sort_order ??
+                  row.place_order ??
+                  row.position ??
+                  categorySortOrder(categoryKey)
+              ) || categorySortOrder(categoryKey),
+            isPlaceholder: false,
           });
         }
 
-        for (const key of Object.keys(nextMap)) {
-          nextMap[key] = nextMap[key].sort((a, b) => a.sortOrder - b.sortOrder);
+        for (const month of monthsToShow) {
+          const existingRows = nextMap[month.monthKey] ?? [];
+
+          if (existingRows.length > 0) {
+            nextMap[month.monthKey] = existingRows.sort(
+              (a, b) => a.sortOrder - b.sortOrder
+            );
+          } else {
+            nextMap[month.monthKey] = buildPlaceholderWinners(
+              month.monthKey,
+              month.monthLabel.replace(/^This Month — /, ""),
+              month.monthOffset
+            );
+          }
         }
 
         setWinnerMap(nextMap);
       } catch (error) {
         console.error("Failed to load winners:", error);
+
+        const fallbackMap: Record<string, WinnerRecord[]> = {};
+        for (const month of monthsToShow) {
+          fallbackMap[month.monthKey] = buildPlaceholderWinners(
+            month.monthKey,
+            month.monthLabel.replace(/^This Month — /, ""),
+            month.monthOffset
+          );
+        }
+
         if (mounted) {
-          setErrorMessage("Could not load winners from Supabase right now.");
+          setWinnerMap(fallbackMap);
+          setErrorMessage(
+            "Could not load winners from Supabase right now. Showing placeholder winners for layout preview."
+          );
         }
       } finally {
         if (mounted) setLoading(false);
@@ -241,12 +328,13 @@ export default function WinnersPage() {
         <section style={styles.hero} className="hero-grid">
           <div style={styles.heroText} className="hero-text-card">
             <div style={styles.kicker}>Winners Archive</div>
-            <h1 style={styles.heroTitle} className="hero-title">See this month’s winners and the recent winner history.</h1>
+            <h1 style={styles.heroTitle} className="hero-title">
+              See this month’s winners and the recent winner history.
+            </h1>
             <p style={styles.heroBody}>
-              This page is built to show the current month’s winners and roll older winners
-              down as each new month begins. Right now it is set to show this month and last
-              month, but it is already structured to expand to the previous three months when
-              you are ready.
+              This page pulls in winners from Supabase when they exist. Until then,
+              it shows styled placeholder winners so the page still looks full and
+              polished while you get everything set up.
             </p>
           </div>
 
@@ -255,7 +343,7 @@ export default function WinnersPage() {
             <div style={styles.heroCardList}>
               <div style={styles.heroListItem}>This month’s winners stay at the top</div>
               <div style={styles.heroListItem}>Older months shift down automatically</div>
-              <div style={styles.heroListItem}>Missing winners show placeholder question marks</div>
+              <div style={styles.heroListItem}>Real winners override placeholders instantly</div>
               <div style={styles.heroListItem}>Built to expand to 4 months whenever you want</div>
             </div>
           </div>
@@ -263,52 +351,57 @@ export default function WinnersPage() {
 
         {errorMessage ? <div style={styles.errorBox}>{errorMessage}</div> : null}
 
-        <section style={styles.monthStack}>
-          {monthsToShow.map((month) => {
-            const rows = winnerMap[month.monthKey] ?? [];
+        {loading ? (
+          <section style={styles.loadingCard}>Loading winners...</section>
+        ) : (
+          <section style={styles.monthStack}>
+            {monthsToShow.map((month) => {
+              const rows = winnerMap[month.monthKey] ?? [];
 
-            return (
-              <article key={month.monthKey} style={styles.monthCard} className="month-card">
-                <div style={styles.monthHeader} className="month-header">
-                  <div>
-                    <div style={styles.monthKicker}>Winner Results</div>
-                    <h2 style={styles.monthTitle} className="month-title">{month.monthLabel}</h2>
+              return (
+                <article
+                  key={month.monthKey}
+                  style={styles.monthCard}
+                  className="month-card"
+                >
+                  <div style={styles.monthHeader} className="month-header">
+                    <div>
+                      <div style={styles.monthKicker}>Winner Results</div>
+                      <h2 style={styles.monthTitle} className="month-title">
+                        {month.monthLabel}
+                      </h2>
+                    </div>
                   </div>
-                </div>
 
-                <div style={styles.winnerGrid}>
-                  {(rows.length > 0 ? rows : DEFAULT_CATEGORIES).map((item, index) => {
-                    const isPlaceholder = !rows.length || "key" in item;
-                    const category = isPlaceholder ? item.label : item.category;
-                    const prizeAmount = isPlaceholder ? item.prize : item.prizeAmount;
-                    const winnerName = isPlaceholder ? "?" : item.winnerName;
-                    const membershipTier = isPlaceholder ? "?" : item.membershipTier;
-
-                    return (
+                  <div style={styles.winnerGrid}>
+                    {rows.map((item, index) => (
                       <div
-                        key={isPlaceholder ? `${month.monthKey}-${item.key}` : item.id}
+                        key={item.id}
                         style={styles.winnerRow}
                         className="winner-row"
                       >
                         <div style={styles.winnerLeft} className="winner-left">
                           <div style={styles.rankBadge}>{index + 1}</div>
                           <div style={{ minWidth: 0 }}>
-                            <div style={styles.winnerCategory}>{category}</div>
+                            <div style={styles.winnerCategory}>{item.category}</div>
                             <div style={styles.winnerMeta} className="winner-meta">
-                              Winner: {winnerName} • Tier: {membershipTier}
+                              Winner: {item.winnerName} • Tier: {item.membershipTier}
+                              {item.isPlaceholder ? " • Placeholder" : ""}
                             </div>
                           </div>
                         </div>
 
-                        <div style={styles.prizePill} className="prize-pill">{prizeAmount}</div>
+                        <div style={styles.prizePill} className="prize-pill">
+                          {item.prizeAmount}
+                        </div>
                       </div>
-                    );
-                  })}
-                </div>
-              </article>
-            );
-          })}
-        </section>
+                    ))}
+                  </div>
+                </article>
+              );
+            })}
+          </section>
+        )}
       </div>
 
       <style jsx>{`
@@ -578,6 +671,16 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: 600,
     lineHeight: 1.5,
   },
+  loadingCard: {
+    borderRadius: 28,
+    padding: 28,
+    background: "rgba(255,255,255,0.05)",
+    border: "1px solid rgba(255,255,255,0.08)",
+    boxShadow: "0 20px 48px rgba(0,0,0,0.25)",
+    textAlign: "center",
+    fontSize: 18,
+    fontWeight: 700,
+  },
   monthStack: {
     display: "grid",
     gap: 22,
@@ -667,3 +770,6 @@ const styles: Record<string, React.CSSProperties> = {
     flexShrink: 0,
   },
 };
+```
+
+Your current winners page already had the Supabase pull logic and placeholder structure; this version makes the placeholders look like real winners instead of question marks and cleanly falls back when there is no data yet. 
