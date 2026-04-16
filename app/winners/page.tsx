@@ -1,10 +1,3 @@
-Replace **`app/winners/page.tsx`** with this full file. It will:
-
-* pull real winner records from `monthly_winners`
-* show recent months
-* automatically fall back to fake placeholder winners when there is no data yet
-
-```tsx
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
@@ -770,6 +763,3 @@ const styles: Record<string, React.CSSProperties> = {
     flexShrink: 0,
   },
 };
-```
-
-Your current winners page already had the Supabase pull logic and placeholder structure; this version makes the placeholders look like real winners instead of question marks and cleanly falls back when there is no data yet. 
