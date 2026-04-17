@@ -16,6 +16,7 @@ type DashboardStats = {
   joinedAt: string | null;
   plan: DashboardPlan;
   accuracy: number;
+  totalPrizeWon: number;
 };
 
 type DailyPuzzleRelation =
@@ -43,6 +44,10 @@ type StatsSession = {
   id: string;
   is_correct: boolean | null;
   attempt_count: number | null;
+};
+
+type WinnerRow = {
+  total_prize_amount: number | string | null;
 };
 
 const STRIPE_PRICE_IDS = {
@@ -153,6 +158,10 @@ function formatAccuracy(value: number) {
   return Number.isInteger(value) ? `${value}` : value.toFixed(2);
 }
 
+function formatCurrency(value: number) {
+  return `$${value.toFixed(0)}`;
+}
+
 function buildDisplayName(profile: {
   first_name?: string | null;
   last_name?: string | null;
@@ -180,6 +189,7 @@ export default function DashboardPage() {
     joinedAt: null,
     plan: "Free",
     accuracy: 0,
+    totalPrizeWon: 0,
   });
   const [recentAttempts, setRecentAttempts] = useState<RecentAttempt[]>([]);
   const [error, setError] = useState("");
@@ -209,6 +219,7 @@ export default function DashboardPage() {
         let totalAttempts = 0;
         let totalCorrect = 0;
         let accuracy = 0;
+        let totalPrizeWon = 0;
         let statsSessions: StatsSession[] = [];
         let attempts: RecentAttempt[] = [];
         let firstError = "";
@@ -246,6 +257,7 @@ export default function DashboardPage() {
           { data: userSubscription, error: subscriptionError },
           { data: statsSessionsData, error: statsSessionsError },
           { data: recentAttemptsData, error: recentAttemptsError },
+          { data: winnersData, error: winnersError },
         ] = await Promise.all([
           supabase
             .from("profiles")
@@ -276,6 +288,11 @@ export default function DashboardPage() {
             .not("submitted_at", "is", null)
             .order("submitted_at", { ascending: false })
             .limit(15),
+
+          supabase
+            .from("monthly_winners")
+            .select("total_prize_amount")
+            .eq("user_id", user.id),
         ]);
 
         if (profileError) {
@@ -326,6 +343,19 @@ export default function DashboardPage() {
           attempts = (recentAttemptsData as RecentAttempt[]) ?? [];
         }
 
+        if (winnersError) {
+          if (!firstError) {
+            firstError = `Prize totals read failed: ${getErrorMessage(winnersError)}`;
+          }
+          console.error("Prize totals read failed:", winnersError);
+        } else {
+          const winnerRows = (winnersData as WinnerRow[]) ?? [];
+          totalPrizeWon = winnerRows.reduce((sum, row) => {
+            const amount = Number(row.total_prize_amount ?? 0);
+            return sum + (Number.isFinite(amount) ? amount : 0);
+          }, 0);
+        }
+
         totalAttempts = statsSessions.reduce(
           (sum, session) => sum + Number(session.attempt_count ?? 0),
           0
@@ -355,6 +385,7 @@ export default function DashboardPage() {
           joinedAt,
           plan,
           accuracy,
+          totalPrizeWon,
         });
 
         setRecentAttempts(attempts);
@@ -694,7 +725,7 @@ export default function DashboardPage() {
           className="stats-grid"
           style={{
             display: "grid",
-            gridTemplateColumns: "repeat(4, 1fr)",
+            gridTemplateColumns: "repeat(5, 1fr)",
             gap: "16px",
             marginBottom: "20px",
           }}
@@ -703,6 +734,7 @@ export default function DashboardPage() {
           <StatCard label="Longest Streak" value={stats.longestStreak.toString()} />
           <StatCard label="Total Guesses" value={stats.totalAttempts.toString()} />
           <StatCard label="Accuracy" value={`${formatAccuracy(stats.accuracy)}%`} />
+          <StatCard label="Total Prize Won" value={formatCurrency(stats.totalPrizeWon)} />
         </section>
 
         <section
@@ -866,6 +898,12 @@ export default function DashboardPage() {
       <PrizeClaimsSection />
 
       <style jsx>{`
+        @media (max-width: 1180px) {
+          .stats-grid {
+            grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+          }
+        }
+
         @media (max-width: 980px) {
           .dashboard-top-grid,
           .dashboard-bottom-grid {
