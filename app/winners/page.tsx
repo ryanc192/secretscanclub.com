@@ -12,6 +12,8 @@ type WinnerRecord = {
   winnerName: string;
   membershipTier: string;
   prizeAmount: string;
+  prizeMultiplier: number;
+  totalPayout: string;
   sortOrder: number;
 };
 
@@ -77,6 +79,57 @@ function categorySortOrder(key: string) {
   if (key === "random_4") return 7;
   if (key === "random_5") return 8;
   return 999;
+}
+
+function getMultiplierFromTier(tier: unknown) {
+  const value = String(tier ?? "").trim().toLowerCase();
+
+  if (value.includes("vip")) return 3;
+  if (value.includes("club")) return 2;
+  return 1;
+}
+
+function parseMultiplier(value: unknown) {
+  if (typeof value === "number" && Number.isFinite(value) && value > 0) {
+    return value;
+  }
+
+  const raw = String(value ?? "").trim().toLowerCase();
+  if (!raw) return null;
+
+  const match = raw.match(/(\d+(\.\d+)?)/);
+  if (!match) return null;
+
+  const parsed = Number(match[1]);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+}
+
+function parseMoneyAmount(value: unknown) {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value;
+  }
+
+  const raw = String(value ?? "").trim();
+  if (!raw) return null;
+
+  const cleaned = raw.replace(/[^0-9.-]/g, "");
+  if (!cleaned) return null;
+
+  const parsed = Number(cleaned);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function formatCurrencyAmount(value: number) {
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    maximumFractionDigits: value % 1 === 0 ? 0 : 2,
+  }).format(value);
+}
+
+function formatMultiplierLabel(value: number) {
+  const safeValue = Number.isFinite(value) && value > 0 ? value : 1;
+  return `${safeValue}x`;
 }
 
 export default function WinnersPage() {
@@ -166,10 +219,34 @@ export default function WinnersPage() {
             row.plan ??
             "TBD";
 
-          const prizeAmount =
+          const prizeAmountRaw =
             row.prize_amount ??
             row.prize ??
             "?";
+
+          const explicitMultiplier =
+            parseMultiplier(
+              row.prize_multiplier ??
+                row.multiplier ??
+                row.payout_multiplier ??
+                row.tier_multiplier
+            ) ?? null;
+
+          const prizeMultiplier =
+            explicitMultiplier ?? getMultiplierFromTier(membershipTier);
+
+          const basePrizeNumber = parseMoneyAmount(prizeAmountRaw);
+
+          const totalPayoutRaw =
+            row.total_payout ??
+            row.total_prize_payout ??
+            row.payout_total ??
+            row.final_payout ??
+            null;
+
+          const totalPayoutNumber =
+            parseMoneyAmount(totalPayoutRaw) ??
+            (basePrizeNumber !== null ? basePrizeNumber * prizeMultiplier : null);
 
           nextMap[monthKey].push({
             id: String(row.id ?? `${monthKey}-${categoryKey}-${winnerName}`),
@@ -178,7 +255,15 @@ export default function WinnersPage() {
             category: categoryLabelFromKey(categoryKey),
             winnerName: String(winnerName || "TBD Winner"),
             membershipTier: String(membershipTier || "TBD"),
-            prizeAmount: String(prizeAmount || "?"),
+            prizeAmount:
+              basePrizeNumber !== null
+                ? formatCurrencyAmount(basePrizeNumber)
+                : String(prizeAmountRaw || "?"),
+            prizeMultiplier,
+            totalPayout:
+              totalPayoutNumber !== null
+                ? formatCurrencyAmount(totalPayoutNumber)
+                : "?",
             sortOrder:
               Number(
                 row.sort_order ??
@@ -288,16 +373,33 @@ export default function WinnersPage() {
                         >
                           <div style={styles.winnerLeft} className="winner-left">
                             <div style={styles.rankBadge}>{index + 1}</div>
+
                             <div style={{ minWidth: 0 }}>
                               <div style={styles.winnerCategory}>{item.category}</div>
+
                               <div style={styles.winnerMeta} className="winner-meta">
                                 Winner: {item.winnerName} • Tier: {item.membershipTier}
+                              </div>
+
+                              <div style={styles.payoutMeta} className="payout-meta">
+                                Prize Multiplier:{" "}
+                                <span style={styles.inlineStrong}>
+                                  {formatMultiplierLabel(item.prizeMultiplier)}
+                                </span>
+                                {" • "}
+                                Total Payout:{" "}
+                                <span style={styles.inlineStrong}>{item.totalPayout}</span>
                               </div>
                             </div>
                           </div>
 
-                          <div style={styles.prizePill} className="prize-pill">
-                            {item.prizeAmount}
+                          <div style={styles.prizeColumn} className="prize-column">
+                            <div style={styles.prizePill} className="prize-pill">
+                              Base Prize: {item.prizeAmount}
+                            </div>
+                            <div style={styles.totalPayoutPill} className="total-payout-pill">
+                              Paid: {item.totalPayout}
+                            </div>
                           </div>
                         </div>
                       ))}
@@ -366,11 +468,17 @@ export default function WinnersPage() {
             width: 100%;
           }
 
-          .winner-meta {
+          .winner-meta,
+          .payout-meta {
             word-break: break-word;
           }
 
-          .prize-pill {
+          .prize-column {
+            width: 100%;
+          }
+
+          .prize-pill,
+          .total-payout-pill {
             width: 100%;
             box-sizing: border-box;
             text-align: center;
@@ -615,6 +723,7 @@ const styles: Record<string, React.CSSProperties> = {
     alignItems: "center",
     gap: 14,
     minWidth: 0,
+    flex: 1,
   },
   rankBadge: {
     width: 38,
@@ -638,6 +747,22 @@ const styles: Record<string, React.CSSProperties> = {
     color: "rgba(255,255,255,0.72)",
     lineHeight: 1.5,
   },
+  payoutMeta: {
+    fontSize: 13,
+    color: "rgba(126, 240, 209, 0.88)",
+    lineHeight: 1.5,
+    marginTop: 6,
+  },
+  inlineStrong: {
+    fontWeight: 900,
+    color: "#ffffff",
+  },
+  prizeColumn: {
+    display: "grid",
+    gap: 8,
+    justifyItems: "end",
+    flexShrink: 0,
+  },
   prizePill: {
     padding: "10px 14px",
     borderRadius: 999,
@@ -646,6 +771,16 @@ const styles: Record<string, React.CSSProperties> = {
     color: "#7ef0d1",
     fontWeight: 900,
     fontSize: 15,
+    flexShrink: 0,
+  },
+  totalPayoutPill: {
+    padding: "10px 14px",
+    borderRadius: 999,
+    background: "rgba(122, 140, 255, 0.14)",
+    border: "1px solid rgba(122, 140, 255, 0.28)",
+    color: "#dbe2ff",
+    fontWeight: 900,
+    fontSize: 14,
     flexShrink: 0,
   },
 };
