@@ -812,8 +812,8 @@ export default function DashboardPage() {
                 label={stats.plan === "Free" ? "Upgrade Membership" : "Manage Membership"}
               />
             </div>
-            <PrizeClaimsSection />
           </div>
+            <PrizeClaimsSection />
         </section>
       </div>
 
