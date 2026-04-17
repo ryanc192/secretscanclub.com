@@ -374,31 +374,44 @@ export default function WinnersPage() {
                           <div style={styles.winnerLeft} className="winner-left">
                             <div style={styles.rankBadge}>{index + 1}</div>
 
-                            <div style={{ minWidth: 0 }}>
+                            <div style={{ minWidth: 0, width: "100%" }}>
                               <div style={styles.winnerCategory}>{item.category}</div>
 
                               <div style={styles.winnerMeta} className="winner-meta">
                                 Winner: {item.winnerName} • Tier: {item.membershipTier}
                               </div>
 
-                              <div style={styles.payoutMeta} className="payout-meta">
-                                Prize Multiplier:{" "}
-                                <span style={styles.inlineStrong}>
+                              <div style={styles.payoutLine}>
+                                <span style={styles.payoutLineLabel}>Base Prize:</span>{" "}
+                                <span style={styles.payoutLineValue}>{item.prizeAmount}</span>
+                                <span style={styles.dot}>•</span>
+                                <span style={styles.payoutLineLabel}>Multiplier:</span>{" "}
+                                <span style={styles.payoutLineValue}>
                                   {formatMultiplierLabel(item.prizeMultiplier)}
                                 </span>
-                                {" • "}
-                                Total Payout:{" "}
-                                <span style={styles.inlineStrong}>{item.totalPayout}</span>
+                                <span style={styles.dot}>•</span>
+                                <span style={styles.payoutLineLabel}>Total Paid:</span>{" "}
+                                <span style={styles.totalPaidInline}>{item.totalPayout}</span>
                               </div>
                             </div>
                           </div>
 
-                          <div style={styles.prizeColumn} className="prize-column">
-                            <div style={styles.prizePill} className="prize-pill">
-                              Base Prize: {item.prizeAmount}
+                          <div style={styles.payoutPanel} className="payout-panel">
+                            <div style={styles.smallPill}>
+                              <span style={styles.smallPillLabel}>Base</span>
+                              <span style={styles.smallPillValue}>{item.prizeAmount}</span>
                             </div>
-                            <div style={styles.totalPayoutPill} className="total-payout-pill">
-                              Paid: {item.totalPayout}
+
+                            <div style={styles.multiplierPill}>
+                              <span style={styles.smallPillLabel}>Multiplier</span>
+                              <span style={styles.smallPillValue}>
+                                {formatMultiplierLabel(item.prizeMultiplier)}
+                              </span>
+                            </div>
+
+                            <div style={styles.totalPayoutCard}>
+                              <div style={styles.totalPayoutLabel}>Total Paid</div>
+                              <div style={styles.totalPayoutValue}>{item.totalPayout}</div>
                             </div>
                           </div>
                         </div>
@@ -416,6 +429,22 @@ export default function WinnersPage() {
         @media (max-width: 1100px) {
           .hero-single {
             justify-content: stretch !important;
+          }
+        }
+
+        @media (max-width: 920px) {
+          .winner-row {
+            flex-direction: column !important;
+            align-items: flex-start !important;
+          }
+
+          .winner-left {
+            width: 100%;
+          }
+
+          .payout-panel {
+            width: 100%;
+            grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
           }
         }
 
@@ -459,29 +488,12 @@ export default function WinnersPage() {
             line-height: 1.08 !important;
           }
 
-          .winner-row {
-            flex-direction: column;
-            align-items: flex-start !important;
-          }
-
-          .winner-left {
-            width: 100%;
-          }
-
-          .winner-meta,
-          .payout-meta {
+          .winner-meta {
             word-break: break-word;
           }
 
-          .prize-column {
-            width: 100%;
-          }
-
-          .prize-pill,
-          .total-payout-pill {
-            width: 100%;
-            box-sizing: border-box;
-            text-align: center;
+          .payout-panel {
+            grid-template-columns: 1fr !important;
           }
         }
 
@@ -712,7 +724,7 @@ const styles: Record<string, React.CSSProperties> = {
     display: "flex",
     justifyContent: "space-between",
     alignItems: "center",
-    gap: 16,
+    gap: 18,
     padding: "16px 18px",
     borderRadius: 18,
     background: "rgba(255,255,255,0.04)",
@@ -747,40 +759,96 @@ const styles: Record<string, React.CSSProperties> = {
     color: "rgba(255,255,255,0.72)",
     lineHeight: 1.5,
   },
-  payoutMeta: {
+  payoutLine: {
+    marginTop: 8,
     fontSize: 13,
-    color: "rgba(126, 240, 209, 0.88)",
     lineHeight: 1.5,
-    marginTop: 6,
+    color: "rgba(215,230,255,0.92)",
   },
-  inlineStrong: {
+  payoutLineLabel: {
+    color: "rgba(255,255,255,0.62)",
+    fontWeight: 600,
+  },
+  payoutLineValue: {
+    color: "#dfe8ff",
+    fontWeight: 800,
+  },
+  totalPaidInline: {
+    color: "#7ef0d1",
+    fontWeight: 900,
+  },
+  dot: {
+    display: "inline-block",
+    margin: "0 8px",
+    color: "rgba(255,255,255,0.35)",
+  },
+  payoutPanel: {
+    display: "grid",
+    gridTemplateColumns: "repeat(3, auto)",
+    gap: 10,
+    alignItems: "stretch",
+    flexShrink: 0,
+  },
+  smallPill: {
+    minWidth: 110,
+    padding: "10px 12px",
+    borderRadius: 16,
+    background: "rgba(255,255,255,0.05)",
+    border: "1px solid rgba(255,255,255,0.08)",
+    display: "flex",
+    flexDirection: "column",
+    justifyContent: "center",
+    gap: 4,
+    textAlign: "center",
+  },
+  multiplierPill: {
+    minWidth: 110,
+    padding: "10px 12px",
+    borderRadius: 16,
+    background: "rgba(122, 140, 255, 0.12)",
+    border: "1px solid rgba(122, 140, 255, 0.24)",
+    display: "flex",
+    flexDirection: "column",
+    justifyContent: "center",
+    gap: 4,
+    textAlign: "center",
+  },
+  smallPillLabel: {
+    fontSize: 11,
+    fontWeight: 700,
+    letterSpacing: 0.4,
+    textTransform: "uppercase",
+    color: "rgba(255,255,255,0.6)",
+  },
+  smallPillValue: {
+    fontSize: 16,
     fontWeight: 900,
     color: "#ffffff",
   },
-  prizeColumn: {
-    display: "grid",
-    gap: 8,
-    justifyItems: "end",
-    flexShrink: 0,
-  },
-  prizePill: {
-    padding: "10px 14px",
-    borderRadius: 999,
+  totalPayoutCard: {
+    minWidth: 135,
+    padding: "12px 16px",
+    borderRadius: 18,
     background: "rgba(126, 240, 209, 0.12)",
-    border: "1px solid rgba(126, 240, 209, 0.25)",
-    color: "#7ef0d1",
-    fontWeight: 900,
-    fontSize: 15,
-    flexShrink: 0,
+    border: "1px solid rgba(126, 240, 209, 0.28)",
+    display: "flex",
+    flexDirection: "column",
+    justifyContent: "center",
+    gap: 4,
+    textAlign: "center",
+    boxShadow: "0 10px 28px rgba(0,0,0,0.18)",
   },
-  totalPayoutPill: {
-    padding: "10px 14px",
-    borderRadius: 999,
-    background: "rgba(122, 140, 255, 0.14)",
-    border: "1px solid rgba(122, 140, 255, 0.28)",
-    color: "#dbe2ff",
+  totalPayoutLabel: {
+    fontSize: 11,
+    fontWeight: 800,
+    letterSpacing: 0.45,
+    textTransform: "uppercase",
+    color: "rgba(126, 240, 209, 0.82)",
+  },
+  totalPayoutValue: {
+    fontSize: 24,
+    lineHeight: 1,
     fontWeight: 900,
-    fontSize: 14,
-    flexShrink: 0,
+    color: "#7ef0d1",
   },
 };
