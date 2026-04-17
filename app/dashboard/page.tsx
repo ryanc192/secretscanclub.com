@@ -813,10 +813,9 @@ export default function DashboardPage() {
               />
             </div>
           </div>
-            <PrizeClaimsSection />
         </section>
       </div>
-
+<PrizeClaimsSection />
       <style jsx>{`
         @media (max-width: 980px) {
           .dashboard-top-grid,
