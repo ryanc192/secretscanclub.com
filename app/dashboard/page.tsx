@@ -137,7 +137,10 @@ function getPuzzleDisplayName(dailyPuzzles: DailyPuzzleRelation | null | undefin
   return "Puzzle";
 }
 
-function getAttemptAccuracy(attemptCount: number | null | undefined, isCorrect: boolean | null | undefined) {
+function getAttemptAccuracy(
+  attemptCount: number | null | undefined,
+  isCorrect: boolean | null | undefined
+) {
   if (!isCorrect) return 0;
 
   const attempts = Number(attemptCount ?? 0);
@@ -150,6 +153,16 @@ function formatAccuracy(value: number) {
   return Number.isInteger(value) ? `${value}` : value.toFixed(2);
 }
 
+function buildDisplayName(profile: {
+  first_name?: string | null;
+  last_name?: string | null;
+}) {
+  const first = profile.first_name?.trim() ?? "";
+  const last = profile.last_name?.trim() ?? "";
+  const fullName = `${first} ${last}`.trim();
+  return fullName || "Name not set";
+}
+
 export default function DashboardPage() {
   const router = useRouter();
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
@@ -157,7 +170,8 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [signingOut, setSigningOut] = useState(false);
   const [userEmail, setUserEmail] = useState("");
-  const [userId, setUserId] = useState("");
+  const [displayName, setDisplayName] = useState("");
+  const [username, setUsername] = useState("");
   const [stats, setStats] = useState<DashboardStats>({
     currentStreak: 0,
     longestStreak: 0,
@@ -187,7 +201,6 @@ export default function DashboardPage() {
         }
 
         setUserEmail(user.email ?? "");
-        setUserId(user.id);
 
         let joinedAt: string | null = user.created_at ?? null;
         let plan: DashboardPlan = "Free";
@@ -199,6 +212,17 @@ export default function DashboardPage() {
         let statsSessions: StatsSession[] = [];
         let attempts: RecentAttempt[] = [];
         let firstError = "";
+
+        const fallbackFullName =
+          (user.user_metadata?.full_name as string | undefined)?.trim() ||
+          `${(user.user_metadata?.first_name as string | undefined)?.trim() ?? ""} ${(user.user_metadata?.last_name as string | undefined)?.trim() ?? ""}`.trim() ||
+          "Name not set";
+
+        const fallbackUsername =
+          (user.user_metadata?.username as string | undefined)?.trim() || "";
+
+        setDisplayName(fallbackFullName);
+        setUsername(fallbackUsername);
 
         const { error: ensureProfileError } = await supabase
           .from("profiles")
@@ -225,7 +249,9 @@ export default function DashboardPage() {
         ] = await Promise.all([
           supabase
             .from("profiles")
-            .select("created_at, subscription_tier, current_streak, longest_streak")
+            .select(
+              "created_at, subscription_tier, current_streak, longest_streak, first_name, last_name, username"
+            )
             .eq("id", user.id)
             .maybeSingle(),
 
@@ -261,6 +287,12 @@ export default function DashboardPage() {
           joinedAt = profileData.created_at ?? joinedAt;
           currentStreak = profileData.current_streak ?? 0;
           longestStreak = profileData.longest_streak ?? 0;
+
+          const profileDisplayName = buildDisplayName(profileData);
+          const profileUsername = profileData.username?.trim() ?? "";
+
+          setDisplayName(profileDisplayName || fallbackFullName);
+          setUsername(profileUsername || fallbackUsername);
         }
 
         if (subscriptionError) {
@@ -610,16 +642,31 @@ export default function DashboardPage() {
               <div style={{ fontSize: "18px", fontWeight: 700 }}>{joinedText}</div>
             </div>
 
-            <div style={{ marginBottom: "20px" }}>
-              <div style={{ color: "rgba(255,255,255,0.65)", fontSize: "13px" }}>User ID</div>
+            <div style={{ marginBottom: "14px" }}>
+              <div style={{ color: "rgba(255,255,255,0.65)", fontSize: "13px" }}>Full Name</div>
               <div
                 style={{
-                  fontSize: "13px",
-                  color: "rgba(255,255,255,0.82)",
-                  wordBreak: "break-all",
+                  fontSize: "15px",
+                  color: "rgba(255,255,255,0.88)",
+                  wordBreak: "break-word",
+                  fontWeight: 600,
                 }}
               >
-                {userId}
+                {displayName || "Name not set"}
+              </div>
+            </div>
+
+            <div style={{ marginBottom: "20px" }}>
+              <div style={{ color: "rgba(255,255,255,0.65)", fontSize: "13px" }}>Username</div>
+              <div
+                style={{
+                  fontSize: "15px",
+                  color: "rgba(255,255,255,0.82)",
+                  wordBreak: "break-word",
+                  fontWeight: 600,
+                }}
+              >
+                {username ? `@${username}` : "Username not set"}
               </div>
             </div>
 
@@ -815,7 +862,9 @@ export default function DashboardPage() {
           </div>
         </section>
       </div>
-<PrizeClaimsSection /> 
+
+      <PrizeClaimsSection />
+
       <style jsx>{`
         @media (max-width: 980px) {
           .dashboard-top-grid,
