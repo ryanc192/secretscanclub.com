@@ -17,6 +17,18 @@ type DashboardStats = {
   accuracy: number;
 };
 
+type DailyPuzzleRelation =
+  | {
+      puzzle_date?: string | null;
+      short_name?: string | null;
+      question_text?: string | null;
+    }
+  | {
+      puzzle_date?: string | null;
+      short_name?: string | null;
+      question_text?: string | null;
+    }[];
+
 type RecentAttempt = {
   id: string;
   latest_answer_text: string | null;
@@ -24,9 +36,14 @@ type RecentAttempt = {
   submitted_at: string | null;
   attempt_count: number | null;
   accuracy_value: number | null;
-  daily_puzzles: {
-    puzzle_date: string;
-  }[];
+  daily_puzzles: DailyPuzzleRelation | null;
+};
+
+type StatsSession = {
+  id: string;
+  is_correct: boolean | null;
+  attempt_count: number | null;
+  accuracy_value: number | null;
 };
 
 const STRIPE_PRICE_IDS = {
@@ -95,6 +112,32 @@ function getPlanFromSubscription(
   return "Free";
 }
 
+function getPuzzleMeta(dailyPuzzles: DailyPuzzleRelation | null | undefined) {
+  if (!dailyPuzzles) return null;
+  if (Array.isArray(dailyPuzzles)) {
+    return dailyPuzzles[0] ?? null;
+  }
+  return dailyPuzzles;
+}
+
+function getPuzzleDisplayName(dailyPuzzles: DailyPuzzleRelation | null | undefined) {
+  const meta = getPuzzleMeta(dailyPuzzles);
+
+  const shortName = meta?.short_name?.trim();
+  if (shortName) return shortName;
+
+  const questionText = meta?.question_text?.trim();
+  if (questionText) {
+    const cleaned = questionText.replace(/\s+/g, " ");
+    return cleaned.length > 42 ? `${cleaned.slice(0, 42).trim()}...` : cleaned;
+  }
+
+  const puzzleDate = meta?.puzzle_date?.trim();
+  if (puzzleDate) return `Puzzle ${puzzleDate}`;
+
+  return "Puzzle";
+}
+
 export default function DashboardPage() {
   const router = useRouter();
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
@@ -141,6 +184,7 @@ export default function DashboardPage() {
         let totalAttempts = 0;
         let totalCorrect = 0;
         let accuracy = 0;
+        let statsSessions: StatsSession[] = [];
         let attempts: RecentAttempt[] = [];
         let firstError = "";
 
@@ -164,6 +208,7 @@ export default function DashboardPage() {
         const [
           { data: profileData, error: profileError },
           { data: userSubscription, error: subscriptionError },
+          { data: statsSessionsData, error: statsSessionsError },
           { data: recentAttemptsData, error: recentAttemptsError },
         ] = await Promise.all([
           supabase
@@ -171,19 +216,28 @@ export default function DashboardPage() {
             .select("created_at, subscription_tier, current_streak, longest_streak")
             .eq("id", user.id)
             .maybeSingle(),
+
           supabase
             .from("user_subscriptions")
             .select("subscription_status, stripe_price_id")
             .eq("user_id", user.id)
             .maybeSingle(),
+
+          supabase
+            .from("puzzle_sessions")
+            .select("id, is_correct, attempt_count, accuracy_value")
+            .eq("user_id", user.id)
+            .not("submitted_at", "is", null),
+
           supabase
             .from("puzzle_sessions")
             .select(
-              "id, latest_answer_text, is_correct, submitted_at, attempt_count, accuracy_value, daily_puzzles(puzzle_date)"
+              "id, latest_answer_text, is_correct, submitted_at, attempt_count, accuracy_value, daily_puzzles(puzzle_date, short_name, question_text)"
             )
             .eq("user_id", user.id)
             .not("submitted_at", "is", null)
-            .order("submitted_at", { ascending: false }),
+            .order("submitted_at", { ascending: false })
+            .limit(15),
         ]);
 
         if (profileError) {
@@ -210,6 +264,15 @@ export default function DashboardPage() {
           userSubscription?.stripe_price_id
         );
 
+        if (statsSessionsError) {
+          if (!firstError) {
+            firstError = `Stats sessions read failed: ${getErrorMessage(statsSessionsError)}`;
+          }
+          console.error("Stats sessions read failed:", statsSessionsError);
+        } else {
+          statsSessions = (statsSessionsData as StatsSession[]) ?? [];
+        }
+
         if (recentAttemptsError) {
           if (!firstError) {
             firstError = `Recent attempts read failed: ${getErrorMessage(recentAttemptsError)}`;
@@ -219,24 +282,24 @@ export default function DashboardPage() {
           attempts = (recentAttemptsData as RecentAttempt[]) ?? [];
         }
 
-        totalAttempts = attempts.reduce(
-          (sum, attempt) => sum + Number(attempt.attempt_count ?? 0),
+        totalAttempts = statsSessions.reduce(
+          (sum, session) => sum + Number(session.attempt_count ?? 0),
           0
         );
 
-        totalCorrect = attempts.reduce(
-          (sum, attempt) => sum + (attempt.is_correct ? 1 : 0),
+        totalCorrect = statsSessions.reduce(
+          (sum, session) => sum + (session.is_correct ? 1 : 0),
           0
         );
 
         accuracy =
-          attempts.length > 0
+          statsSessions.length > 0
             ? Math.round(
-                (attempts.reduce(
-                  (sum, attempt) => sum + Number(attempt.accuracy_value ?? 0),
+                (statsSessions.reduce(
+                  (sum, session) => sum + Number(session.accuracy_value ?? 0),
                   0
                 ) /
-                  attempts.length) *
+                  statsSessions.length) *
                   100
               ) / 100
             : 0;
@@ -251,7 +314,7 @@ export default function DashboardPage() {
           accuracy,
         });
 
-        setRecentAttempts(attempts.slice(0, 8));
+        setRecentAttempts(attempts);
 
         if (firstError) {
           setError(firstError);
@@ -650,8 +713,9 @@ export default function DashboardPage() {
                           wordBreak: "break-word",
                         }}
                       >
-                        Puzzle {attempt.daily_puzzles?.[0]?.puzzle_date ?? "Unknown"}
+                        {getPuzzleDisplayName(attempt.daily_puzzles)}
                       </div>
+
                       <div
                         style={{
                           fontSize: "13px",
@@ -661,6 +725,7 @@ export default function DashboardPage() {
                       >
                         Answer: {attempt.latest_answer_text || "No answer recorded"}
                       </div>
+
                       <div
                         style={{
                           fontSize: "13px",
