@@ -81,6 +81,14 @@ function categorySortOrder(key: string) {
   return 999;
 }
 
+function isTopThreeCategory(categoryKey: string) {
+  return (
+    categoryKey === "first_place" ||
+    categoryKey === "second_place" ||
+    categoryKey === "third_place"
+  );
+}
+
 function getMultiplierFromTier(tier: unknown) {
   const value = String(tier ?? "").trim().toLowerCase();
 
@@ -219,10 +227,10 @@ export default function WinnersPage() {
             row.plan ??
             "TBD";
 
-          const prizeAmountRaw =
-            row.prize_amount ??
-            row.prize ??
-            "?";
+          const prizeAmountRaw = row.prize_amount ?? row.prize ?? "?";
+          const basePrizeNumber = parseMoneyAmount(prizeAmountRaw);
+
+          const topThree = isTopThreeCategory(categoryKey);
 
           const explicitMultiplier =
             parseMultiplier(
@@ -232,10 +240,9 @@ export default function WinnersPage() {
                 row.tier_multiplier
             ) ?? null;
 
-          const prizeMultiplier =
-            explicitMultiplier ?? getMultiplierFromTier(membershipTier);
-
-          const basePrizeNumber = parseMoneyAmount(prizeAmountRaw);
+          const prizeMultiplier = topThree
+            ? explicitMultiplier ?? getMultiplierFromTier(membershipTier)
+            : 1;
 
           const totalPayoutRaw =
             row.total_payout ??
@@ -244,8 +251,10 @@ export default function WinnersPage() {
             row.final_payout ??
             null;
 
-          const totalPayoutNumber =
-            parseMoneyAmount(totalPayoutRaw) ??
+          const totalPayoutNumber = parseMoneyAmount(totalPayoutRaw);
+
+          const finalTotalPayoutNumber =
+            totalPayoutNumber ??
             (basePrizeNumber !== null ? basePrizeNumber * prizeMultiplier : null);
 
           nextMap[monthKey].push({
@@ -261,8 +270,8 @@ export default function WinnersPage() {
                 : String(prizeAmountRaw || "?"),
             prizeMultiplier,
             totalPayout:
-              totalPayoutNumber !== null
-                ? formatCurrencyAmount(totalPayoutNumber)
+              finalTotalPayoutNumber !== null
+                ? formatCurrencyAmount(finalTotalPayoutNumber)
                 : "?",
             sortOrder:
               Number(
