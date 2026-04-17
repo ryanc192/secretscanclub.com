@@ -1,757 +1,683 @@
 "use client";
 
-import { useEffect, useMemo, useState, type CSSProperties } from "react";
+import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { createBrowserSupabaseClient } from "../../../lib/supabase/client";
 
-type WinnerRow = {
+type ClaimMethod = "paypal" | "cashapp" | "venmo" | "zelle";
+
+type ClaimRow = {
   id: string;
-  user_id: string;
-  winner_month: string | null;
-  category: string | null;
-  winner_name: string | null;
-  membership_tier: string | null;
-  prize_amount: number | string | null;
+  winner_month: string;
+  category: string;
   prize_multiplier: number | null;
-  claim_status: "unclaimed" | "pending" | "approved" | "paid" | "rejected";
-  claim_method:
-    | "cashapp"
-    | "venmo"
-    | "paypal"
-    | "gift_card"
-    | "platform_credit"
-    | null;
+  total_prize_amount: number | null;
+  claim_status: string | null;
+  claim_method: string | null;
   claim_full_name: string | null;
   claim_email: string | null;
   claim_phone: string | null;
   claim_handle: string | null;
   claim_notes: string | null;
-  claimed_at: string | null;
-  approved_at: string | null;
-  paid_at: string | null;
-  admin_notes: string | null;
 };
 
-type FormState = {
-  claim_full_name: string;
-  claim_email: string;
-  claim_phone: string;
-  claim_handle: string;
-  claim_notes: string;
-  claim_method: "cashapp" | "venmo" | "paypal" | "gift_card" | "platform_credit";
+type ClaimFormState = {
+  claimMethod: ClaimMethod;
+  fullName: string;
+  email: string;
+  phone: string;
+  handle: string;
+  notes: string;
 };
 
-const DEFAULT_FORM: FormState = {
-  claim_full_name: "",
-  claim_email: "",
-  claim_phone: "",
-  claim_handle: "",
-  claim_notes: "",
-  claim_method: "paypal",
-};
-
-function formatMonthLabel(value: string | null) {
-  if (!value) return "Prize";
-  const date = new Date(`${value}T00:00:00`);
-  if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleDateString("en-US", { month: "long", year: "numeric" });
+function formatMoney(value: number | null | undefined) {
+  if (value == null || Number.isNaN(Number(value))) return "—";
+  return `$${Number(value).toFixed(0)}`;
 }
 
-function formatAmount(value: number | string | null) {
-  if (typeof value === "number") return `$${value.toFixed(2)}`;
-
-  if (typeof value === "string") {
-    if (value.trim().startsWith("$")) return value;
-    const parsed = Number(value);
-    if (!Number.isNaN(parsed)) return `$${parsed.toFixed(2)}`;
-    return value;
-  }
-
-  return "Prize amount";
+function formatPrizeLabel(category: string) {
+  return category.replace(/_/g, " ");
 }
 
-function normalizePrizeLabel(category: string | null) {
-  if (!category) return "Winner";
-
-  const value = category.trim().toLowerCase();
-
-  if (value.includes("first") || value.includes("1st")) return "1st Place";
-  if (value.includes("second") || value.includes("2nd")) return "2nd Place";
-  if (value.includes("third") || value.includes("3rd")) return "3rd Place";
-  if (value.includes("random")) return "Random Winner";
-
-  return category.replaceAll("_", " ").replace(/\b\w/g, (char) => char.toUpperCase());
+function formatMonth(value: string) {
+  return value;
 }
 
-function fallbackMultiplierFromTier(tier: string | null) {
-  const value = (tier ?? "").trim().toLowerCase();
-
-  if (value === "vip") return 3;
-  if (value === "club" || value === "club-member" || value === "club member") return 2;
-  return 1;
+function getHandleLabel(method: ClaimMethod) {
+  if (method === "paypal") return "PayPal Email";
+  if (method === "zelle") return "Zelle Email or Phone";
+  if (method === "venmo") return "Venmo Handle";
+  return "Cash App Handle";
 }
-
-function getMultiplierLabel(row: WinnerRow) {
-  const multiplier =
-    typeof row.prize_multiplier === "number"
-      ? row.prize_multiplier
-      : fallbackMultiplierFromTier(row.membership_tier);
-
-  return `${multiplier}x`;
-}
-
-function statusCopy(status: WinnerRow["claim_status"]) {
-  if (status === "unclaimed") return "Ready to claim";
-  if (status === "pending") return "Pending review";
-  if (status === "approved") return "Approved";
-  if (status === "paid") return "Paid out";
-  return "Needs update";
-}
-
-function getHandleLabel(method: FormState["claim_method"] | WinnerRow["claim_method"]): string {
-  if (method === "gift_card") return "Email for delivery";
-  if (method === "platform_credit") return "Account note";
-  if (method === "paypal") return "PayPal email";
-  if (method === "venmo") return "Venmo username";
-  return "Cash App handle";
-}
-
-function methodLabel(method: FormState["claim_method"]) {
-  if (method === "paypal") return "PayPal";
-  if (method === "cashapp") return "Cash App";
-  if (method === "venmo") return "Venmo";
-  if (method === "gift_card") return "Gift Card";
-  return "Platform Credit";
-}
-
-const payoutMethods: FormState["claim_method"][] = [
-  "paypal",
-  "cashapp",
-  "venmo",
-  "gift_card",
-  "platform_credit",
-];
 
 export default function ClaimPrizePage() {
+  const router = useRouter();
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
-  const [targetClaimId, setTargetClaimId] = useState<string | null>(null);
+
   const [loading, setLoading] = useState(true);
-  const [submittingId, setSubmittingId] = useState<string | null>(null);
-  const [rows, setRows] = useState<WinnerRow[]>([]);
-  const [error, setError] = useState<string | null>(null);
-  const [forms, setForms] = useState<Record<string, FormState>>({});
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const [claimRow, setClaimRow] = useState<ClaimRow | null>(null);
+  const [form, setForm] = useState<ClaimFormState>({
+    claimMethod: "paypal",
+    fullName: "",
+    email: "",
+    phone: "",
+    handle: "",
+    notes: "",
+  });
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
-    const params = new URLSearchParams(window.location.search);
-    setTargetClaimId(params.get("claim"));
-  }, []);
+    let active = true;
 
-  useEffect(() => {
-    let mounted = true;
-
-    async function load() {
+    async function loadClaim() {
       setLoading(true);
-      setError(null);
+      setError("");
 
-      const {
-        data: { user },
-        error: authError,
-      } = await supabase.auth.getUser();
+      try {
+        const {
+          data: { user },
+          error: userError,
+        } = await supabase.auth.getUser();
 
-      if (authError) {
-        if (mounted) {
-          setError(authError.message);
-          setLoading(false);
+        if (userError || !user) {
+          router.replace("/login");
+          return;
         }
-        return;
+
+        const { data, error: claimError } = await supabase
+          .from("monthly_winners")
+          .select(
+            [
+              "id",
+              "winner_month",
+              "category",
+              "prize_multiplier",
+              "total_prize_amount",
+              "claim_status",
+              "claim_method",
+              "claim_full_name",
+              "claim_email",
+              "claim_phone",
+              "claim_handle",
+              "claim_notes",
+            ].join(", ")
+          )
+          .eq("user_id", user.id)
+          .in("claim_status", ["unclaimed", "submitted", "approved"])
+          .order("winner_month", { ascending: false })
+          .order("id", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (!active) return;
+
+        if (claimError) {
+          console.error("Failed to load claim row:", claimError);
+          setError("We couldn’t load your prize claim right now.");
+          setClaimRow(null);
+          return;
+        }
+
+        if (!data) {
+          setClaimRow(null);
+          return;
+        }
+
+        const row = data as ClaimRow;
+        const nextMethod = ((row.claim_method ?? "paypal").toLowerCase() as ClaimMethod) || "paypal";
+
+        setClaimRow(row);
+        setForm({
+          claimMethod:
+            nextMethod === "paypal" ||
+            nextMethod === "cashapp" ||
+            nextMethod === "venmo" ||
+            nextMethod === "zelle"
+              ? nextMethod
+              : "paypal",
+          fullName: row.claim_full_name ?? "",
+          email: row.claim_email ?? "",
+          phone: row.claim_phone ?? "",
+          handle: row.claim_handle ?? "",
+          notes: row.claim_notes ?? "",
+        });
+      } catch (err) {
+        console.error("Claim page crashed:", err);
+        setError("Something went wrong loading your prize claim.");
+      } finally {
+        if (active) setLoading(false);
       }
-
-      if (!user) {
-        window.location.href = "/login?next=/dashboard/claim-prize";
-        return;
-      }
-
-      const { data, error: queryError } = await supabase
-        .from("monthly_winners")
-        .select(`
-          id,
-          user_id,
-          winner_month,
-          category,
-          winner_name,
-          membership_tier,
-          prize_amount,
-          prize_multiplier,
-          claim_status,
-          claim_method,
-          claim_full_name,
-          claim_email,
-          claim_phone,
-          claim_handle,
-          claim_notes,
-          claimed_at,
-          approved_at,
-          paid_at,
-          admin_notes
-        `)
-        .eq("user_id", user.id)
-        .order("winner_month", { ascending: false })
-        .order("created_at", { ascending: false });
-
-      if (!mounted) return;
-
-      if (queryError) {
-        setError(queryError.message);
-        setLoading(false);
-        return;
-      }
-
-      const winnerRows = (data ?? []) as WinnerRow[];
-      setRows(winnerRows);
-
-      const nextForms: Record<string, FormState> = {};
-      for (const row of winnerRows) {
-        nextForms[row.id] = {
-          claim_full_name:
-            row.claim_full_name ??
-            user.user_metadata?.full_name ??
-            `${user.user_metadata?.first_name ?? ""} ${user.user_metadata?.last_name ?? ""}`.trim(),
-          claim_email: row.claim_email ?? user.email ?? "",
-          claim_phone: row.claim_phone ?? "",
-          claim_handle: row.claim_handle ?? "",
-          claim_notes: row.claim_notes ?? "",
-          claim_method: row.claim_method ?? "paypal",
-        };
-      }
-
-      setForms(nextForms);
-      setLoading(false);
     }
 
-    load();
+    loadClaim();
 
     return () => {
-      mounted = false;
+      active = false;
     };
-  }, [supabase]);
+  }, [router, supabase]);
 
-  useEffect(() => {
-    if (!targetClaimId || loading) return;
+  function handleChange(
+    event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
+  ) {
+    const { name, value } = event.target;
 
-    const frame = requestAnimationFrame(() => {
-      const el = document.getElementById(`claim-row-${targetClaimId}`);
-      if (el) {
-        el.scrollIntoView({ behavior: "smooth", block: "start" });
-      }
-    });
-
-    return () => cancelAnimationFrame(frame);
-  }, [targetClaimId, loading]);
-
-  function updateForm(id: string, key: keyof FormState, value: string) {
-    setForms((prev) => ({
+    setForm((prev) => ({
       ...prev,
-      [id]: {
-        ...(prev[id] ?? DEFAULT_FORM),
-        [key]: value,
-      },
+      [name]: value,
     }));
   }
 
-  async function submitClaim(row: WinnerRow) {
-    const form = forms[row.id] ?? DEFAULT_FORM;
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
 
-    if (!form.claim_full_name.trim()) {
-      setError("Please enter your full name.");
+    if (!claimRow) {
+      setError("No claimable prize was found.");
       return;
     }
 
-    if (!form.claim_email.trim()) {
-      setError("Please enter your email.");
-      return;
+    setSaving(true);
+    setError("");
+
+    try {
+      const {
+        data: { user },
+        error: userError,
+      } = await supabase.auth.getUser();
+
+      if (userError || !user) {
+        router.replace("/login");
+        return;
+      }
+
+      const payload = {
+        claim_method: form.claimMethod,
+        claim_full_name: form.fullName.trim(),
+        claim_email: form.email.trim(),
+        claim_phone: form.phone.trim(),
+        claim_handle: form.handle.trim(),
+        claim_notes: form.notes.trim(),
+        claim_status: "submitted",
+        claimed_at: new Date().toISOString(),
+      };
+
+      const { error: updateError } = await supabase
+        .from("monthly_winners")
+        .update(payload)
+        .eq("id", claimRow.id)
+        .eq("user_id", user.id);
+
+      if (updateError) {
+        console.error("Failed to submit claim:", updateError);
+        setError(updateError.message || "We couldn’t submit your claim.");
+        return;
+      }
+
+      router.push("/dashboard/claim-prize/confirmation");
+    } catch (err) {
+      console.error("Claim submit crashed:", err);
+      setError("Something went wrong submitting your claim.");
+    } finally {
+      setSaving(false);
     }
-
-    if (
-      (form.claim_method === "cashapp" ||
-        form.claim_method === "venmo" ||
-        form.claim_method === "paypal") &&
-      !form.claim_handle.trim()
-    ) {
-      setError("Please enter your payout handle for the selected method.");
-      return;
-    }
-
-    setError(null);
-    setSubmittingId(row.id);
-
-    const payload = {
-      claim_status: "pending" as const,
-      claim_method: form.claim_method,
-      claim_full_name: form.claim_full_name.trim(),
-      claim_email: form.claim_email.trim(),
-      claim_phone: form.claim_phone.trim() || null,
-      claim_handle: form.claim_handle.trim() || null,
-      claim_notes: form.claim_notes.trim() || null,
-      claimed_at: new Date().toISOString(),
-    };
-
-    const { error: updateError } = await supabase
-      .from("monthly_winners")
-      .update(payload)
-      .eq("id", row.id);
-
-    if (updateError) {
-      setError(updateError.message);
-      setSubmittingId(null);
-      return;
-    }
-
-    setRows((prev) =>
-      prev.map((item) =>
-        item.id === row.id
-          ? {
-              ...item,
-              ...payload,
-            }
-          : item
-      )
-    );
-
-    setSubmittingId(null);
   }
 
-  const highlightSectionStyle = (rowId: string): CSSProperties => ({
-    ...(targetClaimId === rowId
-      ? {
-          boxShadow: "0 0 0 1px rgba(137,240,221,0.28) inset",
-        }
-      : {}),
-  });
+  if (loading) {
+    return (
+      <main style={pageStyle}>
+        <div style={shellStyle}>
+          <div style={loadingStyle}>Loading claim page...</div>
+        </div>
+      </main>
+    );
+  }
+
+  if (!claimRow) {
+    return (
+      <main style={pageStyle}>
+        <div style={shellStyle}>
+          <section style={cardStyle}>
+            <div style={eyebrowStyle}>Prize Claim</div>
+            <h1 style={titleStyle}>No active prize claim found.</h1>
+            <p style={bodyStyle}>
+              You do not have a current unclaimed prize available right now.
+            </p>
+
+            <div style={actionsStyle}>
+              <Link href="/dashboard" style={primaryButtonStyle}>
+                Back to Dashboard
+              </Link>
+            </div>
+          </section>
+        </div>
+      </main>
+    );
+  }
+
+  const normalizedStatus = (claimRow.claim_status ?? "").toLowerCase();
+  const isAlreadySubmitted = normalizedStatus === "submitted" || normalizedStatus === "approved";
 
   return (
-    <main className="scan-page">
-      <div className="scan-wrap">
-        <div style={{ marginBottom: 20 }}>
-          <Link href="/dashboard" className="btn-primary">
-            ← Back to dashboard
-          </Link>
-        </div>
-
-        <section className="card">
-          <div className="pill">Prize Center</div>
-
-          <h1 className="hero-title">Claim your prize.</h1>
-
-          <div className="hero-text">
-            <p>You earned it. Now lock in your payout details.</p>
-            <p>
-              Once your claim is submitted, your dashboard will switch from{" "}
-              <strong>Claim Prize</strong> to <strong>Pending...</strong>.
-            </p>
-            <p>When it is reviewed and paid, the prize stays in your history as a permanent record.</p>
-          </div>
+    <main style={pageStyle}>
+      <div style={shellStyle}>
+        <section style={heroCardStyle}>
+          <div style={eyebrowStyle}>Prize Claim</div>
+          <h1 style={titleStyle}>Claim your prize.</h1>
+          <p style={bodyStyle}>
+            Submit your payout details below. Your total winnings are shown exactly as earned.
+          </p>
         </section>
 
         {error ? (
-          <section className="card-light" style={{ marginTop: 20 }}>
-            <div
-              style={{
-                padding: "14px 16px",
-                borderRadius: 16,
-                border: "1px solid rgba(255,120,120,0.24)",
-                background: "rgba(255,120,120,0.10)",
-                color: "#ffd7d7",
-                lineHeight: 1.6,
-              }}
-            >
-              {error}
-            </div>
-          </section>
+          <div style={errorStyle}>
+            {error}
+          </div>
         ) : null}
 
-        {loading ? (
-          <section className="card-light" style={{ marginTop: 20 }}>
-            <h2 className="section-title">Loading your prize claims...</h2>
-          </section>
-        ) : rows.length === 0 ? (
-          <section className="card-light" style={{ marginTop: 20 }}>
-            <h2 className="section-title">No prize claims are available on your account right now.</h2>
-          </section>
-        ) : (
-          rows.map((row) => {
-            const form = forms[row.id] ?? DEFAULT_FORM;
-            const locked =
-              row.claim_status === "pending" ||
-              row.claim_status === "approved" ||
-              row.claim_status === "paid";
+        <section style={detailsCardStyle}>
+          <div style={summaryGridStyle}>
+            <div style={summaryItemStyle}>
+              <div style={summaryLabelStyle}>Month</div>
+              <div style={summaryValueStyle}>{formatMonth(claimRow.winner_month)}</div>
+            </div>
 
-            return (
-              <section
-                id={`claim-row-${row.id}`}
-                key={row.id}
-                className="card"
-                style={{ marginTop: 20, ...highlightSectionStyle(row.id) }}
-              >
-                <div className="pill">Prize Claim</div>
+            <div style={summaryItemStyle}>
+              <div style={summaryLabelStyle}>Prize</div>
+              <div style={summaryValueStyle}>{formatPrizeLabel(claimRow.category)}</div>
+            </div>
 
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "flex-start",
-                    gap: 16,
-                    flexWrap: "wrap",
-                  }}
+            <div style={summaryItemStyle}>
+              <div style={summaryLabelStyle}>Multiplier</div>
+              <div style={summaryValueStyle}>{`${claimRow.prize_multiplier ?? 1}x`}</div>
+            </div>
+
+            <div style={summaryItemStyle}>
+              <div style={summaryLabelStyle}>Total Won</div>
+              <div style={summaryValueBigStyle}>
+                {formatMoney(claimRow.total_prize_amount)}
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section style={formCardStyle}>
+          <div style={formHeaderStyle}>
+            <h2 style={sectionTitleStyle}>Payout Details</h2>
+            <div style={statusBadgeStyle}>
+              {isAlreadySubmitted ? "Already Submitted" : "Ready to Claim"}
+            </div>
+          </div>
+
+          <form onSubmit={handleSubmit} style={formStyle}>
+            <div style={fieldGridStyle}>
+              <div style={fieldStyle}>
+                <label htmlFor="claimMethod" style={labelStyle}>
+                  Payment Method
+                </label>
+                <select
+                  id="claimMethod"
+                  name="claimMethod"
+                  value={form.claimMethod}
+                  onChange={handleChange}
+                  style={selectStyle}
+                  disabled={saving}
                 >
-                  <div>
-                    <h2 className="section-title" style={{ color: "#ffffff", marginBottom: 8 }}>
-                      {formatAmount(row.prize_amount)}
-                    </h2>
+                  <option value="paypal">PayPal</option>
+                  <option value="cashapp">Cash App</option>
+                  <option value="venmo">Venmo</option>
+                  <option value="zelle">Zelle</option>
+                </select>
+              </div>
 
-                    <div
-                      style={{
-                        display: "flex",
-                        gap: 10,
-                        flexWrap: "wrap",
-                        marginBottom: 12,
-                      }}
-                    >
-                      <div className="meta-box">
-                        <strong>Month:</strong> {formatMonthLabel(row.winner_month)}
-                      </div>
-                      <div className="meta-box">
-                        <strong>Prize:</strong> {normalizePrizeLabel(row.category)}
-                      </div>
-                      <div className="meta-box">
-                        <strong>Multiplier:</strong> {getMultiplierLabel(row)}
-                      </div>
-                      {row.membership_tier ? (
-                        <div className="meta-box">
-                          <strong>Tier:</strong>{" "}
-                          {row.membership_tier.replace(/\b\w/g, (c) => c.toUpperCase())}
-                        </div>
-                      ) : null}
-                    </div>
-                  </div>
+              <div style={fieldStyle}>
+                <label htmlFor="fullName" style={labelStyle}>
+                  Full Name
+                </label>
+                <input
+                  id="fullName"
+                  name="fullName"
+                  type="text"
+                  value={form.fullName}
+                  onChange={handleChange}
+                  style={inputStyle}
+                  placeholder="Your full legal name"
+                  required
+                  disabled={saving}
+                />
+              </div>
 
-                  <div
-                    style={{
-                      padding: "10px 18px",
-                      borderRadius: 999,
-                      border: "1px solid rgba(137,240,221,0.28)",
-                      background: "rgba(137,240,221,0.08)",
-                      color: "#89f0dd",
-                      fontWeight: 800,
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    {statusCopy(row.claim_status)}
-                  </div>
-                </div>
+              <div style={fieldStyle}>
+                <label htmlFor="email" style={labelStyle}>
+                  Email
+                </label>
+                <input
+                  id="email"
+                  name="email"
+                  type="email"
+                  value={form.email}
+                  onChange={handleChange}
+                  style={inputStyle}
+                  placeholder="you@example.com"
+                  required
+                  disabled={saving}
+                />
+              </div>
 
-                {row.claim_status === "paid" ? (
-                  <div
-                    style={{
-                      marginTop: 18,
-                      padding: "16px 18px",
-                      borderRadius: 20,
-                      border: "1px solid rgba(137,240,221,0.24)",
-                      background: "rgba(137,240,221,0.08)",
-                      color: "#ffffff",
-                      lineHeight: 1.7,
-                    }}
-                  >
-                    This prize has already been paid out and remains on your dashboard as part of
-                    your winnings history.
-                  </div>
-                ) : null}
+              <div style={fieldStyle}>
+                <label htmlFor="phone" style={labelStyle}>
+                  Phone Number
+                </label>
+                <input
+                  id="phone"
+                  name="phone"
+                  type="tel"
+                  value={form.phone}
+                  onChange={handleChange}
+                  style={inputStyle}
+                  placeholder="(555) 555-5555"
+                  disabled={saving}
+                />
+              </div>
 
-                {row.claim_status === "approved" ? (
-                  <div
-                    style={{
-                      marginTop: 18,
-                      padding: "16px 18px",
-                      borderRadius: 20,
-                      border: "1px solid rgba(137,240,221,0.18)",
-                      background: "rgba(255,255,255,0.05)",
-                      color: "#ffffff",
-                      lineHeight: 1.7,
-                    }}
-                  >
-                    Your claim has been approved and is waiting to be paid out.
-                  </div>
-                ) : null}
+              <div style={{ ...fieldStyle, gridColumn: "1 / -1" }}>
+                <label htmlFor="handle" style={labelStyle}>
+                  {getHandleLabel(form.claimMethod)}
+                </label>
+                <input
+                  id="handle"
+                  name="handle"
+                  type="text"
+                  value={form.handle}
+                  onChange={handleChange}
+                  style={inputStyle}
+                  placeholder={
+                    form.claimMethod === "paypal"
+                      ? "PayPal email"
+                      : form.claimMethod === "zelle"
+                      ? "Zelle email or phone"
+                      : form.claimMethod === "venmo"
+                      ? "@yourvenmo"
+                      : "$yourcashapp"
+                  }
+                  required
+                  disabled={saving}
+                />
+              </div>
 
-                {row.claim_status === "pending" ? (
-                  <div
-                    style={{
-                      marginTop: 18,
-                      padding: "16px 18px",
-                      borderRadius: 20,
-                      border: "1px solid rgba(137,240,221,0.18)",
-                      background: "rgba(255,255,255,0.05)",
-                      color: "#ffffff",
-                      lineHeight: 1.7,
-                    }}
-                  >
-                    Your claim was submitted and is currently under review.
-                  </div>
-                ) : null}
+              <div style={{ ...fieldStyle, gridColumn: "1 / -1" }}>
+                <label htmlFor="notes" style={labelStyle}>
+                  Notes
+                </label>
+                <textarea
+                  id="notes"
+                  name="notes"
+                  value={form.notes}
+                  onChange={handleChange}
+                  style={textareaStyle}
+                  placeholder="Anything we should know about your payout details?"
+                  rows={4}
+                  disabled={saving}
+                />
+              </div>
+            </div>
 
-                {row.claim_status === "rejected" && row.admin_notes ? (
-                  <div
-                    style={{
-                      marginTop: 18,
-                      padding: "16px 18px",
-                      borderRadius: 20,
-                      border: "1px solid rgba(255,120,120,0.24)",
-                      background: "rgba(255,120,120,0.08)",
-                      color: "#ffd7d7",
-                      lineHeight: 1.7,
-                    }}
-                  >
-                    {row.admin_notes}
-                  </div>
-                ) : null}
+            <div style={actionsStyle}>
+              <Link href="/dashboard" style={secondaryButtonStyle}>
+                Back to Dashboard
+              </Link>
 
-                <div style={{ marginTop: 22 }}>
-                  <h3 className="section-title" style={{ color: "#ffffff", marginBottom: 10 }}>
-                    Claim Details
-                  </h3>
-
-                  <p className="section-text-dark" style={{ maxWidth: "none" }}>
-                    Fill out the details below so your payout can be reviewed and sent correctly.
-                  </p>
-
-                  <div
-                    style={{
-                      display: "grid",
-                      gap: 14,
-                      marginTop: 18,
-                    }}
-                  >
-                    <div>
-                      <div
-                        style={{
-                          fontSize: 13,
-                          fontWeight: 800,
-                          textTransform: "uppercase",
-                          letterSpacing: "0.08em",
-                          opacity: 0.7,
-                          marginBottom: 8,
-                        }}
-                      >
-                        Full Name
-                      </div>
-                      <input
-                        value={form.claim_full_name}
-                        onChange={(e) => updateForm(row.id, "claim_full_name", e.target.value)}
-                        disabled={locked}
-                        style={inputStyle}
-                        placeholder="Your full name"
-                      />
-                    </div>
-
-                    <div>
-                      <div
-                        style={{
-                          fontSize: 13,
-                          fontWeight: 800,
-                          textTransform: "uppercase",
-                          letterSpacing: "0.08em",
-                          opacity: 0.7,
-                          marginBottom: 8,
-                        }}
-                      >
-                        Email
-                      </div>
-                      <input
-                        value={form.claim_email}
-                        onChange={(e) => updateForm(row.id, "claim_email", e.target.value)}
-                        disabled={locked}
-                        style={inputStyle}
-                        placeholder="you@example.com"
-                      />
-                    </div>
-
-                    <div>
-                      <div
-                        style={{
-                          fontSize: 13,
-                          fontWeight: 800,
-                          textTransform: "uppercase",
-                          letterSpacing: "0.08em",
-                          opacity: 0.7,
-                          marginBottom: 8,
-                        }}
-                      >
-                        Phone Number
-                      </div>
-                      <input
-                        value={form.claim_phone}
-                        onChange={(e) => updateForm(row.id, "claim_phone", e.target.value)}
-                        disabled={locked}
-                        style={inputStyle}
-                        placeholder="Optional"
-                      />
-                    </div>
-
-                    <div style={{ marginTop: 6 }}>
-                      <div className="pill" style={{ marginBottom: 10 }}>
-                        Payout Method
-                      </div>
-
-                      <div
-                        style={{
-                          display: "flex",
-                          gap: 10,
-                          flexWrap: "wrap",
-                        }}
-                      >
-                        {payoutMethods.map((method) => {
-                          const selected = form.claim_method === method;
-
-                          return (
-                            <button
-                              key={method}
-                              type="button"
-                              onClick={() => updateForm(row.id, "claim_method", method)}
-                              disabled={locked}
-                              style={{
-                                padding: "10px 16px",
-                                borderRadius: 999,
-                                border: selected
-                                  ? "1px solid #89f0dd"
-                                  : "1px solid rgba(255,255,255,0.12)",
-                                background: selected
-                                  ? "rgba(137,240,221,0.12)"
-                                  : "rgba(255,255,255,0.05)",
-                                color: "#ffffff",
-                                fontWeight: 700,
-                                cursor: locked ? "default" : "pointer",
-                                opacity: locked ? 0.7 : 1,
-                              }}
-                            >
-                              {methodLabel(method)}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-
-                    <div>
-                      <div
-                        style={{
-                          fontSize: 13,
-                          fontWeight: 800,
-                          textTransform: "uppercase",
-                          letterSpacing: "0.08em",
-                          opacity: 0.7,
-                          marginBottom: 8,
-                        }}
-                      >
-                        {getHandleLabel(form.claim_method)}
-                      </div>
-                      <input
-                        value={form.claim_handle}
-                        onChange={(e) => updateForm(row.id, "claim_handle", e.target.value)}
-                        disabled={locked}
-                        style={inputStyle}
-                        placeholder={
-                          form.claim_method === "paypal"
-                            ? "PayPal email"
-                            : form.claim_method === "venmo"
-                              ? "@venmo-username"
-                              : form.claim_method === "cashapp"
-                                ? "$cashapphandle"
-                                : form.claim_method === "gift_card"
-                                  ? "Email for gift card delivery"
-                                  : "Optional note for account credit"
-                        }
-                      />
-                    </div>
-
-                    <div>
-                      <div
-                        style={{
-                          fontSize: 13,
-                          fontWeight: 800,
-                          textTransform: "uppercase",
-                          letterSpacing: "0.08em",
-                          opacity: 0.7,
-                          marginBottom: 8,
-                        }}
-                      >
-                        Notes
-                      </div>
-                      <textarea
-                        value={form.claim_notes}
-                        onChange={(e) => updateForm(row.id, "claim_notes", e.target.value)}
-                        disabled={locked}
-                        style={textareaStyle}
-                        placeholder="Optional note"
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                {!locked ? (
-                  <div style={{ marginTop: 20 }}>
-                    <button
-                      onClick={() => submitClaim(row)}
-                      disabled={submittingId === row.id}
-                      className="btn-primary"
-                      style={{ border: "none", cursor: "pointer" }}
-                    >
-                      {submittingId === row.id ? "Submitting..." : "Submit Claim"}
-                    </button>
-                  </div>
-                ) : (
-                  <div
-                    style={{
-                      marginTop: 20,
-                      display: "inline-flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      padding: "10px 18px",
-                      borderRadius: 999,
-                      border: "1px solid rgba(137,240,221,0.28)",
-                      background: "rgba(137,240,221,0.08)",
-                      color: "#89f0dd",
-                      fontWeight: 800,
-                    }}
-                  >
-                    {row.claim_status === "paid"
-                      ? "Paid Out"
-                      : row.claim_status === "approved"
-                        ? "Approved"
-                        : "Pending..."}
-                  </div>
-                )}
-              </section>
-            );
-          })
-        )}
+              <button
+                type="submit"
+                style={submitButtonStyle}
+                disabled={saving}
+              >
+                {saving ? "Submitting..." : "Submit Claim"}
+              </button>
+            </div>
+          </form>
+        </section>
       </div>
     </main>
   );
 }
 
-const inputStyle: CSSProperties = {
+const pageStyle: React.CSSProperties = {
+  minHeight: "100vh",
+  background: "linear-gradient(180deg, #07111f 0%, #0b1728 55%, #101d31 100%)",
+  color: "#ffffff",
+  padding: "32px 20px 60px",
+};
+
+const shellStyle: React.CSSProperties = {
+  maxWidth: "980px",
+  margin: "0 auto",
+  display: "grid",
+  gap: "20px",
+};
+
+const heroCardStyle: React.CSSProperties = {
+  background: "rgba(255,255,255,0.06)",
+  border: "1px solid rgba(255,255,255,0.10)",
+  borderRadius: "22px",
+  padding: "28px",
+  backdropFilter: "blur(8px)",
+};
+
+const detailsCardStyle: React.CSSProperties = {
+  background: "rgba(255,255,255,0.06)",
+  border: "1px solid rgba(255,255,255,0.10)",
+  borderRadius: "22px",
+  padding: "24px",
+};
+
+const formCardStyle: React.CSSProperties = {
+  background: "rgba(255,255,255,0.06)",
+  border: "1px solid rgba(255,255,255,0.10)",
+  borderRadius: "22px",
+  padding: "24px",
+};
+
+const cardStyle: React.CSSProperties = {
+  background: "rgba(255,255,255,0.06)",
+  border: "1px solid rgba(255,255,255,0.10)",
+  borderRadius: "22px",
+  padding: "28px",
+};
+
+const eyebrowStyle: React.CSSProperties = {
+  fontSize: "13px",
+  letterSpacing: "0.08em",
+  textTransform: "uppercase",
+  color: "#9bbcff",
+  marginBottom: "12px",
+};
+
+const titleStyle: React.CSSProperties = {
+  margin: "0 0 10px",
+  fontSize: "34px",
+  lineHeight: 1.1,
+  fontWeight: 800,
+};
+
+const bodyStyle: React.CSSProperties = {
+  margin: 0,
+  color: "rgba(255,255,255,0.78)",
+  fontSize: "15px",
+  lineHeight: 1.6,
+};
+
+const summaryGridStyle: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
+  gap: "16px",
+};
+
+const summaryItemStyle: React.CSSProperties = {
+  background: "rgba(255,255,255,0.045)",
+  border: "1px solid rgba(255,255,255,0.08)",
+  borderRadius: "16px",
+  padding: "18px",
+};
+
+const summaryLabelStyle: React.CSSProperties = {
+  fontSize: "12px",
+  color: "rgba(255,255,255,0.62)",
+  textTransform: "uppercase",
+  letterSpacing: "0.06em",
+  marginBottom: "8px",
+};
+
+const summaryValueStyle: React.CSSProperties = {
+  fontSize: "18px",
+  fontWeight: 700,
+  color: "#ffffff",
+};
+
+const summaryValueBigStyle: React.CSSProperties = {
+  fontSize: "28px",
+  fontWeight: 800,
+  color: "#ffffff",
+};
+
+const formHeaderStyle: React.CSSProperties = {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  gap: "12px",
+  flexWrap: "wrap",
+  marginBottom: "20px",
+};
+
+const sectionTitleStyle: React.CSSProperties = {
+  margin: 0,
+  fontSize: "22px",
+  fontWeight: 800,
+};
+
+const statusBadgeStyle: React.CSSProperties = {
+  display: "inline-block",
+  padding: "8px 14px",
+  borderRadius: "999px",
+  fontSize: "13px",
+  fontWeight: 700,
+  background: "rgba(255,255,255,0.08)",
+  border: "1px solid rgba(255,255,255,0.12)",
+  color: "#ffffff",
+};
+
+const formStyle: React.CSSProperties = {
+  display: "grid",
+  gap: "20px",
+};
+
+const fieldGridStyle: React.CSSProperties = {
+  display: "grid",
+  gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+  gap: "16px",
+};
+
+const fieldStyle: React.CSSProperties = {
+  display: "grid",
+  gap: "8px",
+  minWidth: 0,
+};
+
+const labelStyle: React.CSSProperties = {
+  fontSize: "14px",
+  fontWeight: 700,
+  color: "#ffffff",
+};
+
+const inputStyle: React.CSSProperties = {
   width: "100%",
-  borderRadius: 16,
+  boxSizing: "border-box",
+  borderRadius: "14px",
   border: "1px solid rgba(255,255,255,0.12)",
   background: "rgba(255,255,255,0.06)",
   color: "#ffffff",
   padding: "14px 16px",
+  fontSize: "15px",
   outline: "none",
-  fontSize: 16,
-  boxSizing: "border-box",
 };
 
-const textareaStyle: CSSProperties = {
-  ...inputStyle,
-  minHeight: 120,
+const selectStyle: React.CSSProperties = {
+  width: "100%",
+  boxSizing: "border-box",
+  borderRadius: "14px",
+  border: "1px solid rgba(255,255,255,0.12)",
+  background: "#162338",
+  color: "#ffffff",
+  padding: "14px 16px",
+  fontSize: "15px",
+  outline: "none",
+};
+
+const textareaStyle: React.CSSProperties = {
+  width: "100%",
+  boxSizing: "border-box",
+  borderRadius: "14px",
+  border: "1px solid rgba(255,255,255,0.12)",
+  background: "rgba(255,255,255,0.06)",
+  color: "#ffffff",
+  padding: "14px 16px",
+  fontSize: "15px",
+  outline: "none",
   resize: "vertical",
+};
+
+const actionsStyle: React.CSSProperties = {
+  display: "flex",
+  gap: "12px",
+  flexWrap: "wrap",
+};
+
+const primaryButtonStyle: React.CSSProperties = {
+  display: "inline-block",
+  background: "#ffffff",
+  color: "#07111f",
+  textDecoration: "none",
+  padding: "14px 20px",
+  borderRadius: "14px",
+  fontWeight: 800,
+  fontSize: "15px",
+};
+
+const secondaryButtonStyle: React.CSSProperties = {
+  display: "inline-block",
+  background: "transparent",
+  color: "#ffffff",
+  textDecoration: "none",
+  padding: "14px 20px",
+  borderRadius: "14px",
+  fontWeight: 700,
+  fontSize: "15px",
+  border: "1px solid rgba(255,255,255,0.18)",
+};
+
+const submitButtonStyle: React.CSSProperties = {
+  background: "#ffffff",
+  color: "#07111f",
+  border: "none",
+  padding: "14px 20px",
+  borderRadius: "14px",
+  fontWeight: 800,
+  fontSize: "15px",
+  cursor: "pointer",
+};
+
+const loadingStyle: React.CSSProperties = {
+  color: "#ffffff",
+  fontSize: "18px",
+  opacity: 0.9,
+  padding: "40px 0",
+};
+
+const errorStyle: React.CSSProperties = {
+  background: "rgba(255, 87, 87, 0.12)",
+  border: "1px solid rgba(255, 87, 87, 0.35)",
+  color: "#ffd5d5",
+  borderRadius: "14px",
+  padding: "14px 16px",
+  whiteSpace: "pre-wrap",
 };
