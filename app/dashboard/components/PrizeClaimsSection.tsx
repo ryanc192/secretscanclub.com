@@ -1,105 +1,60 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { CSSProperties, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { createBrowserSupabaseClient } from "../../../lib/supabase/client";
 
-type PrizeRow = {
+type PrizeClaimRow = {
   id: string;
-  user_id: string;
-  winner_month: string | null;
-  category: string | null;
-  membership_tier: string | null;
-  prize_amount: number | null;
+  winner_month: string;
+  category: string;
   prize_multiplier: number | null;
-  claim_status: "unclaimed" | "pending" | "approved" | "paid" | "rejected" | null;
-  paid_at: string | null;
+  total_prize_amount: number | null;
+  claim_status: string | null;
 };
 
-function formatMonthLabel(value: string | null) {
-  if (!value) return "—";
-  const safe = `${value}-01`;
-  const date = new Date(`${safe}T00:00:00`);
-  if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleDateString("en-US", { month: "long", year: "numeric" });
+function formatMoney(value: number | null | undefined) {
+  if (value == null || Number.isNaN(Number(value))) return "—";
+  return `$${Number(value).toFixed(0)}`;
 }
 
-function formatAmount(value: number | null) {
-  return typeof value === "number" ? `$${value.toFixed(2)}` : "—";
+function formatPrizeLabel(category: string) {
+  return category.replace(/_/g, " ");
 }
 
-function normalizePrizeLabel(category: string | null) {
-  if (!category) return "Winner";
-
-  const value = category.trim().toLowerCase();
-
-  if (value.includes("1")) return "1st";
-  if (value.includes("2")) return "2nd";
-  if (value.includes("3")) return "3rd";
-  if (value.includes("random")) return "Random";
-
-  return category;
+function formatMonth(value: string) {
+  return value;
 }
 
-function fallbackMultiplierFromTier(tier: string | null) {
-  const value = (tier ?? "").trim().toLowerCase();
+function formatStatusLabel(status: string | null | undefined) {
+  if (!status) return "Unclaimed";
 
-  if (value === "vip") return 3;
-  if (value === "club" || value === "club-member" || value === "club member") return 2;
-  return 1;
-}
+  const normalized = status.trim().toLowerCase();
 
-function getMultiplierLabel(row: PrizeRow) {
-  const multiplier =
-    typeof row.prize_multiplier === "number"
-      ? row.prize_multiplier
-      : fallbackMultiplierFromTier(row.membership_tier);
+  if (normalized === "paid") return "Paid";
+  if (normalized === "approved") return "Approved";
+  if (normalized === "submitted") return "Submitted";
+  if (normalized === "unclaimed") return "Unclaimed";
 
-  return `${multiplier}x`;
-}
-
-function getButtonLabel(status: PrizeRow["claim_status"]) {
-  if (status === "pending" || status === "approved") return "Pending...";
-  return "Claim Prize";
-}
-
-function canShowButton(status: PrizeRow["claim_status"]) {
-  return status !== "paid";
-}
-
-function getStatusPill(status: PrizeRow["claim_status"]) {
-  if (status === "paid") return "Paid";
-  if (status === "approved") return "Approved";
-  if (status === "pending") return "Pending";
-  if (status === "rejected") return "Claim Again";
-  return "Unclaimed";
+  return status.charAt(0).toUpperCase() + status.slice(1);
 }
 
 export default function PrizeClaimsSection() {
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
+  const [rows, setRows] = useState<PrizeClaimRow[]>([]);
   const [loading, setLoading] = useState(true);
-  const [rows, setRows] = useState<PrizeRow[]>([]);
-  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    let mounted = true;
+    let active = true;
 
-    async function loadPrizeRows() {
+    async function loadPrizeClaims() {
       setLoading(true);
-      setError(null);
 
       const {
         data: { user },
-        error: authError,
       } = await supabase.auth.getUser();
 
-      if (!mounted) return;
-
-      if (authError) {
-        setError(authError.message);
-        setLoading(false);
-        return;
-      }
+      if (!active) return;
 
       if (!user) {
         setRows([]);
@@ -107,195 +62,174 @@ export default function PrizeClaimsSection() {
         return;
       }
 
-      const { data, error: queryError } = await supabase
+      const { data, error } = await supabase
         .from("monthly_winners")
-        .select(`
-          id,
-          user_id,
-          winner_month,
-          category,
-          membership_tier,
-          prize_amount,
-          prize_multiplier,
-          claim_status,
-          paid_at
-        `)
+        .select(
+          "id, winner_month, category, prize_multiplier, total_prize_amount, claim_status"
+        )
         .eq("user_id", user.id)
         .order("winner_month", { ascending: false })
-        .order("created_at", { ascending: false });
+        .order("id", { ascending: false });
 
-      if (!mounted) return;
+      if (!active) return;
 
-      if (queryError) {
-        setError(queryError.message);
-        setLoading(false);
-        return;
+      if (error) {
+        console.error("Failed to load prize claims:", error);
+        setRows([]);
+      } else {
+        setRows((data as PrizeClaimRow[]) ?? []);
       }
 
-      setRows((data ?? []) as PrizeRow[]);
       setLoading(false);
     }
 
-    loadPrizeRows();
+    loadPrizeClaims();
 
     return () => {
-      mounted = false;
+      active = false;
     };
   }, [supabase]);
-
-  if (loading) {
-    return (
-      <section
-        style={{
-          marginTop: 28,
-          border: "1px solid rgba(255,255,255,0.10)",
-          borderRadius: 24,
-          background: "rgba(255,255,255,0.04)",
-          padding: 20,
-        }}
-      >
-        <h2 style={{ margin: 0, fontSize: 24 }}>Prize Claims</h2>
-        <p style={{ marginTop: 10, color: "rgba(255,255,255,0.72)" }}>
-          Loading your prize history...
-        </p>
-      </section>
-    );
-  }
-
-  if (error) {
-    return (
-      <section
-        style={{
-          marginTop: 28,
-          border: "1px solid rgba(255,80,80,0.30)",
-          borderRadius: 24,
-          background: "rgba(255,80,80,0.08)",
-          padding: 20,
-        }}
-      >
-        <h2 style={{ margin: 0, fontSize: 24 }}>Prize Claims</h2>
-        <p style={{ marginTop: 10, color: "#ffd6d6" }}>{error}</p>
-      </section>
-    );
-  }
-
-  if (rows.length === 0) {
-    return null;
-  }
 
   return (
     <section
       style={{
-        marginTop: 28,
+        marginTop: "28px",
+        background: "rgba(255,255,255,0.06)",
         border: "1px solid rgba(255,255,255,0.10)",
-        borderRadius: 24,
-        background: "rgba(255,255,255,0.04)",
-        padding: 20,
+        borderRadius: "22px",
+        padding: "20px",
+        overflowX: "auto",
       }}
     >
-      <div style={{ marginBottom: 18 }}>
-        <h2 style={{ margin: 0, fontSize: 24 }}>Prize Claims</h2>
-        <p style={{ marginTop: 8, color: "rgba(255,255,255,0.72)" }}>
-          Your past winnings stay here as a record. Claim buttons disappear after payout.
-        </p>
-      </div>
+      <h2
+        style={{
+          margin: "0 0 8px",
+          fontSize: "20px",
+          fontWeight: 800,
+          color: "#ffffff",
+        }}
+      >
+        Prize Claims
+      </h2>
 
-      <div style={{ overflowX: "auto" }}>
-        <table
-          style={{
-            width: "100%",
-            borderCollapse: "collapse",
-            minWidth: 760,
-          }}
-        >
-          <thead>
-            <tr>
-              <th style={thStyle}>Month</th>
-              <th style={thStyle}>Prize</th>
-              <th style={thStyle}>Multiplier</th>
-              <th style={thStyle}>Total Won</th>
-              <th style={thStyle}>Status</th>
-              <th style={thStyle}>Action</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row) => {
-              const status = row.claim_status ?? "unclaimed";
-              const showButton = canShowButton(status);
+      <p
+        style={{
+          margin: "0 0 18px",
+          color: "rgba(255,255,255,0.78)",
+          fontSize: "14px",
+        }}
+      >
+        Your past winnings stay here as a record. Claim buttons disappear after payout.
+      </p>
 
-              return (
-                <tr key={row.id} style={{ borderTop: "1px solid rgba(255,255,255,0.08)" }}>
-                  <td style={tdStyle}>{formatMonthLabel(row.winner_month)}</td>
-                  <td style={tdStyle}>{normalizePrizeLabel(row.category)}</td>
-                  <td style={tdStyle}>{getMultiplierLabel(row)}</td>
-                  <td style={tdStyle}>{formatAmount(row.prize_amount)}</td>
-                  <td style={tdStyle}>
-                    <span
-                      style={{
-                        display: "inline-block",
-                        padding: "8px 12px",
-                        borderRadius: 999,
-                        border: "1px solid rgba(255,255,255,0.12)",
-                        background: "rgba(255,255,255,0.05)",
-                        fontSize: 12,
-                        fontWeight: 700,
-                      }}
-                    >
-                      {getStatusPill(status)}
-                    </span>
-                  </td>
-                  <td style={tdStyle}>
-                    {showButton ? (
-                      <Link
-                        href={`/dashboard/claim-prize?claim=${row.id}`}
+      {loading ? (
+        <div style={{ color: "rgba(255,255,255,0.75)" }}>Loading prize claims...</div>
+      ) : rows.length === 0 ? (
+        <div style={{ color: "rgba(255,255,255,0.75)" }}>No prize claims yet.</div>
+      ) : (
+        <>
+          <table
+            className="prize-claims-table"
+            style={{
+              width: "100%",
+              borderCollapse: "collapse",
+              minWidth: "760px",
+            }}
+          >
+            <thead>
+              <tr>
+                <th style={thStyle}>MONTH</th>
+                <th style={thStyle}>PRIZE</th>
+                <th style={thStyle}>MULTIPLIER</th>
+                <th style={thStyle}>TOTAL WON</th>
+                <th style={thStyle}>STATUS</th>
+                <th style={thStyle}>ACTION</th>
+              </tr>
+            </thead>
+
+            <tbody>
+              {rows.map((row) => {
+                const normalizedStatus = (row.claim_status ?? "").toLowerCase();
+                const isPaid = normalizedStatus === "paid";
+
+                return (
+                  <tr
+                    key={row.id}
+                    style={{
+                      borderTop: "1px solid rgba(255,255,255,0.08)",
+                    }}
+                  >
+                    <td style={tdStyle}>{formatMonth(row.winner_month)}</td>
+                    <td style={tdStyle}>{formatPrizeLabel(row.category)}</td>
+                    <td style={tdStyle}>{`${row.prize_multiplier ?? 1}x`}</td>
+                    <td style={tdStyle}>{formatMoney(row.total_prize_amount)}</td>
+                    <td style={tdStyle}>
+                      <span
                         style={{
                           display: "inline-block",
-                          textDecoration: "none",
-                          background:
-                            status === "pending" || status === "approved"
-                              ? "rgba(255,255,255,0.14)"
-                              : "#fff",
-                          color:
-                            status === "pending" || status === "approved" ? "#fff" : "#000",
-                          borderRadius: 999,
-                          padding: "10px 16px",
+                          padding: "8px 14px",
+                          borderRadius: "999px",
+                          fontSize: "13px",
                           fontWeight: 700,
-                          pointerEvents:
-                            status === "pending" || status === "approved" ? "none" : "auto",
-                          opacity: status === "pending" || status === "approved" ? 0.85 : 1,
-                          whiteSpace: "nowrap",
+                          background: "rgba(255,255,255,0.08)",
+                          border: "1px solid rgba(255,255,255,0.12)",
+                          color: "#ffffff",
                         }}
                       >
-                        {getButtonLabel(status)}
-                      </Link>
-                    ) : (
-                      <span style={{ color: "rgba(255,255,255,0.52)", fontSize: 14 }}>
-                        —
+                        {formatStatusLabel(row.claim_status)}
                       </span>
-                    )}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
+                    </td>
+                    <td style={tdStyle}>
+                      {!isPaid ? (
+                        <Link
+                          href="/claim-prize"
+                          style={{
+                            display: "inline-block",
+                            background: "#ffffff",
+                            color: "#07111f",
+                            textDecoration: "none",
+                            padding: "12px 18px",
+                            borderRadius: "999px",
+                            fontWeight: 800,
+                            fontSize: "14px",
+                          }}
+                        >
+                          Claim Prize
+                        </Link>
+                      ) : (
+                        <span style={{ color: "rgba(255,255,255,0.55)" }}>Paid</span>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+
+          <style jsx>{`
+            @media (max-width: 700px) {
+              .prize-claims-table {
+                min-width: 680px !important;
+              }
+            }
+          `}</style>
+        </>
+      )}
     </section>
   );
 }
 
-const thStyle: React.CSSProperties = {
+const thStyle: CSSProperties = {
   textAlign: "left",
-  fontSize: 12,
-  letterSpacing: 0.4,
-  textTransform: "uppercase",
-  color: "rgba(255,255,255,0.58)",
-  padding: "0 0 12px",
+  padding: "14px 0",
+  fontSize: "13px",
+  fontWeight: 800,
+  color: "#9bbcff",
 };
 
-const tdStyle: React.CSSProperties = {
-  padding: "16px 0",
-  verticalAlign: "middle",
-  fontSize: 15,
-  color: "#fff",
+const tdStyle: CSSProperties = {
+  textAlign: "left",
+  padding: "20px 0",
+  fontSize: "15px",
+  color: "#ffffff",
 };
