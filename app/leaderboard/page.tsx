@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createBrowserSupabaseClient } from "../../lib/supabase/client";
 import AuthStatus from "../components/AuthStatus";
 
@@ -61,37 +61,79 @@ function getSafeDisplayName(displayName?: string | null) {
 
 export default function LeaderboardPage() {
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
+  const isMountedRef = useRef(true);
+  const isFetchingRef = useRef(false);
 
   const [leaderboard, setLeaderboard] = useState<LeaderboardRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
-  useEffect(() => {
-    let active = true;
+  const loadLeaderboardPage = useCallback(
+    async (showInitialLoader = false) => {
+      if (isFetchingRef.current) return;
 
-    async function loadLeaderboardPage() {
-      setLoading(true);
+      isFetchingRef.current = true;
 
-      const { data, error } = await supabase
-        .from("monthly_leaderboard")
-        .select("*")
-        .order("rank", { ascending: true });
-
-      if (error) {
-        console.error("Monthly leaderboard error:", error);
+      if (showInitialLoader) {
+        setLoading(true);
+      } else {
+        setRefreshing(true);
       }
 
-      if (!active) return;
+      try {
+        const { data, error } = await supabase
+          .from("monthly_leaderboard")
+          .select("*")
+          .order("rank", { ascending: true });
 
-      setLeaderboard((data as LeaderboardRow[] | null) ?? []);
-      setLoading(false);
-    }
+        if (error) {
+          console.error("Monthly leaderboard error:", error);
+          return;
+        }
 
-    loadLeaderboardPage();
+        if (!isMountedRef.current) return;
+
+        setLeaderboard((data as LeaderboardRow[] | null) ?? []);
+      } finally {
+        if (isMountedRef.current) {
+          setLoading(false);
+          setRefreshing(false);
+        }
+        isFetchingRef.current = false;
+      }
+    },
+    [supabase]
+  );
+
+  useEffect(() => {
+    isMountedRef.current = true;
+
+    void loadLeaderboardPage(true);
+
+    const interval = setInterval(() => {
+      void loadLeaderboardPage(false);
+    }, 10000);
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        void loadLeaderboardPage(false);
+      }
+    };
+
+    const handleWindowFocus = () => {
+      void loadLeaderboardPage(false);
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("focus", handleWindowFocus);
 
     return () => {
-      active = false;
+      isMountedRef.current = false;
+      clearInterval(interval);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("focus", handleWindowFocus);
     };
-  }, [supabase]);
+  }, [loadLeaderboardPage]);
 
   return (
     <main className="leaderboard-page">
@@ -130,7 +172,13 @@ export default function LeaderboardPage() {
                 the next tie breaker.
               </p>
             </div>
-            <div className="leaderboard-badge">Live rankings</div>
+
+            <div className="leaderboard-badge-wrap">
+              <div className="leaderboard-badge">Live rankings</div>
+              {refreshing && !loading ? (
+                <div className="refresh-indicator">Updating…</div>
+              ) : null}
+            </div>
           </div>
 
           {loading ? (
@@ -189,7 +237,11 @@ export default function LeaderboardPage() {
         .leaderboard-page {
           min-height: 100vh;
           background:
-            radial-gradient(circle at top, rgba(72, 126, 176, 0.18), transparent 35%),
+            radial-gradient(
+              circle at top,
+              rgba(72, 126, 176, 0.18),
+              transparent 35%
+            ),
             linear-gradient(180deg, #08111f 0%, #0d1a2d 100%);
           color: #ffffff;
           padding: 24px 16px 56px;
@@ -277,6 +329,13 @@ export default function LeaderboardPage() {
           max-width: 820px;
         }
 
+        .leaderboard-badge-wrap {
+          display: flex;
+          flex-direction: column;
+          align-items: flex-end;
+          gap: 8px;
+        }
+
         .leaderboard-badge {
           white-space: nowrap;
           padding: 10px 14px;
@@ -285,6 +344,11 @@ export default function LeaderboardPage() {
           color: #08111f;
           font-weight: 700;
           font-size: 0.95rem;
+        }
+
+        .refresh-indicator {
+          font-size: 0.86rem;
+          color: rgba(255, 255, 255, 0.72);
         }
 
         .leaderboard-table-wrap {
@@ -343,6 +407,10 @@ export default function LeaderboardPage() {
         @media (max-width: 960px) {
           .panel-head {
             flex-direction: column;
+            align-items: flex-start;
+          }
+
+          .leaderboard-badge-wrap {
             align-items: flex-start;
           }
         }
