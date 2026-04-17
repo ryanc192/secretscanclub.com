@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
 import { createBrowserSupabaseClient } from "../../../lib/supabase/client";
 
 type WinnerRow = {
@@ -97,14 +96,18 @@ function statusCopy(status: WinnerRow["claim_status"]) {
 
 export default function ClaimPrizePage() {
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
-  const searchParams = useSearchParams();
-  const targetClaimId = searchParams.get("claim");
-
+  const [targetClaimId, setTargetClaimId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [submittingId, setSubmittingId] = useState<string | null>(null);
   const [rows, setRows] = useState<WinnerRow[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [forms, setForms] = useState<Record<string, FormState>>({});
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    setTargetClaimId(params.get("claim"));
+  }, []);
 
   useEffect(() => {
     let mounted = true;
@@ -182,15 +185,6 @@ export default function ClaimPrizePage() {
       }
       setForms(nextForms);
       setLoading(false);
-
-      if (targetClaimId) {
-        requestAnimationFrame(() => {
-          const el = document.getElementById(`claim-row-${targetClaimId}`);
-          if (el) {
-            el.scrollIntoView({ behavior: "smooth", block: "start" });
-          }
-        });
-      }
     }
 
     load();
@@ -198,7 +192,20 @@ export default function ClaimPrizePage() {
     return () => {
       mounted = false;
     };
-  }, [supabase, targetClaimId]);
+  }, [supabase]);
+
+  useEffect(() => {
+    if (!targetClaimId || loading) return;
+
+    const frame = requestAnimationFrame(() => {
+      const el = document.getElementById(`claim-row-${targetClaimId}`);
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+    });
+
+    return () => cancelAnimationFrame(frame);
+  }, [targetClaimId, loading]);
 
   function updateForm(id: string, key: keyof FormState, value: string) {
     setForms((prev) => ({
