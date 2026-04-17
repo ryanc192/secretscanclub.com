@@ -182,7 +182,7 @@ export default function PrizeClaimsSection() {
                     <td style={tdStyle}>
                       {!isPaid ? (
                         <Link
-                          href="/claim-prize"
+                          href="/dashboard/claim-prize"
                           style={{
                             display: "inline-block",
                             background: "#ffffff",
