@@ -316,7 +316,7 @@ export default function WinnersPage() {
 
       <div style={styles.shell} className="winners-shell">
         <header style={styles.topBar} className="top-bar">
-          <Link href="/leaderboard" style={styles.logoWrap} className="logo-wrap">
+          <Link href="/public/ssc-logo.png" style={styles.logoWrap} className="logo-wrap">
             <div style={styles.logoMark}>SSC</div>
             <div style={{ minWidth: 0 }}>
               <div style={styles.logoTitle}>Secret Scan Club</div>
