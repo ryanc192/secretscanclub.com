@@ -261,7 +261,7 @@ export default function SubscribePage() {
       <div style={styles.shell} className="subscribe-shell">
         <header style={styles.topBar} className="top-bar">
           <Link href="/public/ssc-logo.png" style={styles.logoWrap} className="logo-wrap">
-            <div style={styles.logoMark}>SSC</div>
+            <img src="/ssc-logo.png" />
             <div style={{ minWidth: 0 }}>
               <div style={styles.logoTitle}>Secret Scan Club</div>
               <div style={styles.logoSub}>Subscribe or upgrade your membership</div>
@@ -1105,4 +1105,9 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 18,
     fontWeight: 700,
   },
+  logoImage: {
+  width: 48,
+  height: 48,
+  objectFit: "contain",
+}
 };
