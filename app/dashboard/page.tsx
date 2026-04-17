@@ -734,7 +734,7 @@ export default function DashboardPage() {
           <StatCard label="Longest Streak" value={stats.longestStreak.toString()} />
           <StatCard label="Total Guesses" value={stats.totalAttempts.toString()} />
           <StatCard label="Accuracy" value={`${formatAccuracy(stats.accuracy)}%`} />
-          <StatCard label="Total Prize Won" value={formatCurrency(stats.totalPrizeWon)} />
+          <StatCard label="Total Prizes Won" value={formatCurrency(stats.totalPrizeWon)} />
         </section>
 
         <section
