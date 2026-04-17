@@ -80,9 +80,7 @@ function normalizePrizeLabel(category: string | null) {
   if (value.includes("third") || value === "3" || value.includes("3rd")) return "3rd Place";
   if (value.includes("random")) return "Random Winner";
 
-  return category
-    .replaceAll("_", " ")
-    .replace(/\b\w/g, (char) => char.toUpperCase());
+  return category.replaceAll("_", " ").replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
 function fallbackMultiplierFromTier(tier: string | null) {
@@ -108,25 +106,6 @@ function statusCopy(status: WinnerRow["claim_status"]) {
   if (status === "approved") return "Approved";
   if (status === "paid") return "Paid out";
   return "Needs update";
-}
-
-function getMethodLabel(
-  method: FormState["claim_method"] | WinnerRow["claim_method"]
-): string {
-  switch (method) {
-    case "cashapp":
-      return "Cash App";
-    case "venmo":
-      return "Venmo";
-    case "paypal":
-      return "PayPal";
-    case "gift_card":
-      return "Gift Card";
-    case "platform_credit":
-      return "Platform Credit";
-    default:
-      return "PayPal";
-  }
 }
 
 function getHandleLabel(
@@ -332,8 +311,7 @@ export default function ClaimPrizePage() {
     <main
       style={{
         minHeight: "100vh",
-        background:
-          "radial-gradient(circle at top, rgba(255,255,255,0.05) 0%, rgba(0,0,0,1) 45%)",
+        backgroundColor: "#000",
         color: "#fff",
         padding: "32px 16px 88px",
         fontFamily: "Arial, sans-serif",
@@ -346,36 +324,9 @@ export default function ClaimPrizePage() {
           </Link>
         </div>
 
-        <section
-          style={{
-            border: "1px solid rgba(255,255,255,0.08)",
-            borderRadius: 28,
-            padding: "28px 24px",
-            background: "linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.02))",
-            boxShadow: "0 24px 60px rgba(0,0,0,0.45)",
-            marginBottom: 22,
-          }}
-        >
+        <section style={heroStyle}>
           <div style={{ maxWidth: 760 }}>
-            <div
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 8,
-                borderRadius: 999,
-                padding: "8px 14px",
-                background: "rgba(255,255,255,0.06)",
-                border: "1px solid rgba(255,255,255,0.10)",
-                fontSize: 12,
-                fontWeight: 700,
-                letterSpacing: 1,
-                textTransform: "uppercase",
-                color: "rgba(255,255,255,0.76)",
-                marginBottom: 16,
-              }}
-            >
-              Prize Center
-            </div>
+            <div style={eyebrowStyle}>Prize Center</div>
 
             <h1
               style={{
@@ -397,26 +348,15 @@ export default function ClaimPrizePage() {
                 maxWidth: 760,
               }}
             >
-              Submit your payout details below. Once your claim is sent in, your dashboard
-              switches from <strong>Claim Prize</strong> to <strong>Pending...</strong> until it
-              has been reviewed and paid out.
+              Submit your payout details below. Once your claim is sent in, your dashboard switches
+              from <strong>Claim Prize</strong> to <strong>Pending...</strong> until it has been
+              reviewed and paid out.
             </p>
           </div>
         </section>
 
         {error ? (
-          <div
-            style={{
-              marginBottom: 20,
-              background: "rgba(255,80,80,0.10)",
-              border: "1px solid rgba(255,80,80,0.28)",
-              borderRadius: 20,
-              padding: 16,
-              color: "#ffd4d4",
-            }}
-          >
-            {error}
-          </div>
+          <div style={errorBannerStyle}>{error}</div>
         ) : null}
 
         {loading ? (
@@ -444,12 +384,12 @@ export default function ClaimPrizePage() {
                     ...panelStyle,
                     background:
                       targetClaimId === row.id
-                        ? "linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.03))"
-                        : panelStyle.background,
+                        ? "rgba(255,255,255,0.06)"
+                        : "rgba(255,255,255,0.03)",
                     border:
                       targetClaimId === row.id
                         ? "1px solid rgba(255,255,255,0.16)"
-                        : panelStyle.border,
+                        : "1px solid rgba(255,255,255,0.08)",
                   }}
                 >
                   <div
@@ -494,12 +434,8 @@ export default function ClaimPrizePage() {
                           gap: 10,
                         }}
                       >
-                        <span style={miniBadgeStyle}>
-                          {normalizePrizeLabel(row.category)}
-                        </span>
-                        <span style={miniBadgeStyle}>
-                          Multiplier {getMultiplierLabel(row)}
-                        </span>
+                        <span style={miniBadgeStyle}>{normalizePrizeLabel(row.category)}</span>
+                        <span style={miniBadgeStyle}>Multiplier {getMultiplierLabel(row)}</span>
                         {row.membership_tier ? (
                           <span style={miniBadgeStyle}>
                             {(row.membership_tier ?? "").replace(/\b\w/g, (c) => c.toUpperCase())}
@@ -641,20 +577,7 @@ export default function ClaimPrizePage() {
                       {submittingId === row.id ? "Submitting..." : "Submit Claim"}
                     </button>
                   ) : (
-                    <div
-                      style={{
-                        marginTop: 18,
-                        display: "inline-flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        padding: "14px 18px",
-                        borderRadius: 999,
-                        background: "rgba(255,255,255,0.08)",
-                        color: "rgba(255,255,255,0.82)",
-                        fontWeight: 700,
-                        border: "1px solid rgba(255,255,255,0.12)",
-                      }}
-                    >
+                    <div style={lockedPillStyle}>
                       {row.claim_status === "paid"
                         ? "Paid Out"
                         : row.claim_status === "approved"
@@ -672,11 +595,36 @@ export default function ClaimPrizePage() {
   );
 }
 
+const heroStyle: React.CSSProperties = {
+  border: "1px solid rgba(255,255,255,0.08)",
+  borderRadius: 28,
+  padding: "28px 24px",
+  background: "rgba(255,255,255,0.03)",
+  boxShadow: "0 18px 50px rgba(0,0,0,0.35)",
+  marginBottom: 22,
+};
+
+const eyebrowStyle: React.CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  gap: 8,
+  borderRadius: 999,
+  padding: "8px 14px",
+  background: "rgba(255,255,255,0.06)",
+  border: "1px solid rgba(255,255,255,0.10)",
+  fontSize: 12,
+  fontWeight: 700,
+  letterSpacing: 1,
+  textTransform: "uppercase",
+  color: "rgba(255,255,255,0.76)",
+  marginBottom: 16,
+};
+
 const panelStyle: React.CSSProperties = {
   border: "1px solid rgba(255,255,255,0.08)",
   borderRadius: 28,
   padding: 20,
-  background: "linear-gradient(180deg, rgba(255,255,255,0.045), rgba(255,255,255,0.02))",
+  background: "rgba(255,255,255,0.03)",
   boxShadow: "0 18px 50px rgba(0,0,0,0.35)",
 };
 
@@ -686,6 +634,15 @@ const loadingBoxStyle: React.CSSProperties = {
   background: "rgba(255,255,255,0.03)",
   border: "1px solid rgba(255,255,255,0.08)",
   color: "rgba(255,255,255,0.78)",
+};
+
+const errorBannerStyle: React.CSSProperties = {
+  marginBottom: 20,
+  background: "rgba(255,80,80,0.10)",
+  border: "1px solid rgba(255,80,80,0.28)",
+  borderRadius: 20,
+  padding: 16,
+  color: "#ffd4d4",
 };
 
 const backButtonStyle: React.CSSProperties = {
@@ -770,6 +727,7 @@ const selectStyle: React.CSSProperties = {
   WebkitAppearance: "none",
   MozAppearance: "none",
   boxShadow: "inset 0 1px 0 rgba(255,255,255,0.03)",
+  colorScheme: "dark",
 };
 
 const selectArrowStyle: React.CSSProperties = {
@@ -794,6 +752,19 @@ const submitButtonStyle: React.CSSProperties = {
   cursor: "pointer",
   fontSize: 15,
   boxShadow: "0 14px 28px rgba(255,255,255,0.08)",
+};
+
+const lockedPillStyle: React.CSSProperties = {
+  marginTop: 18,
+  display: "inline-flex",
+  alignItems: "center",
+  justifyContent: "center",
+  padding: "14px 18px",
+  borderRadius: 999,
+  background: "rgba(255,255,255,0.08)",
+  color: "rgba(255,255,255,0.82)",
+  fontWeight: 700,
+  border: "1px solid rgba(255,255,255,0.12)",
 };
 
 const infoBannerStyle: React.CSSProperties = {
