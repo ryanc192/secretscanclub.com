@@ -89,26 +89,14 @@ export default function ClaimPrizePage() {
         const { data, error: claimError } = await supabase
           .from("monthly_winners")
           .select(
-            [
-              "id",
-              "winner_month",
-              "category",
-              "prize_multiplier",
-              "total_prize_amount",
-              "claim_status",
-              "claim_method",
-              "claim_full_name",
-              "claim_email",
-              "claim_phone",
-              "claim_handle",
-              "claim_notes",
-            ].join(", ")
+            "id, winner_month, category, prize_multiplier, total_prize_amount, claim_status, claim_method, claim_full_name, claim_email, claim_phone, claim_handle, claim_notes"
           )
           .eq("user_id", user.id)
           .in("claim_status", ["unclaimed", "submitted", "approved"])
           .order("winner_month", { ascending: false })
           .order("id", { ascending: false })
           .limit(1)
+          .returns<ClaimRow[]>()
           .maybeSingle();
 
         if (!active) return;
@@ -125,18 +113,20 @@ export default function ClaimPrizePage() {
           return;
         }
 
-        const row = data as ClaimRow;
-        const nextMethod = ((row.claim_method ?? "paypal").toLowerCase() as ClaimMethod) || "paypal";
+        const row: ClaimRow = data;
+        const rawMethod = (row.claim_method ?? "paypal").toLowerCase();
+
+        const nextMethod: ClaimMethod =
+          rawMethod === "paypal" ||
+          rawMethod === "cashapp" ||
+          rawMethod === "venmo" ||
+          rawMethod === "zelle"
+            ? rawMethod
+            : "paypal";
 
         setClaimRow(row);
         setForm({
-          claimMethod:
-            nextMethod === "paypal" ||
-            nextMethod === "cashapp" ||
-            nextMethod === "venmo" ||
-            nextMethod === "zelle"
-              ? nextMethod
-              : "paypal",
+          claimMethod: nextMethod,
           fullName: row.claim_full_name ?? "",
           email: row.claim_email ?? "",
           phone: row.claim_phone ?? "",
@@ -256,7 +246,8 @@ export default function ClaimPrizePage() {
   }
 
   const normalizedStatus = (claimRow.claim_status ?? "").toLowerCase();
-  const isAlreadySubmitted = normalizedStatus === "submitted" || normalizedStatus === "approved";
+  const isAlreadySubmitted =
+    normalizedStatus === "submitted" || normalizedStatus === "approved";
 
   return (
     <main style={pageStyle}>
@@ -269,11 +260,7 @@ export default function ClaimPrizePage() {
           </p>
         </section>
 
-        {error ? (
-          <div style={errorStyle}>
-            {error}
-          </div>
-        ) : null}
+        {error ? <div style={errorStyle}>{error}</div> : null}
 
         <section style={detailsCardStyle}>
           <div style={summaryGridStyle}>
@@ -427,11 +414,7 @@ export default function ClaimPrizePage() {
                 Back to Dashboard
               </Link>
 
-              <button
-                type="submit"
-                style={submitButtonStyle}
-                disabled={saving}
-              >
+              <button type="submit" style={submitButtonStyle} disabled={saving}>
                 {saving ? "Submitting..." : "Submit Claim"}
               </button>
             </div>
