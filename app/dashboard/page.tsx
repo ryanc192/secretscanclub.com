@@ -1,1039 +1,235 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { CSSProperties, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { createBrowserSupabaseClient } from "../../lib/supabase/client";
-import PrizeClaimsSection from "./components/PrizeClaimsSection";
+import { createBrowserSupabaseClient } from "../../../lib/supabase/client";
 
-type DashboardPlan = "Free" | "Club Member" | "VIP Member";
-
-type DashboardStats = {
-  currentStreak: number;
-  longestStreak: number;
-  totalAttempts: number;
-  totalCorrect: number;
-  joinedAt: string | null;
-  plan: DashboardPlan;
-  accuracy: number;
-  totalPrizeWon: number;
-};
-
-type DailyPuzzleRelation =
-  | {
-      puzzle_date?: string | null;
-      short_name?: string | null;
-      question_text?: string | null;
-    }
-  | {
-      puzzle_date?: string | null;
-      short_name?: string | null;
-      question_text?: string | null;
-    }[];
-
-type RecentAttempt = {
+type PrizeClaimRow = {
   id: string;
-  latest_answer_text: string | null;
-  is_correct: boolean | null;
-  submitted_at: string | null;
-  attempt_count: number | null;
-  daily_puzzles: DailyPuzzleRelation | null;
+  winner_month: string;
+  category: string;
+  prize_multiplier: number | null;
+  total_prize_amount: number | null;
+  claim_status: string | null;
 };
 
-type StatsSession = {
-  id: string;
-  is_correct: boolean | null;
-  attempt_count: number | null;
-};
-
-type WinnerRow = {
-  total_prize_amount: number | string | null;
-};
-
-const STRIPE_PRICE_IDS = {
-  plus: {
-    monthly: "price_1TH9ClJcQiUWXawe6KLbnBu5",
-    yearly: "price_1TH9CkJcQiUWXaweFlF8JEXJ",
-  },
-  pro: {
-    monthly: "price_1TH9CkJcQiUWXawe6tmC65d5",
-    yearly: "price_1TH9ClJcQiUWXaweq1tnRM5U",
-  },
-};
-
-function getErrorMessage(error: unknown) {
-  if (error && typeof error === "object") {
-    const maybeMessage = (error as { message?: unknown }).message;
-    if (typeof maybeMessage === "string" && maybeMessage.trim()) {
-      return maybeMessage;
-    }
-
-    const maybeDetails = (error as { details?: unknown }).details;
-    if (typeof maybeDetails === "string" && maybeDetails.trim()) {
-      return maybeDetails;
-    }
-
-    const maybeHint = (error as { hint?: unknown }).hint;
-    if (typeof maybeHint === "string" && maybeHint.trim()) {
-      return maybeHint;
-    }
-  }
-
-  return "Unknown error.";
+function formatMoney(value: number | null | undefined) {
+  if (value == null || Number.isNaN(Number(value))) return "—";
+  return `$${Number(value).toFixed(0)}`;
 }
 
-function getPlanFromSubscription(
-  profileTier: string | null | undefined,
-  subscriptionStatus: string | null | undefined,
-  stripePriceId: string | null | undefined
-): DashboardPlan {
-  const normalizedTier = (profileTier ?? "").toLowerCase();
-  const normalizedStatus = (subscriptionStatus ?? "").toLowerCase();
-  const activeStatuses = ["active", "trialing", "past_due"];
-
-  if (activeStatuses.includes(normalizedStatus)) {
-    if (
-      stripePriceId === STRIPE_PRICE_IDS.plus.monthly ||
-      stripePriceId === STRIPE_PRICE_IDS.plus.yearly
-    ) {
-      return "Club Member";
-    }
-
-    if (
-      stripePriceId === STRIPE_PRICE_IDS.pro.monthly ||
-      stripePriceId === STRIPE_PRICE_IDS.pro.yearly
-    ) {
-      return "VIP Member";
-    }
-
-    if (normalizedTier === "plus") return "Club Member";
-    if (normalizedTier === "pro") return "VIP Member";
-  }
-
-  if (normalizedTier === "plus") return "Club Member";
-  if (normalizedTier === "pro") return "VIP Member";
-
-  return "Free";
+function formatPrizeLabel(category: string) {
+  return category.replace(/_/g, " ");
 }
 
-function getPuzzleMeta(dailyPuzzles: DailyPuzzleRelation | null | undefined) {
-  if (!dailyPuzzles) return null;
-  if (Array.isArray(dailyPuzzles)) {
-    return dailyPuzzles[0] ?? null;
-  }
-  return dailyPuzzles;
+function formatMonth(value: string) {
+  return value;
 }
 
-function getPuzzleDisplayName(dailyPuzzles: DailyPuzzleRelation | null | undefined) {
-  const meta = getPuzzleMeta(dailyPuzzles);
+function formatStatusLabel(status: string | null | undefined) {
+  if (!status) return "Unclaimed";
 
-  const shortName = meta?.short_name?.trim();
-  if (shortName) return shortName;
+  const normalized = status.trim().toLowerCase();
 
-  const questionText = meta?.question_text?.trim();
-  if (questionText) {
-    const cleaned = questionText.replace(/\s+/g, " ");
-    return cleaned.length > 42 ? `${cleaned.slice(0, 42).trim()}...` : cleaned;
-  }
+  if (normalized === "paid") return "Paid";
+  if (normalized === "approved") return "Approved";
+  if (normalized === "submitted") return "Submitted";
+  if (normalized === "unclaimed") return "Unclaimed";
 
-  const puzzleDate = meta?.puzzle_date?.trim();
-  if (puzzleDate) return `Puzzle ${puzzleDate}`;
-
-  return "Puzzle";
+  return status.charAt(0).toUpperCase() + status.slice(1);
 }
 
-function getAttemptAccuracy(
-  attemptCount: number | null | undefined,
-  isCorrect: boolean | null | undefined
-) {
-  if (!isCorrect) return 0;
-
-  const attempts = Number(attemptCount ?? 0);
-  if (!Number.isFinite(attempts) || attempts < 1) return 0;
-
-  return Math.round((100 / attempts) * 100) / 100;
-}
-
-function formatAccuracy(value: number) {
-  return Number.isInteger(value) ? `${value}` : value.toFixed(2);
-}
-
-function formatCurrency(value: number) {
-  return `$${value.toFixed(0)}`;
-}
-
-function buildDisplayName(profile: {
-  first_name?: string | null;
-  last_name?: string | null;
-}) {
-  const first = profile.first_name?.trim() ?? "";
-  const last = profile.last_name?.trim() ?? "";
-  const fullName = `${first} ${last}`.trim();
-  return fullName || "Name not set";
-}
-
-export default function DashboardPage() {
-  const router = useRouter();
+export default function PrizeClaimsSection() {
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
-
+  const [rows, setRows] = useState<PrizeClaimRow[]>([]);
   const [loading, setLoading] = useState(true);
-  const [signingOut, setSigningOut] = useState(false);
-  const [userEmail, setUserEmail] = useState("");
-  const [displayName, setDisplayName] = useState("");
-  const [username, setUsername] = useState("");
-  const [stats, setStats] = useState<DashboardStats>({
-    currentStreak: 0,
-    longestStreak: 0,
-    totalAttempts: 0,
-    totalCorrect: 0,
-    joinedAt: null,
-    plan: "Free",
-    accuracy: 0,
-    totalPrizeWon: 0,
-  });
-  const [recentAttempts, setRecentAttempts] = useState<RecentAttempt[]>([]);
-  const [error, setError] = useState("");
 
   useEffect(() => {
-    async function loadDashboard() {
+    let active = true;
+
+    async function loadPrizeClaims() {
       setLoading(true);
-      setError("");
 
-      try {
-        const {
-          data: { user },
-          error: userError,
-        } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
 
-        if (userError || !user) {
-          router.replace("/login");
-          return;
-        }
+      if (!active) return;
 
-        setUserEmail(user.email ?? "");
-
-        let joinedAt: string | null = user.created_at ?? null;
-        let plan: DashboardPlan = "Free";
-        let currentStreak = 0;
-        let longestStreak = 0;
-        let totalAttempts = 0;
-        let totalCorrect = 0;
-        let accuracy = 0;
-        let totalPrizeWon = 0;
-        let statsSessions: StatsSession[] = [];
-        let attempts: RecentAttempt[] = [];
-        let firstError = "";
-
-        const fallbackFullName =
-          (user.user_metadata?.full_name as string | undefined)?.trim() ||
-          `${(user.user_metadata?.first_name as string | undefined)?.trim() ?? ""} ${(user.user_metadata?.last_name as string | undefined)?.trim() ?? ""}`.trim() ||
-          "Name not set";
-
-        const fallbackUsername =
-          (user.user_metadata?.username as string | undefined)?.trim() || "";
-
-        setDisplayName(fallbackFullName);
-        setUsername(fallbackUsername);
-
-        const { error: ensureProfileError } = await supabase
-          .from("profiles")
-          .upsert(
-            {
-              id: user.id,
-            },
-            {
-              onConflict: "id",
-              ignoreDuplicates: false,
-            }
-          );
-
-        if (ensureProfileError && !firstError) {
-          firstError = `Profiles upsert failed: ${getErrorMessage(ensureProfileError)}`;
-          console.error("Profiles upsert failed:", ensureProfileError);
-        }
-
-        const [
-          { data: profileData, error: profileError },
-          { data: userSubscription, error: subscriptionError },
-          { data: statsSessionsData, error: statsSessionsError },
-          { data: recentAttemptsData, error: recentAttemptsError },
-          { data: winnersData, error: winnersError },
-        ] = await Promise.all([
-          supabase
-            .from("profiles")
-            .select(
-              "created_at, subscription_tier, current_streak, longest_streak, first_name, last_name, username"
-            )
-            .eq("id", user.id)
-            .maybeSingle(),
-
-          supabase
-            .from("user_subscriptions")
-            .select("subscription_status, stripe_price_id")
-            .eq("user_id", user.id)
-            .maybeSingle(),
-
-          supabase
-            .from("puzzle_sessions")
-            .select("id, is_correct, attempt_count")
-            .eq("user_id", user.id)
-            .not("submitted_at", "is", null),
-
-          supabase
-            .from("puzzle_sessions")
-            .select(
-              "id, latest_answer_text, is_correct, submitted_at, attempt_count, daily_puzzles(puzzle_date, short_name, question_text)"
-            )
-            .eq("user_id", user.id)
-            .not("submitted_at", "is", null)
-            .order("submitted_at", { ascending: false })
-            .limit(15),
-
-          supabase
-            .from("monthly_winners")
-            .select("total_prize_amount")
-            .eq("user_id", user.id),
-        ]);
-
-        if (profileError) {
-          if (!firstError) {
-            firstError = `Profiles read failed: ${getErrorMessage(profileError)}`;
-          }
-          console.error("Profiles read failed:", profileError);
-        } else if (profileData) {
-          joinedAt = profileData.created_at ?? joinedAt;
-          currentStreak = profileData.current_streak ?? 0;
-          longestStreak = profileData.longest_streak ?? 0;
-
-          const profileDisplayName = buildDisplayName(profileData);
-          const profileUsername = profileData.username?.trim() ?? "";
-
-          setDisplayName(profileDisplayName || fallbackFullName);
-          setUsername(profileUsername || fallbackUsername);
-        }
-
-        if (subscriptionError) {
-          if (!firstError) {
-            firstError = `Subscription read failed: ${getErrorMessage(subscriptionError)}`;
-          }
-          console.error("Subscription read failed:", subscriptionError);
-        }
-
-        plan = getPlanFromSubscription(
-          profileData?.subscription_tier,
-          userSubscription?.subscription_status,
-          userSubscription?.stripe_price_id
-        );
-
-        if (statsSessionsError) {
-          if (!firstError) {
-            firstError = `Stats sessions read failed: ${getErrorMessage(statsSessionsError)}`;
-          }
-          console.error("Stats sessions read failed:", statsSessionsError);
-        } else {
-          statsSessions = (statsSessionsData as StatsSession[]) ?? [];
-        }
-
-        if (recentAttemptsError) {
-          if (!firstError) {
-            firstError = `Recent attempts read failed: ${getErrorMessage(recentAttemptsError)}`;
-          }
-          console.error("Recent attempts read failed:", recentAttemptsError);
-        } else {
-          attempts = (recentAttemptsData as RecentAttempt[]) ?? [];
-        }
-
-        if (winnersError) {
-          if (!firstError) {
-            firstError = `Prize totals read failed: ${getErrorMessage(winnersError)}`;
-          }
-          console.error("Prize totals read failed:", winnersError);
-        } else {
-          const winnerRows = (winnersData as WinnerRow[]) ?? [];
-          totalPrizeWon = winnerRows.reduce((sum, row) => {
-            const amount = Number(row.total_prize_amount ?? 0);
-            return sum + (Number.isFinite(amount) ? amount : 0);
-          }, 0);
-        }
-
-        totalAttempts = statsSessions.reduce(
-          (sum, session) => sum + Number(session.attempt_count ?? 0),
-          0
-        );
-
-        totalCorrect = statsSessions.reduce(
-          (sum, session) => sum + (session.is_correct ? 1 : 0),
-          0
-        );
-
-        accuracy =
-          statsSessions.length > 0
-            ? Math.round(
-                (statsSessions.reduce((sum, session) => {
-                  return sum + getAttemptAccuracy(session.attempt_count, session.is_correct);
-                }, 0) /
-                  statsSessions.length) *
-                  100
-              ) / 100
-            : 0;
-
-        setStats({
-          currentStreak,
-          longestStreak,
-          totalAttempts,
-          totalCorrect,
-          joinedAt,
-          plan,
-          accuracy,
-          totalPrizeWon,
-        });
-
-        setRecentAttempts(attempts);
-
-        if (firstError) {
-          setError(firstError);
-        }
-      } catch (err) {
-        console.error("Dashboard load crashed:", err);
-        setError(`Something went wrong loading your dashboard. ${getErrorMessage(err)}`);
-      } finally {
+      if (!user) {
+        setRows([]);
         setLoading(false);
+        return;
       }
+
+      const { data, error } = await supabase
+        .from("monthly_winners")
+        .select(
+          "id, winner_month, category, prize_multiplier, total_prize_amount, claim_status"
+        )
+        .eq("user_id", user.id)
+        .order("winner_month", { ascending: false })
+        .order("id", { ascending: false });
+
+      if (!active) return;
+
+      if (error) {
+        console.error("Failed to load prize claims:", error);
+        setRows([]);
+      } else {
+        setRows((data as PrizeClaimRow[]) ?? []);
+      }
+
+      setLoading(false);
     }
 
-    loadDashboard();
-  }, [router, supabase]);
+    loadPrizeClaims();
 
-  async function handleSignOut() {
-    setSigningOut(true);
-    await supabase.auth.signOut();
-    router.replace("/login");
-  }
-
-  const joinedText = stats.joinedAt
-    ? new Date(stats.joinedAt).toLocaleDateString("en-US", {
-        month: "long",
-        day: "numeric",
-        year: "numeric",
-      })
-    : "N/A";
-
-  if (loading) {
-    return (
-      <main
-        style={{
-          minHeight: "100vh",
-          background:
-            "linear-gradient(180deg, #07111f 0%, #0b1728 55%, #101d31 100%)",
-          color: "#ffffff",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          padding: "24px",
-        }}
-      >
-        <div style={{ fontSize: "18px", opacity: 0.9 }}>Loading dashboard...</div>
-      </main>
-    );
-  }
+    return () => {
+      active = false;
+    };
+  }, [supabase]);
 
   return (
-    <main
+    <section
       style={{
-        minHeight: "100vh",
-        background:
-          "linear-gradient(180deg, #07111f 0%, #0b1728 55%, #101d31 100%)",
-        color: "#ffffff",
-        padding: "32px 20px 60px",
-        overflowX: "hidden",
+        marginTop: "28px",
+        background: "rgba(255,255,255,0.06)",
+        border: "1px solid rgba(255,255,255,0.10)",
+        borderRadius: "22px",
+        padding: "20px",
+        overflowX: "auto",
       }}
     >
-      <div
+      <h2
         style={{
-          maxWidth: "1200px",
-          margin: "0 auto",
+          margin: "0 0 8px",
+          fontSize: "20px",
+          fontWeight: 800,
+          color: "#ffffff",
         }}
       >
-        <div
-          className="dashboard-header"
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            gap: "16px",
-            flexWrap: "wrap",
-            marginBottom: "28px",
-          }}
-        >
-          <div style={{ minWidth: 0 }}>
-            <div
-              style={{
-                fontSize: "14px",
-                letterSpacing: "0.08em",
-                textTransform: "uppercase",
-                color: "#8fb7ff",
-                marginBottom: "8px",
-              }}
-            >
-              Secret Scan Club
-            </div>
-            <h1
-              className="dashboard-title"
-              style={{
-                fontSize: "34px",
-                lineHeight: 1.1,
-                margin: 0,
-                fontWeight: 800,
-              }}
-            >
-              Your Dashboard
-            </h1>
-            <p
-              style={{
-                marginTop: "10px",
-                marginBottom: 0,
-                color: "rgba(255,255,255,0.78)",
-                fontSize: "15px",
-                wordBreak: "break-word",
-              }}
-            >
-              Welcome back{userEmail ? `, ${userEmail}` : ""}.
-            </p>
-          </div>
+        Prize Claims
+      </h2>
 
-          <button
-            className="signout-button"
-            onClick={handleSignOut}
-            disabled={signingOut}
+      <p
+        style={{
+          margin: "0 0 18px",
+          color: "rgba(255,255,255,0.78)",
+          fontSize: "14px",
+        }}
+      >
+        Your past winnings stay here as a record. Claim buttons disappear after payout.
+      </p>
+
+      {loading ? (
+        <div style={{ color: "rgba(255,255,255,0.75)" }}>Loading prize claims...</div>
+      ) : rows.length === 0 ? (
+        <div style={{ color: "rgba(255,255,255,0.75)" }}>No prize claims yet.</div>
+      ) : (
+        <>
+          <table
+            className="prize-claims-table"
             style={{
-              background: "transparent",
-              color: "#ffffff",
-              border: "1px solid rgba(255,255,255,0.2)",
-              borderRadius: "12px",
-              padding: "12px 18px",
-              fontSize: "14px",
-              fontWeight: 600,
-              cursor: signingOut ? "not-allowed" : "pointer",
-              opacity: signingOut ? 0.7 : 1,
+              width: "100%",
+              borderCollapse: "collapse",
+              minWidth: "760px",
             }}
           >
-            {signingOut ? "Signing out..." : "Sign Out"}
-          </button>
-        </div>
+            <thead>
+              <tr>
+                <th style={thStyle}>MONTH</th>
+                <th style={thStyle}>PRIZE</th>
+                <th style={thStyle}>MULTIPLIER</th>
+                <th style={thStyle}>TOTAL WON</th>
+                <th style={thStyle}>STATUS</th>
+                <th style={thStyle}>ACTION</th>
+              </tr>
+            </thead>
 
-        {error ? (
-          <div
-            style={{
-              background: "rgba(255, 87, 87, 0.12)",
-              border: "1px solid rgba(255, 87, 87, 0.35)",
-              color: "#ffd5d5",
-              borderRadius: "14px",
-              padding: "14px 16px",
-              marginBottom: "20px",
-              whiteSpace: "pre-wrap",
-            }}
-          >
-            {error}
-          </div>
-        ) : null}
+            <tbody>
+              {rows.map((row) => {
+                const normalizedStatus = (row.claim_status ?? "").toLowerCase();
+                const isPaid = normalizedStatus === "paid";
 
-        <section
-          className="dashboard-top-grid"
-          style={{
-            display: "grid",
-            gridTemplateColumns: "1.6fr 1fr",
-            gap: "20px",
-            marginBottom: "20px",
-          }}
-        >
-          <div
-            className="card-large"
-            style={{
-              background: "rgba(255,255,255,0.06)",
-              border: "1px solid rgba(255,255,255,0.10)",
-              borderRadius: "22px",
-              padding: "28px",
-              backdropFilter: "blur(8px)",
-              minWidth: 0,
-            }}
-          >
-            <div
-              style={{
-                fontSize: "13px",
-                letterSpacing: "0.08em",
-                textTransform: "uppercase",
-                color: "#9bbcff",
-                marginBottom: "12px",
-              }}
-            >
-              Today’s Puzzle
-            </div>
-
-            <h2
-              className="hero-title"
-              style={{
-                fontSize: "30px",
-                margin: "0 0 12px",
-                lineHeight: 1.15,
-              }}
-            >
-              Keep your streak alive.
-            </h2>
-
-            <p
-              style={{
-                fontSize: "16px",
-                lineHeight: 1.6,
-                color: "rgba(255,255,255,0.8)",
-                maxWidth: "700px",
-                marginBottom: "24px",
-              }}
-            >
-              Jump into today’s challenge, submit your answer, and keep stacking daily progress.
-              The more often you return, the more valuable your account becomes.
-            </p>
-
-            <div
-              className="hero-actions"
-              style={{
-                display: "flex",
-                gap: "12px",
-                flexWrap: "wrap",
-              }}
-            >
-              <Link
-                href="/scan/member"
-                className="hero-action-link"
-                style={{
-                  display: "inline-block",
-                  background: "#ffffff",
-                  color: "#07111f",
-                  textDecoration: "none",
-                  padding: "14px 20px",
-                  borderRadius: "14px",
-                  fontWeight: 800,
-                  fontSize: "15px",
-                }}
-              >
-                Go to Today’s Puzzle
-              </Link>
-
-              <Link
-                href="/leaderboard"
-                className="hero-action-link"
-                style={{
-                  display: "inline-block",
-                  background: "transparent",
-                  color: "#ffffff",
-                  textDecoration: "none",
-                  padding: "14px 20px",
-                  borderRadius: "14px",
-                  fontWeight: 700,
-                  fontSize: "15px",
-                  border: "1px solid rgba(255,255,255,0.18)",
-                }}
-              >
-                View Leaderboard
-              </Link>
-            </div>
-          </div>
-
-          <div
-            className="card-standard"
-            style={{
-              background: "rgba(255,255,255,0.06)",
-              border: "1px solid rgba(255,255,255,0.10)",
-              borderRadius: "22px",
-              padding: "24px",
-              backdropFilter: "blur(8px)",
-              minWidth: 0,
-            }}
-          >
-            <div
-              style={{
-                fontSize: "13px",
-                letterSpacing: "0.08em",
-                textTransform: "uppercase",
-                color: "#9bbcff",
-                marginBottom: "14px",
-              }}
-            >
-              Account
-            </div>
-
-            <div style={{ marginBottom: "14px" }}>
-              <div style={{ color: "rgba(255,255,255,0.65)", fontSize: "13px" }}>Plan</div>
-              <div style={{ fontSize: "18px", fontWeight: 700 }}>{stats.plan}</div>
-            </div>
-
-            <div style={{ marginBottom: "14px" }}>
-              <div style={{ color: "rgba(255,255,255,0.65)", fontSize: "13px" }}>
-                Member Since
-              </div>
-              <div style={{ fontSize: "18px", fontWeight: 700 }}>{joinedText}</div>
-            </div>
-
-            <div style={{ marginBottom: "14px" }}>
-              <div style={{ color: "rgba(255,255,255,0.65)", fontSize: "13px" }}>Full Name</div>
-              <div
-                style={{
-                  fontSize: "15px",
-                  color: "rgba(255,255,255,0.88)",
-                  wordBreak: "break-word",
-                  fontWeight: 600,
-                }}
-              >
-                {displayName || "Name not set"}
-              </div>
-            </div>
-
-            <div style={{ marginBottom: "20px" }}>
-              <div style={{ color: "rgba(255,255,255,0.65)", fontSize: "13px" }}>Username</div>
-              <div
-                style={{
-                  fontSize: "15px",
-                  color: "rgba(255,255,255,0.82)",
-                  wordBreak: "break-word",
-                  fontWeight: 600,
-                }}
-              >
-                {username ? `@${username}` : "Username not set"}
-              </div>
-            </div>
-
-            <Link
-              href={stats.plan === "Free" ? "/subscribe" : "/account"}
-              style={{
-                display: "inline-block",
-                width: "100%",
-                textAlign: "center",
-                background: "#1c4ed8",
-                color: "#ffffff",
-                textDecoration: "none",
-                padding: "14px 18px",
-                borderRadius: "14px",
-                fontWeight: 800,
-                fontSize: "15px",
-              }}
-            >
-              {stats.plan === "Free" ? "Upgrade Membership" : "Manage Membership"}
-            </Link>
-          </div>
-        </section>
-
-        <section
-          className="stats-grid"
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(5, 1fr)",
-            gap: "16px",
-            marginBottom: "20px",
-          }}
-        >
-          <StatCard label="Current Streak" value={stats.currentStreak.toString()} />
-          <StatCard label="Longest Streak" value={stats.longestStreak.toString()} />
-          <StatCard label="Total Guesses" value={stats.totalAttempts.toString()} />
-          <StatCard label="Accuracy" value={`${formatAccuracy(stats.accuracy)}%`} />
-          <StatCard label="Total Prizes Won" value={formatCurrency(stats.totalPrizeWon)} />
-        </section>
-
-        <section
-          className="dashboard-bottom-grid"
-          style={{
-            display: "grid",
-            gridTemplateColumns: "1.4fr 1fr",
-            gap: "20px",
-          }}
-        >
-          <div
-            className="card-standard"
-            style={{
-              background: "rgba(255,255,255,0.06)",
-              border: "1px solid rgba(255,255,255,0.10)",
-              borderRadius: "22px",
-              padding: "24px",
-              minWidth: 0,
-            }}
-          >
-            <div
-              style={{
-                fontSize: "13px",
-                letterSpacing: "0.08em",
-                textTransform: "uppercase",
-                color: "#9bbcff",
-                marginBottom: "14px",
-              }}
-            >
-              Recent Activity
-            </div>
-
-            {recentAttempts.length === 0 ? (
-              <div
-                style={{
-                  color: "rgba(255,255,255,0.72)",
-                  fontSize: "15px",
-                  lineHeight: 1.6,
-                }}
-              >
-                No puzzle attempts yet. Head to today’s puzzle and make your first entry.
-              </div>
-            ) : (
-              <div style={{ display: "grid", gap: "12px" }}>
-                {recentAttempts.map((attempt) => {
-                  const earnedAccuracy = getAttemptAccuracy(
-                    attempt.attempt_count,
-                    attempt.is_correct
-                  );
-
-                  return (
-                    <div
-                      className="recent-attempt-row"
-                      key={attempt.id}
-                      style={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        alignItems: "center",
-                        gap: "16px",
-                        padding: "14px 16px",
-                        borderRadius: "16px",
-                        background: "rgba(255,255,255,0.045)",
-                        border: "1px solid rgba(255,255,255,0.08)",
-                      }}
-                    >
-                      <div style={{ minWidth: 0 }}>
-                        <div
-                          style={{
-                            fontWeight: 700,
-                            fontSize: "15px",
-                            marginBottom: "4px",
-                            wordBreak: "break-word",
-                          }}
-                        >
-                          {getPuzzleDisplayName(attempt.daily_puzzles)}
-                        </div>
-
-                        <div
-                          style={{
-                            fontSize: "13px",
-                            color: "rgba(255,255,255,0.68)",
-                            wordBreak: "break-word",
-                          }}
-                        >
-                          Answer: {attempt.latest_answer_text || "No answer recorded"}
-                        </div>
-
-                        <div
-                          style={{
-                            fontSize: "13px",
-                            color: "rgba(255,255,255,0.68)",
-                            wordBreak: "break-word",
-                            marginTop: "4px",
-                          }}
-                        >
-                          Guesses used: {Number(attempt.attempt_count ?? 0)} • Accuracy earned:{" "}
-                          {formatAccuracy(earnedAccuracy)}%
-                        </div>
-                      </div>
-
-                      <div
+                return (
+                  <tr
+                    key={row.id}
+                    style={{
+                      borderTop: "1px solid rgba(255,255,255,0.08)",
+                    }}
+                  >
+                    <td style={tdStyle}>{formatMonth(row.winner_month)}</td>
+                    <td style={tdStyle}>{formatPrizeLabel(row.category)}</td>
+                    <td style={tdStyle}>{`${row.prize_multiplier ?? 1}x`}</td>
+                    <td style={tdStyle}>{formatMoney(row.total_prize_amount)}</td>
+                    <td style={tdStyle}>
+                      <span
                         style={{
-                          padding: "8px 12px",
+                          display: "inline-block",
+                          padding: "8px 14px",
                           borderRadius: "999px",
                           fontSize: "13px",
                           fontWeight: 700,
-                          whiteSpace: "nowrap",
-                          background: attempt.is_correct
-                            ? "rgba(34,197,94,0.16)"
-                            : "rgba(239,68,68,0.14)",
-                          color: attempt.is_correct ? "#86efac" : "#fca5a5",
-                          border: attempt.is_correct
-                            ? "1px solid rgba(34,197,94,0.28)"
-                            : "1px solid rgba(239,68,68,0.25)",
+                          background: "rgba(255,255,255,0.08)",
+                          border: "1px solid rgba(255,255,255,0.12)",
+                          color: "#ffffff",
                         }}
                       >
-                        {attempt.is_correct ? "Solved" : "Missed"}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
+                        {formatStatusLabel(row.claim_status)}
+                      </span>
+                    </td>
+                    <td style={tdStyle}>
+                      {!isPaid ? (
+                        <Link
+                          href="/dashboard/claim-prize"
+                          style={{
+                            display: "inline-block",
+                            background: "#ffffff",
+                            color: "#07111f",
+                            textDecoration: "none",
+                            padding: "12px 18px",
+                            borderRadius: "999px",
+                            fontWeight: 800,
+                            fontSize: "14px",
+                          }}
+                        >
+                          Claim Prize
+                        </Link>
+                      ) : (
+                        <span style={{ color: "rgba(255,255,255,0.55)" }}>Paid</span>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
 
-          <div
-            className="card-standard"
-            style={{
-              background: "rgba(255,255,255,0.06)",
-              border: "1px solid rgba(255,255,255,0.10)",
-              borderRadius: "22px",
-              padding: "24px",
-              minWidth: 0,
-            }}
-          >
-            <div
-              style={{
-                fontSize: "13px",
-                letterSpacing: "0.08em",
-                textTransform: "uppercase",
-                color: "#9bbcff",
-                marginBottom: "14px",
-              }}
-            >
-              Quick Actions
-            </div>
-
-            <div style={{ display: "grid", gap: "12px" }}>
-              <DashboardLink href="/scan" label="Play Today’s Puzzle" />
-              <DashboardLink href="/leaderboard" label="See the Leaderboard" />
-              <DashboardLink href="/manage" label="Manage Account" />
-              <DashboardLink
-                href={stats.plan === "Free" ? "/subscribe" : "/account"}
-                label={stats.plan === "Free" ? "Upgrade Membership" : "Manage Membership"}
-              />
-            </div>
-          </div>
-        </section>
-      </div>
-
-      <PrizeClaimsSection />
-
-      <style jsx>{`
-        @media (max-width: 1180px) {
-          .stats-grid {
-            grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
-          }
-        }
-
-        @media (max-width: 980px) {
-          .dashboard-top-grid,
-          .dashboard-bottom-grid {
-            grid-template-columns: 1fr !important;
-          }
-
-          .stats-grid {
-            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-          }
-        }
-
-        @media (max-width: 700px) {
-          main {
-            padding: 24px 14px 44px !important;
-          }
-
-          .dashboard-title {
-            font-size: 28px !important;
-          }
-
-          .hero-title {
-            font-size: 24px !important;
-          }
-
-          .dashboard-header {
-            align-items: stretch !important;
-          }
-
-          .signout-button {
-            width: 100%;
-          }
-
-          .card-large,
-          .card-standard {
-            padding: 20px !important;
-          }
-
-          .hero-actions {
-            flex-direction: column;
-          }
-
-          .hero-action-link {
-            width: 100%;
-            box-sizing: border-box;
-            text-align: center;
-          }
-
-          .recent-attempt-row {
-            flex-direction: column;
-            align-items: flex-start !important;
-          }
-        }
-
-        @media (max-width: 520px) {
-          .stats-grid {
-            grid-template-columns: 1fr !important;
-          }
-
-          .dashboard-title {
-            font-size: 24px !important;
-          }
-
-          .card-large,
-          .card-standard {
-            padding: 18px !important;
-            border-radius: 18px !important;
-          }
-        }
-      `}</style>
-    </main>
+          <style jsx>{`
+            @media (max-width: 700px) {
+              .prize-claims-table {
+                min-width: 680px !important;
+              }
+            }
+          `}</style>
+        </>
+      )}
+    </section>
   );
 }
 
-function StatCard({ label, value }: { label: string; value: string }) {
-  return (
-    <div
-      style={{
-        background: "rgba(255,255,255,0.06)",
-        border: "1px solid rgba(255,255,255,0.10)",
-        borderRadius: "20px",
-        padding: "22px",
-        minWidth: 0,
-      }}
-    >
-      <div
-        style={{
-          fontSize: "13px",
-          color: "rgba(255,255,255,0.65)",
-          marginBottom: "10px",
-        }}
-      >
-        {label}
-      </div>
-      <div
-        style={{
-          fontSize: "30px",
-          fontWeight: 800,
-          lineHeight: 1,
-          wordBreak: "break-word",
-        }}
-      >
-        {value}
-      </div>
-    </div>
-  );
-}
+const thStyle: CSSProperties = {
+  textAlign: "left",
+  padding: "14px 0",
+  fontSize: "13px",
+  fontWeight: 800,
+  color: "#9bbcff",
+};
 
-function DashboardLink({
-  href,
-  label,
-}: {
-  href: string;
-  label: string;
-}) {
-  return (
-    <Link
-      href={href}
-      style={{
-        display: "block",
-        textDecoration: "none",
-        color: "#ffffff",
-        background: "rgba(255,255,255,0.045)",
-        border: "1px solid rgba(255,255,255,0.08)",
-        padding: "14px 16px",
-        borderRadius: "14px",
-        fontWeight: 700,
-        wordBreak: "break-word",
-      }}
-    >
-      {label}
-    </Link>
-  );
-}
+const tdStyle: CSSProperties = {
+  textAlign: "left",
+  padding: "20px 0",
+  fontSize: "15px",
+  color: "#ffffff",
+};
