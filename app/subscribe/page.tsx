@@ -260,7 +260,7 @@ export default function SubscribePage() {
 
       <div style={styles.shell} className="subscribe-shell">
         <header style={styles.topBar} className="top-bar">
-          <Link href="/scan" style={styles.logoWrap} className="logo-wrap">
+          <Link href="/public/ssc-logo.png" style={styles.logoWrap} className="logo-wrap">
             <div style={styles.logoMark}>SSC</div>
             <div style={{ minWidth: 0 }}>
               <div style={styles.logoTitle}>Secret Scan Club</div>
@@ -275,7 +275,7 @@ export default function SubscribePage() {
             <Link href="/dashboard" style={styles.topLink} className="top-link">
               Dashboard
             </Link>
-            <Link href="/member" style={styles.topLink} className="top-link">
+            <Link href="/scan/club-member" style={styles.topLink} className="top-link">
               Member Area
             </Link>
           </div>
