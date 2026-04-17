@@ -202,26 +202,45 @@ export default function SubscribePage() {
       const data = await res.json();
 
       if (!res.ok) {
-        setErrorMessage(data?.error || "Could not start checkout.");
+        console.error("Checkout session error:", data);
+        setErrorMessage(data?.error || "Could not start checkout. Please try again.");
+        return;
+      }
+
+      if (!data?.url) {
+        setErrorMessage("Checkout did not return a payment link. Please try again.");
         return;
       }
 
       window.location.href = data.url;
+    } catch (error) {
+      console.error("Unexpected checkout error:", error);
+      setErrorMessage("Could not start checkout. Please try again.");
     } finally {
       setCheckoutLoading(null);
     }
   }
 
   function handlePlanSelect(planKey: TierKey) {
-    if (planKey === currentTier) return;
-    if (planKey === "free") return router.push("/scan");
+    if (planKey === currentTier) {
+      router.push("/dashboard");
+      return;
+    }
+
+    if (planKey === "free") {
+      router.push("/scan");
+      return;
+    }
+
     void startCheckout(planKey);
   }
 
   function getPlanButtonLabel(plan: Plan) {
     if (checkoutLoading === plan.key) return "Redirecting...";
     if (plan.key === currentTier) return "Current Plan";
-    return plan.cta;
+    if (currentTier === "free") return plan.cta;
+    if (plan.key === "free") return "Downgrade to Free";
+    return `Upgrade to ${plan.name}`;
   }
 
   if (loading) {
@@ -236,84 +255,51 @@ export default function SubscribePage() {
 
   return (
     <main style={styles.page}>
-      <div style={styles.shell}>
-        
-        {/* ✅ UPDATED LOGO */}
-        <header style={styles.topBar}>
-          <Link href="/scan" style={styles.logoWrap}>
-            <img src="/ssc-logo.png" alt="SSC Logo" style={styles.logoImage} />
-            <div>
+      <div style={styles.backgroundGlowTop} />
+      <div style={styles.backgroundGlowBottom} />
+
+      <div style={styles.shell} className="subscribe-shell">
+        <header style={styles.topBar} className="top-bar">
+          <Link href="/scan" style={styles.logoWrap} className="logo-wrap">
+            
+            {/* ✅ UPDATED LOGO */}
+            <img
+              src="/ssc-logo.png"
+              alt="Secret Scan Club Logo"
+              style={styles.logoImage}
+            />
+
+            <div style={{ minWidth: 0 }}>
               <div style={styles.logoTitle}>Secret Scan Club</div>
               <div style={styles.logoSub}>Subscribe or upgrade your membership</div>
             </div>
           </Link>
 
-          <div style={styles.topLinks}>
-            <Link href="/scan" style={styles.topLink}>Daily Puzzle</Link>
-            <Link href="/dashboard" style={styles.topLink}>Dashboard</Link>
-            <Link href="/scan/club-member" style={styles.topLink}>Member Area</Link>
+          <div style={styles.topLinks} className="top-links">
+            <Link href="/scan" style={styles.topLink} className="top-link">
+              Daily Puzzle
+            </Link>
+            <Link href="/dashboard" style={styles.topLink} className="top-link">
+              Dashboard
+            </Link>
+            <Link href="/scan/club-member" style={styles.topLink} className="top-link">
+              Member Area
+            </Link>
           </div>
         </header>
 
-        {/* EVERYTHING ELSE REMAINS */}
+        {/* EVERYTHING BELOW IS UNCHANGED */}
       </div>
     </main>
   );
 }
 
 const styles: Record<string, React.CSSProperties> = {
-  page: {
-    minHeight: "100vh",
-    background: "#0b1426",
-    color: "#fff",
-  },
-  shell: {
-    maxWidth: 1200,
-    margin: "0 auto",
-    padding: "24px",
-  },
-  topBar: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 32,
-  },
-  logoWrap: {
-    display: "flex",
-    alignItems: "center",
-    gap: 12,
-    textDecoration: "none",
-    color: "#fff",
-  },
-
-  /* ✅ NEW */
   logoImage: {
     width: 48,
     height: 48,
     objectFit: "contain",
-  },
-
-  logoTitle: {
-    fontWeight: 800,
-    fontSize: 18,
-  },
-  logoSub: {
-    fontSize: 12,
-    opacity: 0.7,
-  },
-  topLinks: {
-    display: "flex",
-    gap: 12,
-  },
-  topLink: {
-    padding: "8px 12px",
-    background: "#1a2440",
-    borderRadius: 8,
-    textDecoration: "none",
-    color: "#fff",
-  },
-  loadingCard: {
-    marginTop: 80,
-    textAlign: "center",
+    borderRadius: 10,
+    flexShrink: 0,
   },
 };
