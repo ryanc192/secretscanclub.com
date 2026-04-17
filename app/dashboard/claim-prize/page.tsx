@@ -2,14 +2,18 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { createBrowserSupabaseClient } from "@/lib/supabase/client";
 
 type WinnerRow = {
   id: string;
   user_id: string;
-  prize_month: string | null;
-  placement: number | string | null;
+  winner_month: string | null;
+  category: string | null;
+  winner_name: string | null;
+  membership_tier: string | null;
   prize_amount: number | null;
+  prize_multiplier: number | null;
   claim_status: "unclaimed" | "pending" | "approved" | "paid" | "rejected";
   claim_method: "cashapp" | "venmo" | "paypal" | "gift_card" | "platform_credit" | null;
   claim_full_name: string | null;
@@ -53,6 +57,36 @@ function formatAmount(value: number | null) {
   return typeof value === "number" ? `$${value.toFixed(2)}` : "Prize amount";
 }
 
+function normalizePrizeLabel(category: string | null) {
+  if (!category) return "Winner";
+
+  const value = category.trim().toLowerCase();
+
+  if (value.includes("1")) return "1st";
+  if (value.includes("2")) return "2nd";
+  if (value.includes("3")) return "3rd";
+  if (value.includes("random")) return "Random";
+
+  return category;
+}
+
+function fallbackMultiplierFromTier(tier: string | null) {
+  const value = (tier ?? "").trim().toLowerCase();
+
+  if (value === "vip") return 3;
+  if (value === "club" || value === "club-member" || value === "club member") return 2;
+  return 1;
+}
+
+function getMultiplierLabel(row: WinnerRow) {
+  const multiplier =
+    typeof row.prize_multiplier === "number"
+      ? row.prize_multiplier
+      : fallbackMultiplierFromTier(row.membership_tier);
+
+  return `${multiplier}x`;
+}
+
 function statusCopy(status: WinnerRow["claim_status"]) {
   if (status === "unclaimed") return "Ready to claim";
   if (status === "pending") return "Claim submitted";
@@ -63,6 +97,9 @@ function statusCopy(status: WinnerRow["claim_status"]) {
 
 export default function ClaimPrizePage() {
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
+  const searchParams = useSearchParams();
+  const targetClaimId = searchParams.get("claim");
+
   const [loading, setLoading] = useState(true);
   const [submittingId, setSubmittingId] = useState<string | null>(null);
   const [rows, setRows] = useState<WinnerRow[]>([]);
@@ -99,9 +136,12 @@ export default function ClaimPrizePage() {
         .select(`
           id,
           user_id,
-          prize_month,
-          placement,
+          winner_month,
+          category,
+          winner_name,
+          membership_tier,
           prize_amount,
+          prize_multiplier,
           claim_status,
           claim_method,
           claim_full_name,
@@ -115,7 +155,8 @@ export default function ClaimPrizePage() {
           admin_notes
         `)
         .eq("user_id", user.id)
-        .order("prize_month", { ascending: false });
+        .order("winner_month", { ascending: false })
+        .order("created_at", { ascending: false });
 
       if (!mounted) return;
 
@@ -141,6 +182,15 @@ export default function ClaimPrizePage() {
       }
       setForms(nextForms);
       setLoading(false);
+
+      if (targetClaimId) {
+        requestAnimationFrame(() => {
+          const el = document.getElementById(`claim-row-${targetClaimId}`);
+          if (el) {
+            el.scrollIntoView({ behavior: "smooth", block: "start" });
+          }
+        });
+      }
     }
 
     load();
@@ -148,7 +198,7 @@ export default function ClaimPrizePage() {
     return () => {
       mounted = false;
     };
-  }, [supabase]);
+  }, [supabase, targetClaimId]);
 
   function updateForm(id: string, key: keyof FormState, value: string) {
     setForms((prev) => ({
@@ -187,7 +237,7 @@ export default function ClaimPrizePage() {
     setSubmittingId(row.id);
 
     const payload = {
-      claim_status: "pending",
+      claim_status: "pending" as const,
       claim_method: form.claim_method,
       claim_full_name: form.claim_full_name.trim(),
       claim_email: form.claim_email.trim(),
@@ -251,8 +301,8 @@ export default function ClaimPrizePage() {
 
         <h1 style={{ fontSize: 34, lineHeight: 1.1, margin: 0 }}>Claim Your Prize</h1>
         <p style={{ color: "rgba(255,255,255,0.76)", marginTop: 10, fontSize: 16 }}>
-          If you won a prize, submit your payout details below. Claims go in for review first,
-          then your payout is approved and sent.
+          Submit your payout details below. After you submit, your dashboard button will switch to
+          Pending until the payout is reviewed.
         </p>
 
         {error ? (
@@ -305,12 +355,16 @@ export default function ClaimPrizePage() {
 
               return (
                 <section
+                  id={`claim-row-${row.id}`}
                   key={row.id}
                   style={{
                     border: "1px solid rgba(255,255,255,0.10)",
                     borderRadius: 24,
                     padding: 20,
-                    background: "rgba(255,255,255,0.04)",
+                    background:
+                      targetClaimId === row.id
+                        ? "rgba(255,255,255,0.08)"
+                        : "rgba(255,255,255,0.04)",
                   }}
                 >
                   <div
@@ -324,13 +378,14 @@ export default function ClaimPrizePage() {
                   >
                     <div>
                       <div style={{ fontSize: 12, opacity: 0.7, textTransform: "uppercase" }}>
-                        {formatMonthLabel(row.prize_month)}
+                        {formatMonthLabel(row.winner_month)}
                       </div>
                       <div style={{ fontSize: 24, fontWeight: 700, marginTop: 4 }}>
                         {formatAmount(row.prize_amount)}
                       </div>
                       <div style={{ opacity: 0.78, marginTop: 6 }}>
-                        Placement: {row.placement ?? "Winner"}
+                        Prize: {normalizePrizeLabel(row.category)} • Multiplier:{" "}
+                        {getMultiplierLabel(row)}
                       </div>
                     </div>
 
@@ -443,7 +498,11 @@ export default function ClaimPrizePage() {
                       <select
                         value={form.claim_method}
                         onChange={(e) =>
-                          updateForm(row.id, "claim_method", e.target.value as FormState["claim_method"])
+                          updateForm(
+                            row.id,
+                            "claim_method",
+                            e.target.value as FormState["claim_method"]
+                          )
                         }
                         disabled={locked}
                         style={inputStyle}
