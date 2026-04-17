@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 
 export default function PrizePage() {
   const monthlyPrizes = [
@@ -65,7 +66,16 @@ export default function PrizePage() {
       <div style={styles.shell} className="prize-shell">
         <header style={styles.topBar} className="top-bar">
           <Link href="/leaderboard" style={styles.logoWrap} className="logo-wrap">
-            <div style={styles.logoMark}>SSC</div>
+            <div style={styles.logoImageWrap}>
+              <Image
+                src="/ssc-logo.png"
+                alt="Secret Scan Club"
+                width={48}
+                height={48}
+                style={styles.logoImage}
+                priority
+              />
+            </div>
             <div style={{ minWidth: 0 }}>
               <div style={styles.logoTitle}>Secret Scan Club</div>
               <div style={styles.logoSub}>Prize details and membership multipliers</div>
@@ -413,18 +423,23 @@ const styles: Record<string, React.CSSProperties> = {
     textDecoration: "none",
     minWidth: 0,
   },
-  logoMark: {
+  logoImageWrap: {
     width: 48,
     height: 48,
     borderRadius: 14,
-    display: "grid",
-    placeItems: "center",
-    fontWeight: 800,
-    fontSize: 16,
-    background: "linear-gradient(135deg, #7a8cff 0%, #35d6ff 100%)",
-    color: "#07111f",
-    boxShadow: "0 12px 28px rgba(0,0,0,0.25)",
+    overflow: "hidden",
     flexShrink: 0,
+    boxShadow: "0 12px 28px rgba(0,0,0,0.25)",
+    background: "rgba(255,255,255,0.04)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  logoImage: {
+    width: "100%",
+    height: "100%",
+    objectFit: "cover",
+    display: "block",
   },
   logoTitle: {
     fontSize: 18,
