@@ -11,10 +11,16 @@ type WinnerRow = {
   category: string | null;
   winner_name: string | null;
   membership_tier: string | null;
-  prize_amount: number | null;
+  prize_amount: number | string | null;
   prize_multiplier: number | null;
   claim_status: "unclaimed" | "pending" | "approved" | "paid" | "rejected";
-  claim_method: "cashapp" | "venmo" | "paypal" | "gift_card" | "platform_credit" | null;
+  claim_method:
+    | "cashapp"
+    | "venmo"
+    | "paypal"
+    | "gift_card"
+    | "platform_credit"
+    | null;
   claim_full_name: string | null;
   claim_email: string | null;
   claim_phone: string | null;
@@ -46,14 +52,22 @@ const DEFAULT_FORM: FormState = {
 
 function formatMonthLabel(value: string | null) {
   if (!value) return "Prize";
-  const safe = `${value}-01`;
-  const date = new Date(`${safe}T00:00:00`);
+  const date = new Date(`${value}T00:00:00`);
   if (Number.isNaN(date.getTime())) return value;
   return date.toLocaleDateString("en-US", { month: "long", year: "numeric" });
 }
 
-function formatAmount(value: number | null) {
-  return typeof value === "number" ? `$${value.toFixed(2)}` : "Prize amount";
+function formatAmount(value: number | string | null) {
+  if (typeof value === "number") return `$${value.toFixed(2)}`;
+
+  if (typeof value === "string") {
+    if (value.trim().startsWith("$")) return value;
+    const parsed = Number(value);
+    if (!Number.isNaN(parsed)) return `$${parsed.toFixed(2)}`;
+    return value;
+  }
+
+  return "Prize amount";
 }
 
 function normalizePrizeLabel(category: string | null) {
@@ -61,12 +75,14 @@ function normalizePrizeLabel(category: string | null) {
 
   const value = category.trim().toLowerCase();
 
-  if (value.includes("1")) return "1st";
-  if (value.includes("2")) return "2nd";
-  if (value.includes("3")) return "3rd";
-  if (value.includes("random")) return "Random";
+  if (value.includes("first") || value === "1" || value.includes("1st")) return "1st Place";
+  if (value.includes("second") || value === "2" || value.includes("2nd")) return "2nd Place";
+  if (value.includes("third") || value === "3" || value.includes("3rd")) return "3rd Place";
+  if (value.includes("random")) return "Random Winner";
 
-  return category;
+  return category
+    .replaceAll("_", " ")
+    .replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
 function fallbackMultiplierFromTier(tier: string | null) {
@@ -88,10 +104,39 @@ function getMultiplierLabel(row: WinnerRow) {
 
 function statusCopy(status: WinnerRow["claim_status"]) {
   if (status === "unclaimed") return "Ready to claim";
-  if (status === "pending") return "Claim submitted";
+  if (status === "pending") return "Pending review";
   if (status === "approved") return "Approved";
-  if (status === "paid") return "Paid";
+  if (status === "paid") return "Paid out";
   return "Needs update";
+}
+
+function getMethodLabel(
+  method: FormState["claim_method"] | WinnerRow["claim_method"]
+): string {
+  switch (method) {
+    case "cashapp":
+      return "Cash App";
+    case "venmo":
+      return "Venmo";
+    case "paypal":
+      return "PayPal";
+    case "gift_card":
+      return "Gift Card";
+    case "platform_credit":
+      return "Platform Credit";
+    default:
+      return "PayPal";
+  }
+}
+
+function getHandleLabel(
+  method: FormState["claim_method"] | WinnerRow["claim_method"]
+): string {
+  if (method === "gift_card") return "Email for delivery";
+  if (method === "platform_credit") return "Account note";
+  if (method === "paypal") return "PayPal email";
+  if (method === "venmo") return "Venmo username";
+  return "Cash App handle";
 }
 
 export default function ClaimPrizePage() {
@@ -175,7 +220,10 @@ export default function ClaimPrizePage() {
       const nextForms: Record<string, FormState> = {};
       for (const row of winnerRows) {
         nextForms[row.id] = {
-          claim_full_name: row.claim_full_name ?? user.user_metadata?.full_name ?? "",
+          claim_full_name:
+            row.claim_full_name ??
+            user.user_metadata?.full_name ??
+            `${user.user_metadata?.first_name ?? ""} ${user.user_metadata?.last_name ?? ""}`.trim(),
           claim_email: row.claim_email ?? user.email ?? "",
           claim_phone: row.claim_phone ?? "",
           claim_handle: row.claim_handle ?? "",
@@ -183,6 +231,7 @@ export default function ClaimPrizePage() {
           claim_method: row.claim_method ?? "paypal",
         };
       }
+
       setForms(nextForms);
       setLoading(false);
     }
@@ -283,43 +332,86 @@ export default function ClaimPrizePage() {
     <main
       style={{
         minHeight: "100vh",
-        background: "#000",
+        background:
+          "radial-gradient(circle at top, rgba(255,255,255,0.05) 0%, rgba(0,0,0,1) 45%)",
         color: "#fff",
-        padding: "32px 16px 80px",
+        padding: "32px 16px 88px",
         fontFamily: "Arial, sans-serif",
       }}
     >
-      <div style={{ maxWidth: 860, margin: "0 auto" }}>
-        <div style={{ marginBottom: 20 }}>
-          <Link
-            href="/dashboard"
-            style={{
-              display: "inline-block",
-              color: "#fff",
-              textDecoration: "none",
-              border: "1px solid rgba(255,255,255,0.18)",
-              borderRadius: 999,
-              padding: "10px 16px",
-            }}
-          >
+      <div style={{ maxWidth: 980, margin: "0 auto" }}>
+        <div style={{ marginBottom: 22 }}>
+          <Link href="/dashboard" style={backButtonStyle}>
             ← Back to dashboard
           </Link>
         </div>
 
-        <h1 style={{ fontSize: 34, lineHeight: 1.1, margin: 0 }}>Claim Your Prize</h1>
-        <p style={{ color: "rgba(255,255,255,0.76)", marginTop: 10, fontSize: 16 }}>
-          Submit your payout details below. After you submit, your dashboard button will switch to
-          Pending until the payout is reviewed.
-        </p>
+        <section
+          style={{
+            border: "1px solid rgba(255,255,255,0.08)",
+            borderRadius: 28,
+            padding: "28px 24px",
+            background: "linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.02))",
+            boxShadow: "0 24px 60px rgba(0,0,0,0.45)",
+            marginBottom: 22,
+          }}
+        >
+          <div style={{ maxWidth: 760 }}>
+            <div
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 8,
+                borderRadius: 999,
+                padding: "8px 14px",
+                background: "rgba(255,255,255,0.06)",
+                border: "1px solid rgba(255,255,255,0.10)",
+                fontSize: 12,
+                fontWeight: 700,
+                letterSpacing: 1,
+                textTransform: "uppercase",
+                color: "rgba(255,255,255,0.76)",
+                marginBottom: 16,
+              }}
+            >
+              Prize Center
+            </div>
+
+            <h1
+              style={{
+                fontSize: "clamp(2.1rem, 4vw, 3.25rem)",
+                lineHeight: 1.05,
+                margin: 0,
+                fontWeight: 800,
+              }}
+            >
+              Claim Your Prize
+            </h1>
+
+            <p
+              style={{
+                margin: "14px 0 0",
+                color: "rgba(255,255,255,0.78)",
+                fontSize: 17,
+                lineHeight: 1.6,
+                maxWidth: 760,
+              }}
+            >
+              Submit your payout details below. Once your claim is sent in, your dashboard
+              switches from <strong>Claim Prize</strong> to <strong>Pending...</strong> until it
+              has been reviewed and paid out.
+            </p>
+          </div>
+        </section>
 
         {error ? (
           <div
             style={{
-              marginTop: 18,
-              background: "rgba(255,80,80,0.12)",
-              border: "1px solid rgba(255,80,80,0.35)",
-              borderRadius: 16,
-              padding: 14,
+              marginBottom: 20,
+              background: "rgba(255,80,80,0.10)",
+              border: "1px solid rgba(255,80,80,0.28)",
+              borderRadius: 20,
+              padding: 16,
               color: "#ffd4d4",
             }}
           >
@@ -328,31 +420,15 @@ export default function ClaimPrizePage() {
         ) : null}
 
         {loading ? (
-          <div
-            style={{
-              marginTop: 24,
-              border: "1px solid rgba(255,255,255,0.10)",
-              borderRadius: 20,
-              padding: 20,
-              background: "rgba(255,255,255,0.04)",
-            }}
-          >
-            Loading your prize claims...
-          </div>
+          <section style={panelStyle}>
+            <div style={loadingBoxStyle}>Loading your prize claims...</div>
+          </section>
         ) : rows.length === 0 ? (
-          <div
-            style={{
-              marginTop: 24,
-              border: "1px solid rgba(255,255,255,0.10)",
-              borderRadius: 20,
-              padding: 20,
-              background: "rgba(255,255,255,0.04)",
-            }}
-          >
-            No prize claims are available on your account right now.
-          </div>
+          <section style={panelStyle}>
+            <div style={loadingBoxStyle}>No prize claims are available on your account right now.</div>
+          </section>
         ) : (
-          <div style={{ display: "grid", gap: 18, marginTop: 24 }}>
+          <div style={{ display: "grid", gap: 20 }}>
             {rows.map((row) => {
               const form = forms[row.id] ?? DEFAULT_FORM;
               const locked =
@@ -365,110 +441,108 @@ export default function ClaimPrizePage() {
                   id={`claim-row-${row.id}`}
                   key={row.id}
                   style={{
-                    border: "1px solid rgba(255,255,255,0.10)",
-                    borderRadius: 24,
-                    padding: 20,
+                    ...panelStyle,
                     background:
                       targetClaimId === row.id
-                        ? "rgba(255,255,255,0.08)"
-                        : "rgba(255,255,255,0.04)",
+                        ? "linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.03))"
+                        : panelStyle.background,
+                    border:
+                      targetClaimId === row.id
+                        ? "1px solid rgba(255,255,255,0.16)"
+                        : panelStyle.border,
                   }}
                 >
                   <div
                     style={{
                       display: "flex",
                       justifyContent: "space-between",
-                      gap: 16,
+                      alignItems: "flex-start",
+                      gap: 18,
                       flexWrap: "wrap",
-                      marginBottom: 14,
+                      marginBottom: 20,
                     }}
                   >
                     <div>
-                      <div style={{ fontSize: 12, opacity: 0.7, textTransform: "uppercase" }}>
+                      <div
+                        style={{
+                          color: "rgba(255,255,255,0.62)",
+                          fontSize: 13,
+                          fontWeight: 700,
+                          letterSpacing: 0.5,
+                          textTransform: "uppercase",
+                          marginBottom: 10,
+                        }}
+                      >
                         {formatMonthLabel(row.winner_month)}
                       </div>
-                      <div style={{ fontSize: 24, fontWeight: 700, marginTop: 4 }}>
+
+                      <div
+                        style={{
+                          fontSize: "clamp(2rem, 3vw, 2.75rem)",
+                          fontWeight: 800,
+                          lineHeight: 1,
+                          marginBottom: 10,
+                        }}
+                      >
                         {formatAmount(row.prize_amount)}
                       </div>
-                      <div style={{ opacity: 0.78, marginTop: 6 }}>
-                        Prize: {normalizePrizeLabel(row.category)} • Multiplier:{" "}
-                        {getMultiplierLabel(row)}
+
+                      <div
+                        style={{
+                          display: "flex",
+                          flexWrap: "wrap",
+                          gap: 10,
+                        }}
+                      >
+                        <span style={miniBadgeStyle}>
+                          {normalizePrizeLabel(row.category)}
+                        </span>
+                        <span style={miniBadgeStyle}>
+                          Multiplier {getMultiplierLabel(row)}
+                        </span>
+                        {row.membership_tier ? (
+                          <span style={miniBadgeStyle}>
+                            {(row.membership_tier ?? "").replace(/\b\w/g, (c) => c.toUpperCase())}
+                          </span>
+                        ) : null}
                       </div>
                     </div>
 
-                    <div
-                      style={{
-                        alignSelf: "flex-start",
-                        padding: "8px 12px",
-                        borderRadius: 999,
-                        border: "1px solid rgba(255,255,255,0.16)",
-                        background: "rgba(255,255,255,0.05)",
-                        fontSize: 13,
-                      }}
-                    >
-                      {statusCopy(row.claim_status)}
-                    </div>
+                    <div style={statusPillStyle}>{statusCopy(row.claim_status)}</div>
                   </div>
 
                   {row.claim_status === "paid" ? (
-                    <div
-                      style={{
-                        marginBottom: 14,
-                        padding: 14,
-                        borderRadius: 16,
-                        background: "rgba(80,255,140,0.08)",
-                        border: "1px solid rgba(80,255,140,0.22)",
-                      }}
-                    >
-                      This prize has already been paid.
+                    <div style={successBannerStyle}>
+                      This prize has already been paid out and remains on your dashboard as part of
+                      your winnings history.
                     </div>
                   ) : null}
 
                   {row.claim_status === "approved" ? (
-                    <div
-                      style={{
-                        marginBottom: 14,
-                        padding: 14,
-                        borderRadius: 16,
-                        background: "rgba(255,205,80,0.08)",
-                        border: "1px solid rgba(255,205,80,0.20)",
-                      }}
-                    >
+                    <div style={infoBannerStyle}>
                       Your claim has been approved and is waiting to be paid out.
                     </div>
                   ) : null}
 
                   {row.claim_status === "pending" ? (
-                    <div
-                      style={{
-                        marginBottom: 14,
-                        padding: 14,
-                        borderRadius: 16,
-                        background: "rgba(100,140,255,0.08)",
-                        border: "1px solid rgba(100,140,255,0.22)",
-                      }}
-                    >
+                    <div style={infoBannerStyle}>
                       Your claim was submitted and is currently under review.
                     </div>
                   ) : null}
 
                   {row.claim_status === "rejected" && row.admin_notes ? (
-                    <div
-                      style={{
-                        marginBottom: 14,
-                        padding: 14,
-                        borderRadius: 16,
-                        background: "rgba(255,80,80,0.08)",
-                        border: "1px solid rgba(255,80,80,0.22)",
-                      }}
-                    >
-                      {row.admin_notes}
-                    </div>
+                    <div style={warningBannerStyle}>{row.admin_notes}</div>
                   ) : null}
 
-                  <div style={{ display: "grid", gap: 12 }}>
-                    <label>
-                      <div style={{ marginBottom: 6, fontSize: 14 }}>Full name</div>
+                  <div
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "repeat(12, minmax(0, 1fr))",
+                      gap: 16,
+                    }}
+                  >
+                    <div style={{ gridColumn: "span 12" }}>
+                      <label style={labelStyle}>Full name</label>
                       <input
                         value={form.claim_full_name}
                         onChange={(e) => updateForm(row.id, "claim_full_name", e.target.value)}
@@ -476,10 +550,10 @@ export default function ClaimPrizePage() {
                         style={inputStyle}
                         placeholder="Your full name"
                       />
-                    </label>
+                    </div>
 
-                    <label>
-                      <div style={{ marginBottom: 6, fontSize: 14 }}>Email</div>
+                    <div style={{ gridColumn: "span 12" }}>
+                      <label style={labelStyle}>Email</label>
                       <input
                         value={form.claim_email}
                         onChange={(e) => updateForm(row.id, "claim_email", e.target.value)}
@@ -487,10 +561,10 @@ export default function ClaimPrizePage() {
                         style={inputStyle}
                         placeholder="you@example.com"
                       />
-                    </label>
+                    </div>
 
-                    <label>
-                      <div style={{ marginBottom: 6, fontSize: 14 }}>Phone number</div>
+                    <div style={{ gridColumn: "span 12" }}>
+                      <label style={labelStyle}>Phone number</label>
                       <input
                         value={form.claim_phone}
                         onChange={(e) => updateForm(row.id, "claim_phone", e.target.value)}
@@ -498,73 +572,96 @@ export default function ClaimPrizePage() {
                         style={inputStyle}
                         placeholder="Optional"
                       />
-                    </label>
+                    </div>
 
-                    <label>
-                      <div style={{ marginBottom: 6, fontSize: 14 }}>Payout method</div>
-                      <select
-                        value={form.claim_method}
-                        onChange={(e) =>
-                          updateForm(
-                            row.id,
-                            "claim_method",
-                            e.target.value as FormState["claim_method"]
-                          )
-                        }
-                        disabled={locked}
-                        style={inputStyle}
-                      >
-                        <option value="paypal">PayPal</option>
-                        <option value="cashapp">Cash App</option>
-                        <option value="venmo">Venmo</option>
-                        <option value="gift_card">Gift Card</option>
-                        <option value="platform_credit">Platform Credit</option>
-                      </select>
-                    </label>
-
-                    <label>
-                      <div style={{ marginBottom: 6, fontSize: 14 }}>
-                        Payout handle or destination
+                    <div style={{ gridColumn: "span 12" }}>
+                      <label style={labelStyle}>Payout method</label>
+                      <div style={selectWrapStyle}>
+                        <select
+                          value={form.claim_method}
+                          onChange={(e) =>
+                            updateForm(
+                              row.id,
+                              "claim_method",
+                              e.target.value as FormState["claim_method"]
+                            )
+                          }
+                          disabled={locked}
+                          style={selectStyle}
+                        >
+                          <option value="paypal">PayPal</option>
+                          <option value="cashapp">Cash App</option>
+                          <option value="venmo">Venmo</option>
+                          <option value="gift_card">Gift Card</option>
+                          <option value="platform_credit">Platform Credit</option>
+                        </select>
+                        <span style={selectArrowStyle}>⌄</span>
                       </div>
+                    </div>
+
+                    <div style={{ gridColumn: "span 12" }}>
+                      <label style={labelStyle}>{getHandleLabel(form.claim_method)}</label>
                       <input
                         value={form.claim_handle}
                         onChange={(e) => updateForm(row.id, "claim_handle", e.target.value)}
                         disabled={locked}
                         style={inputStyle}
-                        placeholder="@username or payout email"
+                        placeholder={
+                          form.claim_method === "paypal"
+                            ? "PayPal email"
+                            : form.claim_method === "venmo"
+                              ? "@venmo-username"
+                              : form.claim_method === "cashapp"
+                                ? "$cashapphandle"
+                                : form.claim_method === "gift_card"
+                                  ? "Email for gift card delivery"
+                                  : "Optional note for account credit"
+                        }
                       />
-                    </label>
+                    </div>
 
-                    <label>
-                      <div style={{ marginBottom: 6, fontSize: 14 }}>Notes</div>
+                    <div style={{ gridColumn: "span 12" }}>
+                      <label style={labelStyle}>Notes</label>
                       <textarea
                         value={form.claim_notes}
                         onChange={(e) => updateForm(row.id, "claim_notes", e.target.value)}
                         disabled={locked}
-                        style={{ ...inputStyle, minHeight: 110, resize: "vertical" }}
+                        style={textareaStyle}
                         placeholder="Optional note"
                       />
-                    </label>
+                    </div>
                   </div>
 
                   {!locked ? (
                     <button
                       onClick={() => submitClaim(row)}
                       disabled={submittingId === row.id}
-                      style={{
-                        marginTop: 16,
-                        border: 0,
-                        borderRadius: 999,
-                        padding: "14px 20px",
-                        background: "#fff",
-                        color: "#000",
-                        fontWeight: 700,
-                        cursor: "pointer",
-                      }}
+                      style={submitButtonStyle}
                     >
                       {submittingId === row.id ? "Submitting..." : "Submit Claim"}
                     </button>
-                  ) : null}
+                  ) : (
+                    <div
+                      style={{
+                        marginTop: 18,
+                        display: "inline-flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        padding: "14px 18px",
+                        borderRadius: 999,
+                        background: "rgba(255,255,255,0.08)",
+                        color: "rgba(255,255,255,0.82)",
+                        fontWeight: 700,
+                        border: "1px solid rgba(255,255,255,0.12)",
+                      }}
+                    >
+                      {row.claim_status === "paid"
+                        ? "Paid Out"
+                        : row.claim_status === "approved"
+                          ? "Approved"
+                          : "Pending..."}
+                    </div>
+                  )}
                 </section>
               );
             })}
@@ -575,14 +672,153 @@ export default function ClaimPrizePage() {
   );
 }
 
+const panelStyle: React.CSSProperties = {
+  border: "1px solid rgba(255,255,255,0.08)",
+  borderRadius: 28,
+  padding: 20,
+  background: "linear-gradient(180deg, rgba(255,255,255,0.045), rgba(255,255,255,0.02))",
+  boxShadow: "0 18px 50px rgba(0,0,0,0.35)",
+};
+
+const loadingBoxStyle: React.CSSProperties = {
+  borderRadius: 20,
+  padding: 18,
+  background: "rgba(255,255,255,0.03)",
+  border: "1px solid rgba(255,255,255,0.08)",
+  color: "rgba(255,255,255,0.78)",
+};
+
+const backButtonStyle: React.CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  gap: 8,
+  color: "#fff",
+  textDecoration: "none",
+  border: "1px solid rgba(255,255,255,0.16)",
+  background: "rgba(255,255,255,0.04)",
+  borderRadius: 999,
+  padding: "12px 18px",
+  fontWeight: 700,
+  boxShadow: "0 10px 24px rgba(0,0,0,0.25)",
+};
+
+const statusPillStyle: React.CSSProperties = {
+  alignSelf: "flex-start",
+  padding: "10px 14px",
+  borderRadius: 999,
+  border: "1px solid rgba(255,255,255,0.12)",
+  background: "rgba(255,255,255,0.05)",
+  fontSize: 13,
+  fontWeight: 700,
+  color: "#fff",
+};
+
+const miniBadgeStyle: React.CSSProperties = {
+  display: "inline-flex",
+  alignItems: "center",
+  padding: "8px 12px",
+  borderRadius: 999,
+  background: "rgba(255,255,255,0.05)",
+  border: "1px solid rgba(255,255,255,0.08)",
+  color: "rgba(255,255,255,0.88)",
+  fontSize: 13,
+  fontWeight: 700,
+};
+
+const labelStyle: React.CSSProperties = {
+  display: "block",
+  marginBottom: 8,
+  fontSize: 14,
+  fontWeight: 700,
+  color: "rgba(255,255,255,0.94)",
+};
+
 const inputStyle: React.CSSProperties = {
   width: "100%",
-  borderRadius: 14,
-  border: "1px solid rgba(255,255,255,0.16)",
-  background: "rgba(255,255,255,0.06)",
+  borderRadius: 18,
+  border: "1px solid rgba(255,255,255,0.12)",
+  background: "rgba(255,255,255,0.05)",
   color: "#fff",
-  padding: "14px 14px",
+  padding: "16px 16px",
   outline: "none",
-  fontSize: 15,
+  fontSize: 16,
   boxSizing: "border-box",
+  boxShadow: "inset 0 1px 0 rgba(255,255,255,0.03)",
+};
+
+const textareaStyle: React.CSSProperties = {
+  ...inputStyle,
+  minHeight: 120,
+  resize: "vertical",
+};
+
+const selectWrapStyle: React.CSSProperties = {
+  position: "relative",
+};
+
+const selectStyle: React.CSSProperties = {
+  width: "100%",
+  borderRadius: 18,
+  border: "1px solid rgba(255,255,255,0.12)",
+  background: "rgba(255,255,255,0.05)",
+  color: "#fff",
+  padding: "16px 46px 16px 16px",
+  outline: "none",
+  fontSize: 16,
+  boxSizing: "border-box",
+  appearance: "none",
+  WebkitAppearance: "none",
+  MozAppearance: "none",
+  boxShadow: "inset 0 1px 0 rgba(255,255,255,0.03)",
+};
+
+const selectArrowStyle: React.CSSProperties = {
+  position: "absolute",
+  right: 16,
+  top: "50%",
+  transform: "translateY(-50%)",
+  color: "rgba(255,255,255,0.75)",
+  pointerEvents: "none",
+  fontSize: 18,
+  lineHeight: 1,
+};
+
+const submitButtonStyle: React.CSSProperties = {
+  marginTop: 20,
+  border: 0,
+  borderRadius: 999,
+  padding: "15px 22px",
+  background: "#fff",
+  color: "#000",
+  fontWeight: 800,
+  cursor: "pointer",
+  fontSize: 15,
+  boxShadow: "0 14px 28px rgba(255,255,255,0.08)",
+};
+
+const infoBannerStyle: React.CSSProperties = {
+  marginBottom: 18,
+  padding: 15,
+  borderRadius: 18,
+  background: "rgba(92,130,255,0.10)",
+  border: "1px solid rgba(92,130,255,0.22)",
+  color: "#dce6ff",
+};
+
+const successBannerStyle: React.CSSProperties = {
+  marginBottom: 18,
+  padding: 15,
+  borderRadius: 18,
+  background: "rgba(80,255,140,0.08)",
+  border: "1px solid rgba(80,255,140,0.22)",
+  color: "#dcffe7",
+};
+
+const warningBannerStyle: React.CSSProperties = {
+  marginBottom: 18,
+  padding: 15,
+  borderRadius: 18,
+  background: "rgba(255,120,120,0.08)",
+  border: "1px solid rgba(255,120,120,0.22)",
+  color: "#ffd7d7",
 };
