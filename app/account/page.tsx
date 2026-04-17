@@ -288,7 +288,7 @@ export default function AccountPage() {
           <div style={styles.topLinks} className="top-links">
             <Link href="/scan" style={styles.topLink} className="top-link">Daily Puzzle</Link>
             <Link href="/dashboard" style={styles.topLink} className="top-link">Dashboard</Link>
-            <Link href="/account/billing" style={styles.topLink} className="top-link">Membership</Link>
+            
           </div>
         </header>
 
