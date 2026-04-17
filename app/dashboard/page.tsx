@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createBrowserSupabaseClient } from "../../lib/supabase/client";
+import PrizeClaimsSection from "./components/PrizeClaimsSection";
 
 type DashboardPlan = "Free" | "Club Member" | "VIP Member";
 
@@ -811,6 +812,7 @@ export default function DashboardPage() {
                 label={stats.plan === "Free" ? "Upgrade Membership" : "Manage Membership"}
               />
             </div>
+            <PrizeClaimsSection />
           </div>
         </section>
       </div>
