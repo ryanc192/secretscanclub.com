@@ -67,6 +67,7 @@ export default function LeaderboardPage() {
   const [leaderboard, setLeaderboard] = useState<LeaderboardRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
   const loadLeaderboardPage = useCallback(
     async (showInitialLoader = false) => {
@@ -108,6 +109,16 @@ export default function LeaderboardPage() {
   useEffect(() => {
     isMountedRef.current = true;
 
+    const loadCurrentUser = async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!isMountedRef.current) return;
+      setCurrentUserId(user?.id ?? null);
+    };
+
+    void loadCurrentUser();
     void loadLeaderboardPage(true);
 
     const interval = setInterval(() => {
@@ -133,7 +144,7 @@ export default function LeaderboardPage() {
       document.removeEventListener("visibilitychange", handleVisibilityChange);
       window.removeEventListener("focus", handleWindowFocus);
     };
-  }, [loadLeaderboardPage]);
+  }, [loadLeaderboardPage, supabase]);
 
   return (
     <main className="leaderboard-page">
@@ -198,93 +209,86 @@ export default function LeaderboardPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {leaderboard.map((player) => (
-                      <tr key={player.user_id}>
-                        <td>
-                          <span
-                            className={
-                              player.rank <= 3 ? "rank-pill top-rank" : "rank-pill"
-                            }
-                          >
-                            #{player.rank}
-                          </span>
-                        </td>
-                        <td className="player-name">
-                          {getSafeDisplayName(player.display_name)}
-                        </td>
-                        <td>{player.longest_monthly_streak}</td>
-                        <td>{Number(player.monthly_accuracy ?? 0)}%</td>
-                        <td>{formatTimeMs(player.avg_correct_time_ms)}</td>
-                        <td>{player.correct_answers}</td>
-                        <td>{player.puzzles_played}</td>
-                        <td>{formatDate(player.last_activity)}</td>
-                      </tr>
-                    ))}
+                    {leaderboard.map((player) => {
+                      const isCurrentUser =
+                        !!currentUserId && player.user_id === currentUserId;
+
+                      return (
+                        <tr
+                          key={player.user_id}
+                          className={isCurrentUser ? "current-user-row" : ""}
+                        >
+                          <td>
+                            <span
+                              className={[
+                                "rank-pill",
+                                player.rank <= 3 ? "top-rank" : "",
+                                isCurrentUser ? "current-user-rank-pill" : "",
+                              ]
+                                .filter(Boolean)
+                                .join(" ")}
+                            >
+                              #{player.rank}
+                            </span>
+                          </td>
+                          <td className="player-name">
+                            <div className="player-name-wrap">
+                              <span>{getSafeDisplayName(player.display_name)}</span>
+                              {isCurrentUser ? (
+                                <span className="you-badge">You</span>
+                              ) : null}
+                            </div>
+                          </td>
+                          <td>{player.longest_monthly_streak}</td>
+                          <td>{Number(player.monthly_accuracy ?? 0)}%</td>
+                          <td>{formatTimeMs(player.avg_correct_time_ms)}</td>
+                          <td>{player.correct_answers}</td>
+                          <td>{player.puzzles_played}</td>
+                          <td>{formatDate(player.last_activity)}</td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
 
               <div className="mobile-cards">
-                {leaderboard.map((player) => (
-                  <article key={player.user_id} className="mobile-player-card">
-                    <div className="mobile-player-top">
-                      <span
-                        className={
-                          player.rank <= 3 ? "rank-pill top-rank" : "rank-pill"
-                        }
-                      >
-                        #{player.rank}
-                      </span>
-                      <div className="mobile-player-name">
-                        {getSafeDisplayName(player.display_name)}
-                      </div>
-                    </div>
+                {leaderboard.map((player) => {
+                  const isCurrentUser =
+                    !!currentUserId && player.user_id === currentUserId;
 
-                    <div className="mobile-stats-grid">
-                      <div className="mobile-stat">
-                        <span className="mobile-stat-label">Longest Streak</span>
-                        <span className="mobile-stat-value">
-                          {player.longest_monthly_streak}
+                  return (
+                    <article
+                      key={player.user_id}
+                      className={`mobile-player-card ${
+                        isCurrentUser ? "mobile-current-user-card" : ""
+                      }`}
+                    >
+                      <div className="mobile-player-top mobile-player-top-simple">
+                        <span
+                          className={[
+                            "rank-pill",
+                            player.rank <= 3 ? "top-rank" : "",
+                            isCurrentUser ? "current-user-rank-pill" : "",
+                          ]
+                            .filter(Boolean)
+                            .join(" ")}
+                        >
+                          #{player.rank}
                         </span>
-                      </div>
 
-                      <div className="mobile-stat">
-                        <span className="mobile-stat-label">Accuracy</span>
-                        <span className="mobile-stat-value">
-                          {Number(player.monthly_accuracy ?? 0)}%
-                        </span>
+                        <div className="mobile-player-name-wrap">
+                          <div className="mobile-player-name">
+                            {getSafeDisplayName(player.display_name)}
+                          </div>
+                          {isCurrentUser ? (
+                            <span className="you-badge">You</span>
+                          ) : null}
+                        </div>
                       </div>
-
-                      <div className="mobile-stat">
-                        <span className="mobile-stat-label">Avg Solve Time</span>
-                        <span className="mobile-stat-value">
-                          {formatTimeMs(player.avg_correct_time_ms)}
-                        </span>
-                      </div>
-
-                      <div className="mobile-stat">
-                        <span className="mobile-stat-label">Correct</span>
-                        <span className="mobile-stat-value">
-                          {player.correct_answers}
-                        </span>
-                      </div>
-
-                      <div className="mobile-stat">
-                        <span className="mobile-stat-label">Puzzles Played</span>
-                        <span className="mobile-stat-value">
-                          {player.puzzles_played}
-                        </span>
-                      </div>
-
-                      <div className="mobile-stat mobile-stat-full">
-                        <span className="mobile-stat-label">Last Active</span>
-                        <span className="mobile-stat-value">
-                          {formatDate(player.last_activity)}
-                        </span>
-                      </div>
-                    </div>
-                  </article>
-                ))}
+                    </article>
+                  );
+                })}
               </div>
             </>
           )}
@@ -451,6 +455,13 @@ export default function LeaderboardPage() {
           font-weight: 700;
         }
 
+        .player-name-wrap {
+          display: inline-flex;
+          align-items: center;
+          gap: 10px;
+          flex-wrap: wrap;
+        }
+
         .rank-pill {
           display: inline-flex;
           align-items: center;
@@ -465,6 +476,34 @@ export default function LeaderboardPage() {
         .top-rank {
           background: #ffffff;
           color: #08111f;
+        }
+
+        .current-user-row {
+          background: rgba(53, 214, 255, 0.1);
+          box-shadow: inset 0 0 0 1px rgba(53, 214, 255, 0.28);
+        }
+
+        .current-user-row td {
+          background: transparent;
+        }
+
+        .current-user-rank-pill {
+          box-shadow: 0 0 0 2px rgba(53, 214, 255, 0.45);
+        }
+
+        .you-badge {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          padding: 5px 10px;
+          border-radius: 999px;
+          background: rgba(53, 214, 255, 0.16);
+          border: 1px solid rgba(53, 214, 255, 0.3);
+          color: #9cecff;
+          font-size: 0.72rem;
+          font-weight: 800;
+          letter-spacing: 0.04em;
+          text-transform: uppercase;
         }
 
         .empty-state {
@@ -488,6 +527,14 @@ export default function LeaderboardPage() {
           box-shadow: 0 12px 28px rgba(0, 0, 0, 0.2);
         }
 
+        .mobile-current-user-card {
+          background: rgba(53, 214, 255, 0.12);
+          border: 1px solid rgba(53, 214, 255, 0.32);
+          box-shadow:
+            0 12px 28px rgba(0, 0, 0, 0.2),
+            inset 0 0 0 1px rgba(53, 214, 255, 0.15);
+        }
+
         .mobile-player-top {
           display: flex;
           align-items: center;
@@ -496,47 +543,22 @@ export default function LeaderboardPage() {
           flex-wrap: wrap;
         }
 
+        .mobile-player-top-simple {
+          margin-bottom: 0;
+        }
+
+        .mobile-player-name-wrap {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          flex-wrap: wrap;
+          min-width: 0;
+        }
+
         .mobile-player-name {
           font-size: 1rem;
           font-weight: 800;
           line-height: 1.3;
-          word-break: break-word;
-        }
-
-        .mobile-stats-grid {
-          display: grid;
-          grid-template-columns: repeat(2, minmax(0, 1fr));
-          gap: 12px;
-        }
-
-        .mobile-stat {
-          display: flex;
-          flex-direction: column;
-          gap: 4px;
-          padding: 12px;
-          border-radius: 14px;
-          background: rgba(255, 255, 255, 0.04);
-          border: 1px solid rgba(255, 255, 255, 0.08);
-          min-width: 0;
-        }
-
-        .mobile-stat-full {
-          grid-column: 1 / -1;
-        }
-
-        .mobile-stat-label {
-          font-size: 0.72rem;
-          text-transform: uppercase;
-          letter-spacing: 0.08em;
-          color: #8dc7ff;
-          font-weight: 700;
-        }
-
-        .mobile-stat-value {
-          font-size: 0.98rem;
-          font-weight: 800;
-          color: #ffffff;
-          line-height: 1.35;
           word-break: break-word;
         }
 
@@ -601,14 +623,6 @@ export default function LeaderboardPage() {
             padding: 18px;
           }
 
-          .mobile-stats-grid {
-            grid-template-columns: 1fr;
-          }
-
-          .mobile-stat-full {
-            grid-column: auto;
-          }
-
           .rank-pill {
             min-width: 50px;
             min-height: 32px;
@@ -617,6 +631,11 @@ export default function LeaderboardPage() {
 
           .mobile-player-name {
             font-size: 0.96rem;
+          }
+
+          .you-badge {
+            font-size: 0.68rem;
+            padding: 4px 8px;
           }
         }
       `}</style>
