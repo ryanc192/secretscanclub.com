@@ -2,7 +2,7 @@
 
 import { CSSProperties, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { createBrowserSupabaseClient } from "../../../lib/supabase/client";
+import { createBrowserSupabaseClient } from "../../lib/supabase/client";
 
 type PrizeClaimRow = {
   id: string;
