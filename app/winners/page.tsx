@@ -15,6 +15,7 @@ type WinnerRecord = {
   prizeMultiplier: number;
   totalPayout: string;
   sortOrder: number;
+  showMultiplier: boolean;
 };
 
 const DISPLAY_MONTH_COUNT = 2;
@@ -280,6 +281,7 @@ export default function WinnersPage() {
                   row.position ??
                   categorySortOrder(categoryKey)
               ) || categorySortOrder(categoryKey),
+            showMultiplier: topThree,
           });
         }
 
@@ -391,32 +393,47 @@ export default function WinnersPage() {
                               </div>
 
                               <div style={styles.payoutLine}>
-                                <span style={styles.payoutLineLabel}>Base Prize:</span>{" "}
-                                <span style={styles.payoutLineValue}>{item.prizeAmount}</span>
-                                <span style={styles.dot}>•</span>
-                                <span style={styles.payoutLineLabel}>Multiplier:</span>{" "}
-                                <span style={styles.payoutLineValue}>
-                                  {formatMultiplierLabel(item.prizeMultiplier)}
-                                </span>
-                                <span style={styles.dot}>•</span>
                                 <span style={styles.payoutLineLabel}>Total Paid:</span>{" "}
                                 <span style={styles.totalPaidInline}>{item.totalPayout}</span>
+                                {item.showMultiplier ? (
+                                  <>
+                                    <span style={styles.dot}>•</span>
+                                    <span style={styles.payoutLineLabel}>Base Prize:</span>{" "}
+                                    <span style={styles.payoutLineValue}>{item.prizeAmount}</span>
+                                    <span style={styles.dot}>•</span>
+                                    <span style={styles.payoutLineLabel}>Multiplier:</span>{" "}
+                                    <span style={styles.payoutLineValue}>
+                                      {formatMultiplierLabel(item.prizeMultiplier)}
+                                    </span>
+                                  </>
+                                ) : null}
                               </div>
                             </div>
                           </div>
 
-                          <div style={styles.payoutPanel} className="payout-panel">
-                            <div style={styles.smallPill}>
-                              <span style={styles.smallPillLabel}>Base</span>
-                              <span style={styles.smallPillValue}>{item.prizeAmount}</span>
-                            </div>
+                          <div
+                            style={
+                              item.showMultiplier
+                                ? styles.payoutPanelTopThree
+                                : styles.payoutPanelRandom
+                            }
+                            className="payout-panel"
+                          >
+                            {item.showMultiplier ? (
+                              <>
+                                <div style={styles.smallPill}>
+                                  <span style={styles.smallPillLabel}>Base</span>
+                                  <span style={styles.smallPillValue}>{item.prizeAmount}</span>
+                                </div>
 
-                            <div style={styles.multiplierPill}>
-                              <span style={styles.smallPillLabel}>Multiplier</span>
-                              <span style={styles.smallPillValue}>
-                                {formatMultiplierLabel(item.prizeMultiplier)}
-                              </span>
-                            </div>
+                                <div style={styles.multiplierPill}>
+                                  <span style={styles.smallPillLabel}>Multiplier</span>
+                                  <span style={styles.smallPillValue}>
+                                    {formatMultiplierLabel(item.prizeMultiplier)}
+                                  </span>
+                                </div>
+                              </>
+                            ) : null}
 
                             <div style={styles.totalPayoutCard}>
                               <div style={styles.totalPayoutLabel}>Total Paid</div>
@@ -453,7 +470,6 @@ export default function WinnersPage() {
 
           .payout-panel {
             width: 100%;
-            grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
           }
         }
 
@@ -499,10 +515,6 @@ export default function WinnersPage() {
 
           .winner-meta {
             word-break: break-word;
-          }
-
-          .payout-panel {
-            grid-template-columns: 1fr !important;
           }
         }
 
@@ -791,9 +803,16 @@ const styles: Record<string, React.CSSProperties> = {
     margin: "0 8px",
     color: "rgba(255,255,255,0.35)",
   },
-  payoutPanel: {
+  payoutPanelTopThree: {
     display: "grid",
     gridTemplateColumns: "repeat(3, auto)",
+    gap: 10,
+    alignItems: "stretch",
+    flexShrink: 0,
+  },
+  payoutPanelRandom: {
+    display: "grid",
+    gridTemplateColumns: "auto",
     gap: 10,
     alignItems: "stretch",
     flexShrink: 0,
