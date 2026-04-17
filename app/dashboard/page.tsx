@@ -35,7 +35,6 @@ type RecentAttempt = {
   is_correct: boolean | null;
   submitted_at: string | null;
   attempt_count: number | null;
-  accuracy_value: number | null;
   daily_puzzles: DailyPuzzleRelation | null;
 };
 
@@ -43,7 +42,6 @@ type StatsSession = {
   id: string;
   is_correct: boolean | null;
   attempt_count: number | null;
-  accuracy_value: number | null;
 };
 
 const STRIPE_PRICE_IDS = {
@@ -138,6 +136,19 @@ function getPuzzleDisplayName(dailyPuzzles: DailyPuzzleRelation | null | undefin
   return "Puzzle";
 }
 
+function getAttemptAccuracy(attemptCount: number | null | undefined, isCorrect: boolean | null | undefined) {
+  if (!isCorrect) return 0;
+
+  const attempts = Number(attemptCount ?? 0);
+  if (!Number.isFinite(attempts) || attempts < 1) return 0;
+
+  return Math.round((100 / attempts) * 100) / 100;
+}
+
+function formatAccuracy(value: number) {
+  return Number.isInteger(value) ? `${value}` : value.toFixed(2);
+}
+
 export default function DashboardPage() {
   const router = useRouter();
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
@@ -225,14 +236,14 @@ export default function DashboardPage() {
 
           supabase
             .from("puzzle_sessions")
-            .select("id, is_correct, attempt_count, accuracy_value")
+            .select("id, is_correct, attempt_count")
             .eq("user_id", user.id)
             .not("submitted_at", "is", null),
 
           supabase
             .from("puzzle_sessions")
             .select(
-              "id, latest_answer_text, is_correct, submitted_at, attempt_count, accuracy_value, daily_puzzles(puzzle_date, short_name, question_text)"
+              "id, latest_answer_text, is_correct, submitted_at, attempt_count, daily_puzzles(puzzle_date, short_name, question_text)"
             )
             .eq("user_id", user.id)
             .not("submitted_at", "is", null)
@@ -295,10 +306,9 @@ export default function DashboardPage() {
         accuracy =
           statsSessions.length > 0
             ? Math.round(
-                (statsSessions.reduce(
-                  (sum, session) => sum + Number(session.accuracy_value ?? 0),
-                  0
-                ) /
+                (statsSessions.reduce((sum, session) => {
+                  return sum + getAttemptAccuracy(session.attempt_count, session.is_correct);
+                }, 0) /
                   statsSessions.length) *
                   100
               ) / 100
@@ -644,7 +654,7 @@ export default function DashboardPage() {
           <StatCard label="Current Streak" value={stats.currentStreak.toString()} />
           <StatCard label="Longest Streak" value={stats.longestStreak.toString()} />
           <StatCard label="Total Guesses" value={stats.totalAttempts.toString()} />
-          <StatCard label="Accuracy" value={`${stats.accuracy}%`} />
+          <StatCard label="Accuracy" value={`${formatAccuracy(stats.accuracy)}%`} />
         </section>
 
         <section
@@ -689,76 +699,83 @@ export default function DashboardPage() {
               </div>
             ) : (
               <div style={{ display: "grid", gap: "12px" }}>
-                {recentAttempts.map((attempt) => (
-                  <div
-                    className="recent-attempt-row"
-                    key={attempt.id}
-                    style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "center",
-                      gap: "16px",
-                      padding: "14px 16px",
-                      borderRadius: "16px",
-                      background: "rgba(255,255,255,0.045)",
-                      border: "1px solid rgba(255,255,255,0.08)",
-                    }}
-                  >
-                    <div style={{ minWidth: 0 }}>
-                      <div
-                        style={{
-                          fontWeight: 700,
-                          fontSize: "15px",
-                          marginBottom: "4px",
-                          wordBreak: "break-word",
-                        }}
-                      >
-                        {getPuzzleDisplayName(attempt.daily_puzzles)}
-                      </div>
+                {recentAttempts.map((attempt) => {
+                  const earnedAccuracy = getAttemptAccuracy(
+                    attempt.attempt_count,
+                    attempt.is_correct
+                  );
 
-                      <div
-                        style={{
-                          fontSize: "13px",
-                          color: "rgba(255,255,255,0.68)",
-                          wordBreak: "break-word",
-                        }}
-                      >
-                        Answer: {attempt.latest_answer_text || "No answer recorded"}
-                      </div>
-
-                      <div
-                        style={{
-                          fontSize: "13px",
-                          color: "rgba(255,255,255,0.68)",
-                          wordBreak: "break-word",
-                          marginTop: "4px",
-                        }}
-                      >
-                        Guesses used: {Number(attempt.attempt_count ?? 0)} • Accuracy earned:{" "}
-                        {Number(attempt.accuracy_value ?? 0)}%
-                      </div>
-                    </div>
-
+                  return (
                     <div
+                      className="recent-attempt-row"
+                      key={attempt.id}
                       style={{
-                        padding: "8px 12px",
-                        borderRadius: "999px",
-                        fontSize: "13px",
-                        fontWeight: 700,
-                        whiteSpace: "nowrap",
-                        background: attempt.is_correct
-                          ? "rgba(34,197,94,0.16)"
-                          : "rgba(239,68,68,0.14)",
-                        color: attempt.is_correct ? "#86efac" : "#fca5a5",
-                        border: attempt.is_correct
-                          ? "1px solid rgba(34,197,94,0.28)"
-                          : "1px solid rgba(239,68,68,0.25)",
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                        gap: "16px",
+                        padding: "14px 16px",
+                        borderRadius: "16px",
+                        background: "rgba(255,255,255,0.045)",
+                        border: "1px solid rgba(255,255,255,0.08)",
                       }}
                     >
-                      {attempt.is_correct ? "Solved" : "Missed"}
+                      <div style={{ minWidth: 0 }}>
+                        <div
+                          style={{
+                            fontWeight: 700,
+                            fontSize: "15px",
+                            marginBottom: "4px",
+                            wordBreak: "break-word",
+                          }}
+                        >
+                          {getPuzzleDisplayName(attempt.daily_puzzles)}
+                        </div>
+
+                        <div
+                          style={{
+                            fontSize: "13px",
+                            color: "rgba(255,255,255,0.68)",
+                            wordBreak: "break-word",
+                          }}
+                        >
+                          Answer: {attempt.latest_answer_text || "No answer recorded"}
+                        </div>
+
+                        <div
+                          style={{
+                            fontSize: "13px",
+                            color: "rgba(255,255,255,0.68)",
+                            wordBreak: "break-word",
+                            marginTop: "4px",
+                          }}
+                        >
+                          Guesses used: {Number(attempt.attempt_count ?? 0)} • Accuracy earned:{" "}
+                          {formatAccuracy(earnedAccuracy)}%
+                        </div>
+                      </div>
+
+                      <div
+                        style={{
+                          padding: "8px 12px",
+                          borderRadius: "999px",
+                          fontSize: "13px",
+                          fontWeight: 700,
+                          whiteSpace: "nowrap",
+                          background: attempt.is_correct
+                            ? "rgba(34,197,94,0.16)"
+                            : "rgba(239,68,68,0.14)",
+                          color: attempt.is_correct ? "#86efac" : "#fca5a5",
+                          border: attempt.is_correct
+                            ? "1px solid rgba(34,197,94,0.28)"
+                            : "1px solid rgba(239,68,68,0.25)",
+                        }}
+                      >
+                        {attempt.is_correct ? "Solved" : "Missed"}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
