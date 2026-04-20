@@ -563,10 +563,12 @@ const styles: Record<string, React.CSSProperties> = {
     marginTop: 8,
   },
   prizeHeroCard: {
-    display: "flex",
+    prizeHeroCard: {
+  display: "flex",
+  alignItems: "center",
+  gap: 20,
+  flexWrap: "wrap", // prevents layout breaking on smaller screens
     justifyContent: "space-between",
-    alignItems: "center",
-    gap: 18,
     padding: "18px 20px",
     borderRadius: 20,
     background: "rgba(255,255,255,0.04)",
@@ -574,10 +576,9 @@ const styles: Record<string, React.CSSProperties> = {
     minWidth: 0,
   },
   logoBadge: {
-    width: 46,
-    height: 46,
-    borderRadius: "50%",
-    objectFit: "cover",
+    width: 138,
+    height: 138,
+    objectFit: "contain",
     flexShrink: 0,
     background: "rgba(255,255,255,0.05)",
     border: "1px solid rgba(255,255,255,0.08)",
