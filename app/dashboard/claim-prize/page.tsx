@@ -14,7 +14,6 @@ type ClaimRow = {
   placement: number | null;
   winner_name: string | null;
   membership_tier: string | null;
-  prize_multiplier: number | null;
   total_prize_amount: number | null;
   base_prize_amount: number | null;
   claim_status: string | null;
