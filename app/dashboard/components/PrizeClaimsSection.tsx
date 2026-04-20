@@ -8,6 +8,7 @@ type PrizeClaimRow = {
   id: string;
   winner_month: string;
   category: string;
+  placement: number | null;
   prize_multiplier: number | null;
   total_prize_amount: number | null;
   claim_status: string | null;
@@ -18,12 +19,39 @@ function formatMoney(value: number | null | undefined) {
   return `$${Number(value).toFixed(0)}`;
 }
 
-function formatPrizeLabel(category: string) {
+function formatPrizeLabel(category: string, placement: number | null | undefined) {
+  const normalized = category.trim().toLowerCase();
+
+  if (normalized === "leaderboard") {
+    if (placement === 1) return "1st Place on the Leaderboard";
+    if (placement === 2) return "2nd Place on the Leaderboard";
+    if (placement === 3) return "3rd Place on the Leaderboard";
+    return "Leaderboard Winner";
+  }
+
+  if (normalized === "random") {
+    return "Random Winner";
+  }
+
+  if (normalized === "first_place") return "1st Place on the Leaderboard";
+  if (normalized === "second_place") return "2nd Place on the Leaderboard";
+  if (normalized === "third_place") return "3rd Place on the Leaderboard";
+
+  if (normalized.startsWith("random_")) {
+    return "Random Winner";
+  }
+
   return category.replace(/_/g, " ");
 }
 
 function formatMonth(value: string) {
-  return value;
+  const parsed = new Date(`${value}T00:00:00`);
+  if (Number.isNaN(parsed.getTime())) return value;
+
+  return parsed.toLocaleDateString("en-US", {
+    month: "long",
+    year: "numeric",
+  });
 }
 
 function formatStatusLabel(status: string | null | undefined) {
@@ -34,6 +62,7 @@ function formatStatusLabel(status: string | null | undefined) {
   if (normalized === "paid") return "Paid";
   if (normalized === "approved") return "Approved";
   if (normalized === "submitted") return "Submitted";
+  if (normalized === "pending") return "Pending";
   if (normalized === "unclaimed") return "Unclaimed";
 
   return status.charAt(0).toUpperCase() + status.slice(1);
@@ -65,11 +94,11 @@ export default function PrizeClaimsSection() {
       const { data, error } = await supabase
         .from("monthly_winners")
         .select(
-          "id, winner_month, category, prize_multiplier, total_prize_amount, claim_status"
+          "id, winner_month, category, placement, prize_multiplier, total_prize_amount, claim_status"
         )
         .eq("user_id", user.id)
         .order("winner_month", { ascending: false })
-        .order("id", { ascending: false });
+        .order("created_at", { ascending: false });
 
       if (!active) return;
 
@@ -160,7 +189,7 @@ export default function PrizeClaimsSection() {
                     }}
                   >
                     <td style={tdStyle}>{formatMonth(row.winner_month)}</td>
-                    <td style={tdStyle}>{formatPrizeLabel(row.category)}</td>
+                    <td style={tdStyle}>{formatPrizeLabel(row.category, row.placement)}</td>
                     <td style={tdStyle}>{`${row.prize_multiplier ?? 1}x`}</td>
                     <td style={tdStyle}>{formatMoney(row.total_prize_amount)}</td>
                     <td style={tdStyle}>
@@ -171,9 +200,24 @@ export default function PrizeClaimsSection() {
                           borderRadius: "999px",
                           fontSize: "13px",
                           fontWeight: 700,
-                          background: "rgba(255,255,255,0.08)",
-                          border: "1px solid rgba(255,255,255,0.12)",
-                          color: "#ffffff",
+                          background:
+                            normalizedStatus === "paid"
+                              ? "rgba(34,197,94,0.16)"
+                              : normalizedStatus === "pending"
+                              ? "rgba(245,158,11,0.16)"
+                              : "rgba(255,255,255,0.08)",
+                          border:
+                            normalizedStatus === "paid"
+                              ? "1px solid rgba(34,197,94,0.28)"
+                              : normalizedStatus === "pending"
+                              ? "1px solid rgba(245,158,11,0.28)"
+                              : "1px solid rgba(255,255,255,0.12)",
+                          color:
+                            normalizedStatus === "paid"
+                              ? "#86efac"
+                              : normalizedStatus === "pending"
+                              ? "#fcd34d"
+                              : "#ffffff",
                         }}
                       >
                         {formatStatusLabel(row.claim_status)}
