@@ -10,6 +10,7 @@ type PrizeClaimRow = {
   category: string;
   placement: number | null;
   prize_multiplier: number | null;
+  base_prize_amount: number | null;
   total_prize_amount: number | null;
   claim_status: string | null;
 };
@@ -19,27 +20,67 @@ function formatMoney(value: number | null | undefined) {
   return `$${Number(value).toFixed(0)}`;
 }
 
-function formatPrizeLabel(category: string, placement: number | null | undefined) {
-  const normalized = category.trim().toLowerCase();
+function normalizeCategory(category: string | null | undefined, placement: number | null | undefined) {
+  const normalized = (category ?? "").trim().toLowerCase();
+
+  if (
+    normalized === "first_place" ||
+    normalized === "1st" ||
+    normalized === "1st place" ||
+    normalized === "first"
+  ) {
+    return "first_place";
+  }
+
+  if (
+    normalized === "second_place" ||
+    normalized === "2nd" ||
+    normalized === "2nd place" ||
+    normalized === "second"
+  ) {
+    return "second_place";
+  }
+
+  if (
+    normalized === "third_place" ||
+    normalized === "3rd" ||
+    normalized === "3rd place" ||
+    normalized === "third"
+  ) {
+    return "third_place";
+  }
 
   if (normalized === "leaderboard") {
-    if (placement === 1) return "1st Place";
-    if (placement === 2) return "2nd Place";
-    if (placement === 3) return "3rd Place";
-    return "Leaderboard Winner";
+    if (placement === 1) return "first_place";
+    if (placement === 2) return "second_place";
+    if (placement === 3) return "third_place";
+    return "leaderboard";
   }
 
-  if (normalized === "random") {
-    return "Random Winner";
-  }
+  if (normalized === "random") return "random";
+  if (normalized.startsWith("random_")) return "random";
+
+  return normalized;
+}
+
+function isTopThreePrize(category: string | null | undefined, placement: number | null | undefined) {
+  const normalized = normalizeCategory(category, placement);
+  return (
+    normalized === "first_place" ||
+    normalized === "second_place" ||
+    normalized === "third_place" ||
+    normalized === "leaderboard"
+  );
+}
+
+function formatPrizeLabel(category: string, placement: number | null | undefined) {
+  const normalized = normalizeCategory(category, placement);
 
   if (normalized === "first_place") return "1st Place";
   if (normalized === "second_place") return "2nd Place";
   if (normalized === "third_place") return "3rd Place";
-
-  if (normalized.startsWith("random_")) {
-    return "Random Winner";
-  }
+  if (normalized === "leaderboard") return "Leaderboard Winner";
+  if (normalized === "random") return "Random Winner";
 
   return category.replace(/_/g, " ");
 }
@@ -68,6 +109,31 @@ function formatStatusLabel(status: string | null | undefined) {
   return status.charAt(0).toUpperCase() + status.slice(1);
 }
 
+function normalizeMultiplier(value: number | null | undefined) {
+  const parsed = Number(value ?? 1);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 1;
+}
+
+function getDisplayMultiplier(row: PrizeClaimRow) {
+  if (!isTopThreePrize(row.category, row.placement)) {
+    return 1;
+  }
+
+  const base = Number(row.base_prize_amount ?? 0);
+  const total = Number(row.total_prize_amount ?? 0);
+
+  if (Number.isFinite(base) && base > 0 && Number.isFinite(total) && total > 0) {
+    const ratio = total / base;
+    const rounded = Math.round(ratio);
+
+    if (Number.isFinite(rounded) && rounded > 0) {
+      return rounded;
+    }
+  }
+
+  return normalizeMultiplier(row.prize_multiplier);
+}
+
 export default function PrizeClaimsSection() {
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
   const [rows, setRows] = useState<PrizeClaimRow[]>([]);
@@ -94,7 +160,7 @@ export default function PrizeClaimsSection() {
       const { data, error } = await supabase
         .from("monthly_winners")
         .select(
-          "id, winner_month, category, placement, prize_multiplier, total_prize_amount, claim_status"
+          "id, winner_month, category, placement, prize_multiplier, base_prize_amount, total_prize_amount, claim_status"
         )
         .eq("user_id", user.id)
         .order("winner_month", { ascending: false })
@@ -180,6 +246,7 @@ export default function PrizeClaimsSection() {
               {rows.map((row) => {
                 const normalizedStatus = (row.claim_status ?? "").toLowerCase();
                 const isPaid = normalizedStatus === "paid";
+                const displayMultiplier = getDisplayMultiplier(row);
 
                 return (
                   <tr
@@ -190,7 +257,7 @@ export default function PrizeClaimsSection() {
                   >
                     <td style={tdStyle}>{formatMonth(row.winner_month)}</td>
                     <td style={tdStyle}>{formatPrizeLabel(row.category, row.placement)}</td>
-                    <td style={tdStyle}>{`${row.prize_multiplier ?? 1}x`}</td>
+                    <td style={tdStyle}>{`${displayMultiplier}x`}</td>
                     <td style={tdStyle}>{formatMoney(row.total_prize_amount)}</td>
                     <td style={tdStyle}>
                       <span
