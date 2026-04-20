@@ -97,11 +97,6 @@ function getPrizeLabel(category: string | null | undefined, placement: number | 
   return "Prize Winner";
 }
 
-function normalizeMultiplier(value: number | null | undefined) {
-  const parsed = Number(value ?? 1);
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : 1;
-}
-
 function getDisplayMultiplier(row: ClaimRow) {
   const normalizedCategory = (row.category ?? "").trim().toLowerCase();
   const isTopThree =
@@ -127,20 +122,8 @@ function getDisplayMultiplier(row: ClaimRow) {
     }
   }
 
-  return normalizeMultiplier(row.prize_multiplier);
-}
-
-function getStatusLabel(status: string | null | undefined) {
-  const normalized = (status ?? "").trim().toLowerCase();
-
-  if (!normalized) return "Unclaimed";
-  if (normalized === "unclaimed") return "Unclaimed";
-  if (normalized === "pending") return "Pending";
-  if (normalized === "submitted") return "Submitted";
-  if (normalized === "approved") return "Approved";
-  if (normalized === "paid") return "Paid";
-
-  return normalized.charAt(0).toUpperCase() + normalized.slice(1);
+  const parsed = Number(row.prize_multiplier ?? 1);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 1;
 }
 
 function isClaimRow(value: unknown): value is ClaimRow {
@@ -285,11 +268,7 @@ export default function ClaimPrizePage() {
           : prev
       );
 
-      setSuccess(
-        nextStatus === "approved"
-          ? "Your claim details were updated."
-          : "Your prize claim was submitted successfully."
-      );
+      setSuccess("Your prize claim was submitted successfully.");
     } catch (err) {
       console.error("Failed to submit prize claim:", err);
       setError(`Could not submit your claim. ${getErrorMessage(err)}`);
@@ -331,6 +310,7 @@ export default function ClaimPrizePage() {
   }
 
   const displayMultiplier = getDisplayMultiplier(claimRow);
+  const prizeLabel = getPrizeLabel(claimRow.category, claimRow.placement);
 
   return (
     <main style={styles.page}>
@@ -352,39 +332,41 @@ export default function ClaimPrizePage() {
             Fill out your payout details below so your prize can be reviewed and sent.
           </p>
 
-          <div style={styles.topPills}>
-            <div style={styles.infoPill}>
-              <div style={styles.pillLabel}>Prize</div>
-              <div style={styles.pillValue}>
-                {getPrizeLabel(claimRow.category, claimRow.placement)}
+          <div style={styles.summaryRow} className="claim-summary-row">
+            <div style={styles.prizeHeroCard}>
+              <div style={styles.rankBadge}>
+                {claimRow.placement ?? (prizeLabel === "Random Winner" ? "★" : "•")}
+              </div>
+
+              <div style={{ minWidth: 0, width: "100%" }}>
+                <div style={styles.prizeCategory}>{prizeLabel}</div>
+
+                <div style={styles.prizeMeta}>
+                  Winner: {claimRow.winner_name ?? "Winner"} • Month:{" "}
+                  {formatMonth(claimRow.winner_month)}
+                </div>
+
+                <div style={styles.payoutLine}>
+                  <span style={styles.payoutLineLabel}>Total Prize:</span>{" "}
+                  <span style={styles.totalPaidInline}>
+                    {formatCurrency(claimRow.total_prize_amount)}
+                  </span>
+                  {displayMultiplier > 1 ? (
+                    <>
+                      <span style={styles.dot}>•</span>
+                      <span style={styles.payoutLineLabel}>Multiplier:</span>{" "}
+                      <span style={styles.payoutLineValue}>{displayMultiplier}x</span>
+                    </>
+                  ) : null}
+                </div>
               </div>
             </div>
 
-            <div style={styles.infoPill}>
-              <div style={styles.pillLabel}>Month</div>
-              <div style={styles.pillValue}>{formatMonth(claimRow.winner_month)}</div>
-            </div>
-
-            <div style={styles.infoPill}>
-              <div style={styles.pillLabel}>Base Prize</div>
-              <div style={styles.pillValue}>{formatCurrency(claimRow.base_prize_amount)}</div>
-            </div>
-
-            <div style={styles.infoPill}>
-              <div style={styles.pillLabel}>Multiplier</div>
-              <div style={styles.pillValue}>{`${displayMultiplier}x`}</div>
-            </div>
-
-            <div style={styles.totalPill}>
-              <div style={styles.totalPillLabel}>Total Prize</div>
-              <div style={styles.totalPillValue}>
+            <div style={styles.totalPayoutCard}>
+              <div style={styles.totalPayoutLabel}>Total Prize</div>
+              <div style={styles.totalPayoutValue}>
                 {formatCurrency(claimRow.total_prize_amount)}
               </div>
-            </div>
-
-            <div style={styles.infoPill}>
-              <div style={styles.pillLabel}>Status</div>
-              <div style={styles.pillValue}>{getStatusLabel(claimRow.claim_status)}</div>
             </div>
           </div>
 
@@ -489,6 +471,20 @@ export default function ClaimPrizePage() {
           </form>
         </section>
       </div>
+
+      <style jsx>{`
+        @media (max-width: 920px) {
+          .claim-summary-row {
+            grid-template-columns: 1fr !important;
+          }
+        }
+
+        @media (max-width: 700px) {
+          .claim-summary-row {
+            gap: 14px !important;
+          }
+        }
+      `}</style>
     </main>
   );
 }
@@ -558,50 +554,93 @@ const styles: Record<string, React.CSSProperties> = {
     color: "rgba(255,255,255,0.78)",
     margin: "0 0 20px",
   },
-  topPills: {
+  summaryRow: {
     display: "grid",
-    gridTemplateColumns: "repeat(6, minmax(0, 1fr))",
-    gap: 12,
+    gridTemplateColumns: "1.35fr auto",
+    gap: 18,
+    alignItems: "stretch",
     marginTop: 8,
   },
-  infoPill: {
-    background: "rgba(255,255,255,0.05)",
-    border: "1px solid rgba(255,255,255,0.10)",
-    borderRadius: 18,
-    padding: "14px 16px",
+  prizeHeroCard: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: 18,
+    padding: "18px 20px",
+    borderRadius: 20,
+    background: "rgba(255,255,255,0.04)",
+    border: "1px solid rgba(255,255,255,0.07)",
     minWidth: 0,
   },
-  pillLabel: {
-    fontSize: 11,
-    fontWeight: 800,
-    letterSpacing: "0.08em",
-    textTransform: "uppercase",
-    color: "rgba(255,255,255,0.58)",
-    marginBottom: 6,
+  rankBadge: {
+    width: 46,
+    height: 46,
+    borderRadius: 999,
+    display: "grid",
+    placeItems: "center",
+    fontWeight: 900,
+    fontSize: 20,
+    background: "linear-gradient(135deg, #7a8cff 0%, #35d6ff 100%)",
+    color: "#06111d",
+    flexShrink: 0,
   },
-  pillValue: {
-    fontSize: 16,
+  prizeCategory: {
+    fontSize: 20,
     fontWeight: 800,
     color: "#ffffff",
-    wordBreak: "break-word",
+    marginBottom: 6,
   },
-  totalPill: {
+  prizeMeta: {
+    fontSize: 15,
+    color: "rgba(255,255,255,0.72)",
+    lineHeight: 1.5,
+  },
+  payoutLine: {
+    marginTop: 10,
+    fontSize: 14,
+    lineHeight: 1.5,
+    color: "rgba(215,230,255,0.92)",
+  },
+  payoutLineLabel: {
+    color: "rgba(255,255,255,0.62)",
+    fontWeight: 600,
+  },
+  payoutLineValue: {
+    color: "#dfe8ff",
+    fontWeight: 800,
+  },
+  totalPaidInline: {
+    color: "#7ef0d1",
+    fontWeight: 900,
+  },
+  dot: {
+    display: "inline-block",
+    margin: "0 8px",
+    color: "rgba(255,255,255,0.35)",
+  },
+  totalPayoutCard: {
+    minWidth: 180,
+    padding: "16px 18px",
+    borderRadius: 20,
     background: "rgba(126, 240, 209, 0.12)",
-    border: "1px solid rgba(126, 240, 209, 0.24)",
-    borderRadius: 18,
-    padding: "14px 16px",
-    minWidth: 0,
+    border: "1px solid rgba(126, 240, 209, 0.28)",
+    display: "flex",
+    flexDirection: "column",
+    justifyContent: "center",
+    gap: 6,
+    textAlign: "center",
+    boxShadow: "0 10px 28px rgba(0,0,0,0.18)",
   },
-  totalPillLabel: {
+  totalPayoutLabel: {
     fontSize: 11,
     fontWeight: 800,
     letterSpacing: "0.08em",
     textTransform: "uppercase",
-    color: "rgba(126, 240, 209, 0.76)",
-    marginBottom: 6,
+    color: "rgba(126, 240, 209, 0.82)",
   },
-  totalPillValue: {
-    fontSize: 18,
+  totalPayoutValue: {
+    fontSize: 30,
+    lineHeight: 1,
     fontWeight: 900,
     color: "#7ef0d1",
     wordBreak: "break-word",
