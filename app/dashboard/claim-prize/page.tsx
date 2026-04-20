@@ -101,6 +101,52 @@ function getPrizeLabel(category: string | null | undefined, placement: number | 
   return "Prize Winner";
 }
 
+function normalizeMultiplier(value: number | null | undefined) {
+  const parsed = Number(value ?? 1);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 1;
+}
+
+function getDisplayMultiplier(row: ClaimRow) {
+  const normalizedCategory = (row.category ?? "").trim().toLowerCase();
+  const isTopThree =
+    normalizedCategory === "leaderboard" ||
+    normalizedCategory === "first_place" ||
+    normalizedCategory === "second_place" ||
+    normalizedCategory === "third_place" ||
+    row.placement === 1 ||
+    row.placement === 2 ||
+    row.placement === 3;
+
+  if (!isTopThree) {
+    return 1;
+  }
+
+  const base = Number(row.base_prize_amount ?? 0);
+  const total = Number(row.total_prize_amount ?? 0);
+
+  if (Number.isFinite(base) && base > 0 && Number.isFinite(total) && total > 0) {
+    const derived = Math.round(total / base);
+    if (Number.isFinite(derived) && derived > 0) {
+      return derived;
+    }
+  }
+
+  return normalizeMultiplier(row.prize_multiplier);
+}
+
+function getStatusLabel(status: string | null | undefined) {
+  const normalized = (status ?? "").trim().toLowerCase();
+
+  if (!normalized) return "Unclaimed";
+  if (normalized === "unclaimed") return "Unclaimed";
+  if (normalized === "pending") return "Pending";
+  if (normalized === "submitted") return "Submitted";
+  if (normalized === "approved") return "Approved";
+  if (normalized === "paid") return "Paid";
+
+  return normalized.charAt(0).toUpperCase() + normalized.slice(1);
+}
+
 export default function ClaimPrizePage() {
   const router = useRouter();
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
@@ -146,7 +192,7 @@ export default function ClaimPrizePage() {
           .in("claim_status", ["unclaimed", "pending", "submitted", "approved"])
           .order("winner_month", { ascending: false })
           .order("created_at", { ascending: false })
-          .maybeSingle();
+          .limit(10);
 
         if (claimError) {
           throw claimError;
@@ -154,13 +200,15 @@ export default function ClaimPrizePage() {
 
         if (!active) return;
 
-        if (!isClaimRow(data)) {
+        const rows = Array.isArray(data) ? data.filter(isClaimRow) : [];
+        const row = rows[0] ?? null;
+
+        if (!row) {
           setClaimRow(null);
           setLoading(false);
           return;
         }
 
-        const row = data;
         const nextMethod =
           ((row.claim_method ?? "paypal").toLowerCase() as ClaimMethod) || "paypal";
 
@@ -266,7 +314,7 @@ export default function ClaimPrizePage() {
             <div style={styles.kicker}>Prize Claim</div>
             <h1 style={styles.title}>No active prize claim</h1>
             <p style={styles.text}>
-              You do not have an unclaimed prize available right now.
+              You do not have an unclaimed or pending prize available right now.
             </p>
             <div style={styles.actions}>
               <Link href="/dashboard" style={styles.primaryLink}>
@@ -282,6 +330,8 @@ export default function ClaimPrizePage() {
     );
   }
 
+  const displayMultiplier = getDisplayMultiplier(claimRow);
+
   return (
     <main style={styles.page}>
       <div style={styles.wrap}>
@@ -294,7 +344,11 @@ export default function ClaimPrizePage() {
         <div style={styles.grid}>
           <section style={styles.card}>
             <div style={styles.kicker}>Prize Claim</div>
-            <h1 style={styles.title}>Claim your prize</h1>
+            <h1 style={styles.title}>
+              {(claimRow.claim_status ?? "").toLowerCase() === "pending"
+                ? "Update your prize claim"
+                : "Claim your prize"}
+            </h1>
             <p style={styles.text}>
               Fill out your payout details below so your prize can be reviewed and sent.
             </p>
@@ -422,7 +476,7 @@ export default function ClaimPrizePage() {
 
               <div style={styles.detailRow}>
                 <span style={styles.detailLabel}>Multiplier</span>
-                <span style={styles.detailValue}>{`${claimRow.prize_multiplier ?? 1}x`}</span>
+                <span style={styles.detailValue}>{`${displayMultiplier}x`}</span>
               </div>
 
               <div style={styles.detailRow}>
@@ -434,9 +488,7 @@ export default function ClaimPrizePage() {
 
               <div style={styles.detailRow}>
                 <span style={styles.detailLabel}>Status</span>
-                <span style={styles.detailValue}>
-                  {(claimRow.claim_status ?? "unclaimed").replace(/^./, (s) => s.toUpperCase())}
-                </span>
+                <span style={styles.detailValue}>{getStatusLabel(claimRow.claim_status)}</span>
               </div>
             </div>
           </aside>
