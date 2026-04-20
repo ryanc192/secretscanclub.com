@@ -189,9 +189,9 @@ function getWinnerLabel(category: string | null | undefined, placement: number |
   const normalizedCategory = (category ?? "").toLowerCase();
 
   if (normalizedCategory === "leaderboard") {
-    if (placement === 1) return "1st Place on the Leaderboard";
-    if (placement === 2) return "2nd Place on the Leaderboard";
-    if (placement === 3) return "3rd Place on the Leaderboard";
+    if (placement === 1) return "1st Place";
+    if (placement === 2) return "2nd Place";
+    if (placement === 3) return "3rd Place";
     return "Leaderboard Winner";
   }
 
