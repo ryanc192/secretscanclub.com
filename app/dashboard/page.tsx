@@ -4,7 +4,9 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createBrowserSupabaseClient } from "../../lib/supabase/client";
-import PrizeClaimsSection from "./components/PrizeClaimsSection";
+import PrizeClaimsSection, {
+  PrizeClaimRow,
+} from "./components/PrizeClaimsSection";
 
 type DashboardPlan = "Free" | "Club Member" | "VIP Member";
 
@@ -64,6 +66,7 @@ type PrizeSummaryItem = {
   claimStatus: string;
   prizeMultiplier: number;
   showMultiplier: boolean;
+  isClaimable: boolean;
 };
 
 const STRIPE_PRICE_IDS = {
@@ -293,6 +296,11 @@ function normalizePrizeMultiplier(value: number | null | undefined) {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : 1;
 }
 
+function isClaimableStatus(value: string | null | undefined) {
+  const normalized = (value ?? "").trim().toLowerCase();
+  return !normalized || normalized === "unclaimed";
+}
+
 export default function DashboardPage() {
   const router = useRouter();
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
@@ -314,6 +322,7 @@ export default function DashboardPage() {
   });
   const [recentAttempts, setRecentAttempts] = useState<RecentAttempt[]>([]);
   const [prizeSummaries, setPrizeSummaries] = useState<PrizeSummaryItem[]>([]);
+  const [prizeClaimRows, setPrizeClaimRows] = useState<PrizeClaimRow[]>([]);
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -484,21 +493,36 @@ export default function DashboardPage() {
             return sum + (Number.isFinite(amount) ? amount : 0);
           }, 0);
 
-          setPrizeSummaries(
-            winnerRows.slice(0, 6).map((row) => {
-              const prizeMultiplier = normalizePrizeMultiplier(row.prize_multiplier);
-              const showMultiplier = isTopThreeWinner(row.category, row.placement);
+          const mappedClaimRows: PrizeClaimRow[] = winnerRows.map((row) => {
+            const prizeMultiplier = normalizePrizeMultiplier(row.prize_multiplier);
+            const claimStatus = formatClaimStatus(row.claim_status);
+            const isClaimable = isClaimableStatus(row.claim_status);
 
-              return {
-                id: row.id,
-                winnerMonth: row.winner_month,
-                label: getWinnerLabel(row.category, row.placement),
-                totalPrizeAmount: Number(row.total_prize_amount ?? 0) || 0,
-                claimStatus: formatClaimStatus(row.claim_status),
-                prizeMultiplier,
-                showMultiplier,
-              };
-            })
+            return {
+              id: row.id,
+              winnerMonth: row.winner_month,
+              label: getWinnerLabel(row.category, row.placement),
+              totalPrizeAmount: Number(row.total_prize_amount ?? 0) || 0,
+              claimStatus,
+              prizeMultiplier,
+              showMultiplier: isTopThreeWinner(row.category, row.placement),
+              isClaimable,
+            };
+          });
+
+          setPrizeClaimRows(mappedClaimRows);
+
+          setPrizeSummaries(
+            mappedClaimRows.slice(0, 6).map((row) => ({
+              id: row.id,
+              winnerMonth: row.winnerMonth,
+              label: row.label,
+              totalPrizeAmount: row.totalPrizeAmount,
+              claimStatus: row.claimStatus,
+              prizeMultiplier: row.prizeMultiplier,
+              showMultiplier: row.showMultiplier,
+              isClaimable: row.isClaimable,
+            }))
           );
         }
 
@@ -1181,6 +1205,54 @@ export default function DashboardPage() {
                       >
                         {prize.claimStatus}
                       </div>
+
+                      {prize.isClaimable ? (
+                        <Link
+                          href={`/dashboard/claim-prize?winner=${encodeURIComponent(prize.id)}`}
+                          style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            padding: "10px 16px",
+                            borderRadius: "999px",
+                            textDecoration: "none",
+                            fontWeight: 800,
+                            fontSize: "14px",
+                            background: "#ffffff",
+                            color: "#07111f",
+                            whiteSpace: "nowrap",
+                          }}
+                        >
+                          Claim Prize
+                        </Link>
+                      ) : (
+                        <button
+                          type="button"
+                          disabled
+                          style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            padding: "10px 16px",
+                            borderRadius: "999px",
+                            fontWeight: 800,
+                            fontSize: "14px",
+                            background: "rgba(255,255,255,0.08)",
+                            color: "rgba(255,255,255,0.55)",
+                            border: "1px solid rgba(255,255,255,0.12)",
+                            cursor: "not-allowed",
+                            whiteSpace: "nowrap",
+                          }}
+                        >
+                          {prize.claimStatus === "Paid"
+                            ? "Already Paid"
+                            : prize.claimStatus === "Pending"
+                            ? "Pending"
+                            : prize.claimStatus === "Approved"
+                            ? "Approved"
+                            : "Already Claimed"}
+                        </button>
+                      )}
                     </div>
                   </div>
                 ))}
@@ -1190,7 +1262,7 @@ export default function DashboardPage() {
         </section>
       </div>
 
-      <PrizeClaimsSection />
+      <PrizeClaimsSection prizes={prizeClaimRows} />
 
       <style jsx>{`
         @media (max-width: 1180px) {
