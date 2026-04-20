@@ -26,10 +26,6 @@ type ClaimRow = {
   claim_notes: string | null;
 };
 
-function isClaimRow(value: unknown): value is ClaimRow {
-  return !!value && typeof value === "object" && !Array.isArray(value) && "id" in value;
-}
-
 function getErrorMessage(error: unknown) {
   if (error && typeof error === "object") {
     const maybeMessage = (error as { message?: unknown }).message;
@@ -145,6 +141,10 @@ function getStatusLabel(status: string | null | undefined) {
   if (normalized === "paid") return "Paid";
 
   return normalized.charAt(0).toUpperCase() + normalized.slice(1);
+}
+
+function isClaimRow(value: unknown): value is ClaimRow {
+  return !!value && typeof value === "object" && !Array.isArray(value) && "id" in value;
 }
 
 export default function ClaimPrizePage() {
@@ -341,158 +341,153 @@ export default function ClaimPrizePage() {
           </Link>
         </div>
 
-        <div style={styles.grid}>
-          <section style={styles.card}>
-            <div style={styles.kicker}>Prize Claim</div>
-            <h1 style={styles.title}>
-              {(claimRow.claim_status ?? "").toLowerCase() === "pending"
-                ? "Update your prize claim"
-                : "Claim your prize"}
-            </h1>
-            <p style={styles.text}>
-              Fill out your payout details below so your prize can be reviewed and sent.
-            </p>
+        <section style={styles.heroCard}>
+          <div style={styles.kicker}>Prize Claim</div>
+          <h1 style={styles.title}>
+            {(claimRow.claim_status ?? "").toLowerCase() === "pending"
+              ? "Update your prize claim"
+              : "Claim your prize"}
+          </h1>
+          <p style={styles.text}>
+            Fill out your payout details below so your prize can be reviewed and sent.
+          </p>
 
-            {error ? <div style={styles.errorBox}>{error}</div> : null}
-            {success ? <div style={styles.successBox}>{success}</div> : null}
-
-            <form onSubmit={handleSubmit} style={styles.form}>
-              <label style={styles.label}>
-                <span style={styles.labelText}>Payment Method</span>
-                <select
-                  value={claimMethod}
-                  onChange={(e) => setClaimMethod(e.target.value as ClaimMethod)}
-                  style={styles.select}
-                >
-                  <option value="paypal">PayPal</option>
-                  <option value="cashapp">Cash App</option>
-                  <option value="venmo">Venmo</option>
-                  <option value="zelle">Zelle</option>
-                  <option value="other">Other</option>
-                </select>
-              </label>
-
-              <label style={styles.label}>
-                <span style={styles.labelText}>Full Name</span>
-                <input
-                  value={fullName}
-                  onChange={(e) => setFullName(e.target.value)}
-                  placeholder="Your full name"
-                  style={styles.input}
-                />
-              </label>
-
-              <label style={styles.label}>
-                <span style={styles.labelText}>Email</span>
-                <input
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="you@example.com"
-                  type="email"
-                  style={styles.input}
-                />
-              </label>
-
-              <label style={styles.label}>
-                <span style={styles.labelText}>Phone</span>
-                <input
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  placeholder="Your phone number"
-                  style={styles.input}
-                />
-              </label>
-
-              <label style={styles.label}>
-                <span style={styles.labelText}>
-                  {claimMethod === "paypal"
-                    ? "PayPal Email"
-                    : claimMethod === "zelle"
-                    ? "Zelle Email or Phone"
-                    : claimMethod === "other"
-                    ? "Payout Handle or Details"
-                    : "Payment Handle"}
-                </span>
-                <input
-                  value={handle}
-                  onChange={(e) => setHandle(e.target.value)}
-                  placeholder={
-                    claimMethod === "cashapp"
-                      ? "$yourhandle"
-                      : claimMethod === "venmo"
-                      ? "@yourhandle"
-                      : claimMethod === "paypal"
-                      ? "paypal@email.com"
-                      : "Enter payout details"
-                  }
-                  style={styles.input}
-                />
-              </label>
-
-              <label style={styles.label}>
-                <span style={styles.labelText}>Notes</span>
-                <textarea
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
-                  placeholder="Anything you want us to know about this payout"
-                  rows={4}
-                  style={styles.textarea}
-                />
-              </label>
-
-              <div style={styles.actions}>
-                <button type="submit" disabled={saving} style={styles.primaryButton}>
-                  {saving ? "Saving..." : "Submit Claim"}
-                </button>
-
-                <Link href="/dashboard" style={styles.secondaryLink}>
-                  Cancel
-                </Link>
-              </div>
-            </form>
-          </section>
-
-          <aside style={styles.card}>
-            <div style={styles.kicker}>Prize Details</div>
-            <h2 style={styles.sideTitle}>{getPrizeLabel(claimRow.category, claimRow.placement)}</h2>
-
-            <div style={styles.detailList}>
-              <div style={styles.detailRow}>
-                <span style={styles.detailLabel}>Month</span>
-                <span style={styles.detailValue}>{formatMonth(claimRow.winner_month)}</span>
-              </div>
-
-              <div style={styles.detailRow}>
-                <span style={styles.detailLabel}>Winner</span>
-                <span style={styles.detailValue}>{claimRow.winner_name ?? "Winner"}</span>
-              </div>
-
-              <div style={styles.detailRow}>
-                <span style={styles.detailLabel}>Base Prize</span>
-                <span style={styles.detailValue}>
-                  {formatCurrency(claimRow.base_prize_amount)}
-                </span>
-              </div>
-
-              <div style={styles.detailRow}>
-                <span style={styles.detailLabel}>Multiplier</span>
-                <span style={styles.detailValue}>{`${displayMultiplier}x`}</span>
-              </div>
-
-              <div style={styles.detailRow}>
-                <span style={styles.detailLabel}>Total Prize</span>
-                <span style={styles.totalValue}>
-                  {formatCurrency(claimRow.total_prize_amount)}
-                </span>
-              </div>
-
-              <div style={styles.detailRow}>
-                <span style={styles.detailLabel}>Status</span>
-                <span style={styles.detailValue}>{getStatusLabel(claimRow.claim_status)}</span>
+          <div style={styles.topPills}>
+            <div style={styles.infoPill}>
+              <div style={styles.pillLabel}>Prize</div>
+              <div style={styles.pillValue}>
+                {getPrizeLabel(claimRow.category, claimRow.placement)}
               </div>
             </div>
-          </aside>
-        </div>
+
+            <div style={styles.infoPill}>
+              <div style={styles.pillLabel}>Month</div>
+              <div style={styles.pillValue}>{formatMonth(claimRow.winner_month)}</div>
+            </div>
+
+            <div style={styles.infoPill}>
+              <div style={styles.pillLabel}>Base Prize</div>
+              <div style={styles.pillValue}>{formatCurrency(claimRow.base_prize_amount)}</div>
+            </div>
+
+            <div style={styles.infoPill}>
+              <div style={styles.pillLabel}>Multiplier</div>
+              <div style={styles.pillValue}>{`${displayMultiplier}x`}</div>
+            </div>
+
+            <div style={styles.totalPill}>
+              <div style={styles.totalPillLabel}>Total Prize</div>
+              <div style={styles.totalPillValue}>
+                {formatCurrency(claimRow.total_prize_amount)}
+              </div>
+            </div>
+
+            <div style={styles.infoPill}>
+              <div style={styles.pillLabel}>Status</div>
+              <div style={styles.pillValue}>{getStatusLabel(claimRow.claim_status)}</div>
+            </div>
+          </div>
+
+          {error ? <div style={styles.errorBox}>{error}</div> : null}
+          {success ? <div style={styles.successBox}>{success}</div> : null}
+        </section>
+
+        <section style={styles.card}>
+          <form onSubmit={handleSubmit} style={styles.form}>
+            <label style={styles.label}>
+              <span style={styles.labelText}>Payment Method</span>
+              <select
+                value={claimMethod}
+                onChange={(e) => setClaimMethod(e.target.value as ClaimMethod)}
+                style={styles.select}
+              >
+                <option value="paypal">PayPal</option>
+                <option value="cashapp">Cash App</option>
+                <option value="venmo">Venmo</option>
+                <option value="zelle">Zelle</option>
+                <option value="other">Other</option>
+              </select>
+            </label>
+
+            <label style={styles.label}>
+              <span style={styles.labelText}>Full Name</span>
+              <input
+                value={fullName}
+                onChange={(e) => setFullName(e.target.value)}
+                placeholder="Your full name"
+                style={styles.input}
+              />
+            </label>
+
+            <label style={styles.label}>
+              <span style={styles.labelText}>Email</span>
+              <input
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="you@example.com"
+                type="email"
+                style={styles.input}
+              />
+            </label>
+
+            <label style={styles.label}>
+              <span style={styles.labelText}>Phone</span>
+              <input
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                placeholder="Your phone number"
+                style={styles.input}
+              />
+            </label>
+
+            <label style={styles.label}>
+              <span style={styles.labelText}>
+                {claimMethod === "paypal"
+                  ? "PayPal Email"
+                  : claimMethod === "zelle"
+                  ? "Zelle Email or Phone"
+                  : claimMethod === "other"
+                  ? "Payout Handle or Details"
+                  : "Payment Handle"}
+              </span>
+              <input
+                value={handle}
+                onChange={(e) => setHandle(e.target.value)}
+                placeholder={
+                  claimMethod === "cashapp"
+                    ? "$yourhandle"
+                    : claimMethod === "venmo"
+                    ? "@yourhandle"
+                    : claimMethod === "paypal"
+                    ? "paypal@email.com"
+                    : "Enter payout details"
+                }
+                style={styles.input}
+              />
+            </label>
+
+            <label style={styles.label}>
+              <span style={styles.labelText}>Notes</span>
+              <textarea
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                placeholder="Anything you want us to know about this payout"
+                rows={4}
+                style={styles.textarea}
+              />
+            </label>
+
+            <div style={styles.actions}>
+              <button type="submit" disabled={saving} style={styles.primaryButton}>
+                {saving ? "Saving..." : "Submit Claim"}
+              </button>
+
+              <Link href="/dashboard" style={styles.secondaryLink}>
+                Cancel
+              </Link>
+            </div>
+          </form>
+        </section>
       </div>
     </main>
   );
@@ -529,10 +524,13 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: 700,
     fontSize: 14,
   },
-  grid: {
-    display: "grid",
-    gridTemplateColumns: "1.35fr 0.9fr",
-    gap: 20,
+  heroCard: {
+    background: "rgba(255,255,255,0.06)",
+    border: "1px solid rgba(255,255,255,0.10)",
+    borderRadius: 22,
+    padding: 24,
+    minWidth: 0,
+    marginBottom: 20,
   },
   card: {
     background: "rgba(255,255,255,0.06)",
@@ -554,17 +552,59 @@ const styles: Record<string, React.CSSProperties> = {
     margin: "0 0 10px",
     fontWeight: 800,
   },
-  sideTitle: {
-    fontSize: 24,
-    lineHeight: 1.15,
-    margin: "0 0 18px",
-    fontWeight: 800,
-  },
   text: {
     fontSize: 15,
     lineHeight: 1.6,
     color: "rgba(255,255,255,0.78)",
     margin: "0 0 20px",
+  },
+  topPills: {
+    display: "grid",
+    gridTemplateColumns: "repeat(6, minmax(0, 1fr))",
+    gap: 12,
+    marginTop: 8,
+  },
+  infoPill: {
+    background: "rgba(255,255,255,0.05)",
+    border: "1px solid rgba(255,255,255,0.10)",
+    borderRadius: 18,
+    padding: "14px 16px",
+    minWidth: 0,
+  },
+  pillLabel: {
+    fontSize: 11,
+    fontWeight: 800,
+    letterSpacing: "0.08em",
+    textTransform: "uppercase",
+    color: "rgba(255,255,255,0.58)",
+    marginBottom: 6,
+  },
+  pillValue: {
+    fontSize: 16,
+    fontWeight: 800,
+    color: "#ffffff",
+    wordBreak: "break-word",
+  },
+  totalPill: {
+    background: "rgba(126, 240, 209, 0.12)",
+    border: "1px solid rgba(126, 240, 209, 0.24)",
+    borderRadius: 18,
+    padding: "14px 16px",
+    minWidth: 0,
+  },
+  totalPillLabel: {
+    fontSize: 11,
+    fontWeight: 800,
+    letterSpacing: "0.08em",
+    textTransform: "uppercase",
+    color: "rgba(126, 240, 209, 0.76)",
+    marginBottom: 6,
+  },
+  totalPillValue: {
+    fontSize: 18,
+    fontWeight: 900,
+    color: "#7ef0d1",
+    wordBreak: "break-word",
   },
   errorBox: {
     background: "rgba(255, 87, 87, 0.12)",
@@ -572,7 +612,7 @@ const styles: Record<string, React.CSSProperties> = {
     color: "#ffd5d5",
     borderRadius: 14,
     padding: "14px 16px",
-    marginBottom: 18,
+    marginTop: 18,
     whiteSpace: "pre-wrap",
   },
   successBox: {
@@ -581,7 +621,7 @@ const styles: Record<string, React.CSSProperties> = {
     color: "#c9f7d8",
     borderRadius: 14,
     padding: "14px 16px",
-    marginBottom: 18,
+    marginTop: 18,
     whiteSpace: "pre-wrap",
   },
   form: {
@@ -668,33 +708,5 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 15,
     fontWeight: 700,
     border: "1px solid rgba(255,255,255,0.18)",
-  },
-  detailList: {
-    display: "grid",
-    gap: 14,
-  },
-  detailRow: {
-    display: "flex",
-    justifyContent: "space-between",
-    gap: 16,
-    paddingBottom: 12,
-    borderBottom: "1px solid rgba(255,255,255,0.08)",
-  },
-  detailLabel: {
-    color: "rgba(255,255,255,0.66)",
-    fontSize: 14,
-    fontWeight: 600,
-  },
-  detailValue: {
-    color: "#ffffff",
-    fontSize: 15,
-    fontWeight: 700,
-    textAlign: "right",
-  },
-  totalValue: {
-    color: "#7ef0d1",
-    fontSize: 18,
-    fontWeight: 900,
-    textAlign: "right",
   },
 };
