@@ -1,18 +1,22 @@
 "use client";
 
-import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createBrowserSupabaseClient } from "../../../lib/supabase/client";
 
-type ClaimMethod = "paypal" | "cashapp" | "venmo" | "zelle";
+type ClaimMethod = "paypal" | "cashapp" | "venmo" | "zelle" | "other";
 
 type ClaimRow = {
   id: string;
   winner_month: string;
-  category: string;
+  category: string | null;
+  placement: number | null;
+  winner_name: string | null;
+  membership_tier: string | null;
   prize_multiplier: number | null;
   total_prize_amount: number | null;
+  base_prize_amount: number | null;
   claim_status: string | null;
   claim_method: string | null;
   claim_full_name: string | null;
@@ -22,33 +26,79 @@ type ClaimRow = {
   claim_notes: string | null;
 };
 
-type ClaimFormState = {
-  claimMethod: ClaimMethod;
-  fullName: string;
-  email: string;
-  phone: string;
-  handle: string;
-  notes: string;
-};
-
-function formatMoney(value: number | null | undefined) {
-  if (value == null || Number.isNaN(Number(value))) return "—";
-  return `$${Number(value).toFixed(0)}`;
+function isClaimRow(value: unknown): value is ClaimRow {
+  return !!value && typeof value === "object" && !Array.isArray(value) && "id" in value;
 }
 
-function formatPrizeLabel(category: string) {
-  return category.replace(/_/g, " ");
+function getErrorMessage(error: unknown) {
+  if (error && typeof error === "object") {
+    const maybeMessage = (error as { message?: unknown }).message;
+    if (typeof maybeMessage === "string" && maybeMessage.trim()) return maybeMessage;
+
+    const maybeDetails = (error as { details?: unknown }).details;
+    if (typeof maybeDetails === "string" && maybeDetails.trim()) return maybeDetails;
+
+    const maybeHint = (error as { hint?: unknown }).hint;
+    if (typeof maybeHint === "string" && maybeHint.trim()) return maybeHint;
+  }
+
+  return "Unknown error.";
 }
 
-function formatMonth(value: string) {
-  return value;
+function formatCurrency(value: number | null | undefined) {
+  const amount = Number(value ?? 0);
+  if (!Number.isFinite(amount)) return "$0";
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    maximumFractionDigits: amount % 1 === 0 ? 0 : 2,
+  }).format(amount);
 }
 
-function getHandleLabel(method: ClaimMethod) {
-  if (method === "paypal") return "PayPal Email";
-  if (method === "zelle") return "Zelle Email or Phone";
-  if (method === "venmo") return "Venmo Handle";
-  return "Cash App Handle";
+function formatMonth(value: string | null | undefined) {
+  if (!value) return "Unknown month";
+
+  const parsed = new Date(`${value}T00:00:00`);
+  if (Number.isNaN(parsed.getTime())) return value;
+
+  return parsed.toLocaleDateString("en-US", {
+    month: "long",
+    year: "numeric",
+  });
+}
+
+function getPrizeLabel(category: string | null | undefined, placement: number | null | undefined) {
+  const normalized = (category ?? "").trim().toLowerCase();
+
+  if (
+    normalized === "first_place" ||
+    (normalized === "leaderboard" && placement === 1) ||
+    placement === 1
+  ) {
+    return "1st Place on the Leaderboard";
+  }
+
+  if (
+    normalized === "second_place" ||
+    (normalized === "leaderboard" && placement === 2) ||
+    placement === 2
+  ) {
+    return "2nd Place on the Leaderboard";
+  }
+
+  if (
+    normalized === "third_place" ||
+    (normalized === "leaderboard" && placement === 3) ||
+    placement === 3
+  ) {
+    return "3rd Place on the Leaderboard";
+  }
+
+  if (normalized === "random" || normalized.startsWith("random_")) {
+    return "Random Winner";
+  }
+
+  return "Prize Winner";
 }
 
 export default function ClaimPrizePage() {
@@ -58,15 +108,15 @@ export default function ClaimPrizePage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+
   const [claimRow, setClaimRow] = useState<ClaimRow | null>(null);
-  const [form, setForm] = useState<ClaimFormState>({
-    claimMethod: "paypal",
-    fullName: "",
-    email: "",
-    phone: "",
-    handle: "",
-    notes: "",
-  });
+  const [claimMethod, setClaimMethod] = useState<ClaimMethod>("paypal");
+  const [fullName, setFullName] = useState("");
+  const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
+  const [handle, setHandle] = useState("");
+  const [notes, setNotes] = useState("");
 
   useEffect(() => {
     let active = true;
@@ -74,6 +124,7 @@ export default function ClaimPrizePage() {
     async function loadClaim() {
       setLoading(true);
       setError("");
+      setSuccess("");
 
       try {
         const {
@@ -89,53 +140,42 @@ export default function ClaimPrizePage() {
         const { data, error: claimError } = await supabase
           .from("monthly_winners")
           .select(
-            "id, winner_month, category, prize_multiplier, total_prize_amount, claim_status, claim_method, claim_full_name, claim_email, claim_phone, claim_handle, claim_notes"
+            "id, winner_month, category, placement, winner_name, membership_tier, prize_multiplier, total_prize_amount, base_prize_amount, claim_status, claim_method, claim_full_name, claim_email, claim_phone, claim_handle, claim_notes"
           )
           .eq("user_id", user.id)
-          .in("claim_status", ["unclaimed", "submitted", "approved"])
+          .in("claim_status", ["unclaimed", "pending", "submitted", "approved"])
           .order("winner_month", { ascending: false })
-          .order("id", { ascending: false })
-          .limit(1)
-          .returns<ClaimRow[]>()
+          .order("created_at", { ascending: false })
           .maybeSingle();
+
+        if (claimError) {
+          throw claimError;
+        }
 
         if (!active) return;
 
-        if (claimError) {
-          console.error("Failed to load claim row:", claimError);
-          setError("We couldn’t load your prize claim right now.");
+        if (!isClaimRow(data)) {
           setClaimRow(null);
+          setLoading(false);
           return;
         }
 
-        if (!data) {
-          setClaimRow(null);
-          return;
-        }
-
-        const row: ClaimRow = data;
-        const rawMethod = (row.claim_method ?? "paypal").toLowerCase();
-
-        const nextMethod: ClaimMethod =
-          rawMethod === "paypal" ||
-          rawMethod === "cashapp" ||
-          rawMethod === "venmo" ||
-          rawMethod === "zelle"
-            ? rawMethod
-            : "paypal";
+        const row = data;
+        const nextMethod =
+          ((row.claim_method ?? "paypal").toLowerCase() as ClaimMethod) || "paypal";
 
         setClaimRow(row);
-        setForm({
-          claimMethod: nextMethod,
-          fullName: row.claim_full_name ?? "",
-          email: row.claim_email ?? "",
-          phone: row.claim_phone ?? "",
-          handle: row.claim_handle ?? "",
-          notes: row.claim_notes ?? "",
-        });
+        setClaimMethod(nextMethod);
+        setFullName(row.claim_full_name ?? "");
+        setEmail(row.claim_email ?? "");
+        setPhone(row.claim_phone ?? "");
+        setHandle(row.claim_handle ?? "");
+        setNotes(row.claim_notes ?? "");
       } catch (err) {
-        console.error("Claim page crashed:", err);
-        setError("Something went wrong loading your prize claim.");
+        console.error("Failed to load claim row:", err);
+        if (active) {
+          setError(`Could not load your prize claim. ${getErrorMessage(err)}`);
+        }
       } finally {
         if (active) setLoading(false);
       }
@@ -148,66 +188,63 @@ export default function ClaimPrizePage() {
     };
   }, [router, supabase]);
 
-  function handleChange(
-    event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
-  ) {
-    const { name, value } = event.target;
-
-    setForm((prev) => ({
-      ...prev,
-      [name]: value,
-    }));
-  }
-
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
     if (!claimRow) {
-      setError("No claimable prize was found.");
+      setError("No prize is available to claim.");
       return;
     }
 
     setSaving(true);
     setError("");
+    setSuccess("");
 
     try {
-      const {
-        data: { user },
-        error: userError,
-      } = await supabase.auth.getUser();
-
-      if (userError || !user) {
-        router.replace("/login");
-        return;
-      }
-
-      const payload = {
-        claim_method: form.claimMethod,
-        claim_full_name: form.fullName.trim(),
-        claim_email: form.email.trim(),
-        claim_phone: form.phone.trim(),
-        claim_handle: form.handle.trim(),
-        claim_notes: form.notes.trim(),
-        claim_status: "submitted",
-        claimed_at: new Date().toISOString(),
-      };
+      const nextStatus =
+        (claimRow.claim_status ?? "").toLowerCase() === "approved" ? "approved" : "pending";
 
       const { error: updateError } = await supabase
         .from("monthly_winners")
-        .update(payload)
-        .eq("id", claimRow.id)
-        .eq("user_id", user.id);
+        .update({
+          claim_status: nextStatus,
+          claim_method: claimMethod,
+          claim_full_name: fullName.trim() || null,
+          claim_email: email.trim() || null,
+          claim_phone: phone.trim() || null,
+          claim_handle: handle.trim() || null,
+          claim_notes: notes.trim() || null,
+          claimed_at: new Date().toISOString(),
+        })
+        .eq("id", claimRow.id);
 
       if (updateError) {
-        console.error("Failed to submit claim:", updateError);
-        setError(updateError.message || "We couldn’t submit your claim.");
-        return;
+        throw updateError;
       }
 
-      router.push("/dashboard/claim-prize/confirmation");
+      setClaimRow((prev) =>
+        prev
+          ? {
+              ...prev,
+              claim_status: nextStatus,
+              claim_method: claimMethod,
+              claim_full_name: fullName.trim() || null,
+              claim_email: email.trim() || null,
+              claim_phone: phone.trim() || null,
+              claim_handle: handle.trim() || null,
+              claim_notes: notes.trim() || null,
+            }
+          : prev
+      );
+
+      setSuccess(
+        nextStatus === "approved"
+          ? "Your claim details were updated."
+          : "Your prize claim was submitted successfully."
+      );
     } catch (err) {
-      console.error("Claim submit crashed:", err);
-      setError("Something went wrong submitting your claim.");
+      console.error("Failed to submit prize claim:", err);
+      setError(`Could not submit your claim. ${getErrorMessage(err)}`);
     } finally {
       setSaving(false);
     }
@@ -215,452 +252,397 @@ export default function ClaimPrizePage() {
 
   if (loading) {
     return (
-      <main style={pageStyle}>
-        <div style={shellStyle}>
-          <div style={loadingStyle}>Loading claim page...</div>
-        </div>
+      <main style={styles.page}>
+        <div style={styles.centerCard}>Loading prize claim...</div>
       </main>
     );
   }
 
   if (!claimRow) {
     return (
-      <main style={pageStyle}>
-        <div style={shellStyle}>
-          <section style={cardStyle}>
-            <div style={eyebrowStyle}>Prize Claim</div>
-            <h1 style={titleStyle}>No active prize claim found.</h1>
-            <p style={bodyStyle}>
-              You do not have a current unclaimed prize available right now.
+      <main style={styles.page}>
+        <div style={styles.wrap}>
+          <div style={styles.card}>
+            <div style={styles.kicker}>Prize Claim</div>
+            <h1 style={styles.title}>No active prize claim</h1>
+            <p style={styles.text}>
+              You do not have an unclaimed prize available right now.
             </p>
-
-            <div style={actionsStyle}>
-              <Link href="/dashboard" style={primaryButtonStyle}>
+            <div style={styles.actions}>
+              <Link href="/dashboard" style={styles.primaryLink}>
                 Back to Dashboard
               </Link>
+              <Link href="/winners" style={styles.secondaryLink}>
+                View Winners
+              </Link>
             </div>
-          </section>
+          </div>
         </div>
       </main>
     );
   }
 
-  const normalizedStatus = (claimRow.claim_status ?? "").toLowerCase();
-  const isAlreadySubmitted =
-    normalizedStatus === "submitted" || normalizedStatus === "approved";
-
   return (
-    <main style={pageStyle}>
-      <div style={shellStyle}>
-        <section style={heroCardStyle}>
-          <div style={eyebrowStyle}>Prize Claim</div>
-          <h1 style={titleStyle}>Claim your prize.</h1>
-          <p style={bodyStyle}>
-            Submit your payout details below. Your total winnings are shown exactly as earned.
-          </p>
-        </section>
+    <main style={styles.page}>
+      <div style={styles.wrap}>
+        <div style={styles.headerRow}>
+          <Link href="/dashboard" style={styles.backLink}>
+            ← Back to Dashboard
+          </Link>
+        </div>
 
-        {error ? <div style={errorStyle}>{error}</div> : null}
+        <div style={styles.grid}>
+          <section style={styles.card}>
+            <div style={styles.kicker}>Prize Claim</div>
+            <h1 style={styles.title}>Claim your prize</h1>
+            <p style={styles.text}>
+              Fill out your payout details below so your prize can be reviewed and sent.
+            </p>
 
-        <section style={detailsCardStyle}>
-          <div style={summaryGridStyle}>
-            <div style={summaryItemStyle}>
-              <div style={summaryLabelStyle}>Month</div>
-              <div style={summaryValueStyle}>{formatMonth(claimRow.winner_month)}</div>
-            </div>
+            {error ? <div style={styles.errorBox}>{error}</div> : null}
+            {success ? <div style={styles.successBox}>{success}</div> : null}
 
-            <div style={summaryItemStyle}>
-              <div style={summaryLabelStyle}>Prize</div>
-              <div style={summaryValueStyle}>{formatPrizeLabel(claimRow.category)}</div>
-            </div>
-
-            <div style={summaryItemStyle}>
-              <div style={summaryLabelStyle}>Multiplier</div>
-              <div style={summaryValueStyle}>{`${claimRow.prize_multiplier ?? 1}x`}</div>
-            </div>
-
-            <div style={summaryItemStyle}>
-              <div style={summaryLabelStyle}>Total Won</div>
-              <div style={summaryValueBigStyle}>
-                {formatMoney(claimRow.total_prize_amount)}
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <section style={formCardStyle}>
-          <div style={formHeaderStyle}>
-            <h2 style={sectionTitleStyle}>Payout Details</h2>
-            <div style={statusBadgeStyle}>
-              {isAlreadySubmitted ? "Already Submitted" : "Ready to Claim"}
-            </div>
-          </div>
-
-          <form onSubmit={handleSubmit} style={formStyle}>
-            <div style={fieldGridStyle}>
-              <div style={fieldStyle}>
-                <label htmlFor="claimMethod" style={labelStyle}>
-                  Payment Method
-                </label>
+            <form onSubmit={handleSubmit} style={styles.form}>
+              <label style={styles.label}>
+                <span style={styles.labelText}>Payment Method</span>
                 <select
-                  id="claimMethod"
-                  name="claimMethod"
-                  value={form.claimMethod}
-                  onChange={handleChange}
-                  style={selectStyle}
-                  disabled={saving}
+                  value={claimMethod}
+                  onChange={(e) => setClaimMethod(e.target.value as ClaimMethod)}
+                  style={styles.select}
                 >
                   <option value="paypal">PayPal</option>
                   <option value="cashapp">Cash App</option>
                   <option value="venmo">Venmo</option>
                   <option value="zelle">Zelle</option>
+                  <option value="other">Other</option>
                 </select>
-              </div>
+              </label>
 
-              <div style={fieldStyle}>
-                <label htmlFor="fullName" style={labelStyle}>
-                  Full Name
-                </label>
+              <label style={styles.label}>
+                <span style={styles.labelText}>Full Name</span>
                 <input
-                  id="fullName"
-                  name="fullName"
-                  type="text"
-                  value={form.fullName}
-                  onChange={handleChange}
-                  style={inputStyle}
-                  placeholder="Your full legal name"
-                  required
-                  disabled={saving}
+                  value={fullName}
+                  onChange={(e) => setFullName(e.target.value)}
+                  placeholder="Your full name"
+                  style={styles.input}
                 />
-              </div>
+              </label>
 
-              <div style={fieldStyle}>
-                <label htmlFor="email" style={labelStyle}>
-                  Email
-                </label>
+              <label style={styles.label}>
+                <span style={styles.labelText}>Email</span>
                 <input
-                  id="email"
-                  name="email"
-                  type="email"
-                  value={form.email}
-                  onChange={handleChange}
-                  style={inputStyle}
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
                   placeholder="you@example.com"
-                  required
-                  disabled={saving}
+                  type="email"
+                  style={styles.input}
                 />
-              </div>
+              </label>
 
-              <div style={fieldStyle}>
-                <label htmlFor="phone" style={labelStyle}>
-                  Phone Number
-                </label>
+              <label style={styles.label}>
+                <span style={styles.labelText}>Phone</span>
                 <input
-                  id="phone"
-                  name="phone"
-                  type="tel"
-                  value={form.phone}
-                  onChange={handleChange}
-                  style={inputStyle}
-                  placeholder="(555) 555-5555"
-                  disabled={saving}
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  placeholder="Your phone number"
+                  style={styles.input}
                 />
-              </div>
+              </label>
 
-              <div style={{ ...fieldStyle, gridColumn: "1 / -1" }}>
-                <label htmlFor="handle" style={labelStyle}>
-                  {getHandleLabel(form.claimMethod)}
-                </label>
+              <label style={styles.label}>
+                <span style={styles.labelText}>
+                  {claimMethod === "paypal"
+                    ? "PayPal Email"
+                    : claimMethod === "zelle"
+                    ? "Zelle Email or Phone"
+                    : claimMethod === "other"
+                    ? "Payout Handle or Details"
+                    : "Payment Handle"}
+                </span>
                 <input
-                  id="handle"
-                  name="handle"
-                  type="text"
-                  value={form.handle}
-                  onChange={handleChange}
-                  style={inputStyle}
+                  value={handle}
+                  onChange={(e) => setHandle(e.target.value)}
                   placeholder={
-                    form.claimMethod === "paypal"
-                      ? "PayPal email"
-                      : form.claimMethod === "zelle"
-                      ? "Zelle email or phone"
-                      : form.claimMethod === "venmo"
-                      ? "@yourvenmo"
-                      : "$yourcashapp"
+                    claimMethod === "cashapp"
+                      ? "$yourhandle"
+                      : claimMethod === "venmo"
+                      ? "@yourhandle"
+                      : claimMethod === "paypal"
+                      ? "paypal@email.com"
+                      : "Enter payout details"
                   }
-                  required
-                  disabled={saving}
+                  style={styles.input}
                 />
-              </div>
+              </label>
 
-              <div style={{ ...fieldStyle, gridColumn: "1 / -1" }}>
-                <label htmlFor="notes" style={labelStyle}>
-                  Notes
-                </label>
+              <label style={styles.label}>
+                <span style={styles.labelText}>Notes</span>
                 <textarea
-                  id="notes"
-                  name="notes"
-                  value={form.notes}
-                  onChange={handleChange}
-                  style={textareaStyle}
-                  placeholder="Anything we should know about your payout details?"
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  placeholder="Anything you want us to know about this payout"
                   rows={4}
-                  disabled={saving}
+                  style={styles.textarea}
                 />
+              </label>
+
+              <div style={styles.actions}>
+                <button type="submit" disabled={saving} style={styles.primaryButton}>
+                  {saving ? "Saving..." : "Submit Claim"}
+                </button>
+
+                <Link href="/dashboard" style={styles.secondaryLink}>
+                  Cancel
+                </Link>
+              </div>
+            </form>
+          </section>
+
+          <aside style={styles.card}>
+            <div style={styles.kicker}>Prize Details</div>
+            <h2 style={styles.sideTitle}>{getPrizeLabel(claimRow.category, claimRow.placement)}</h2>
+
+            <div style={styles.detailList}>
+              <div style={styles.detailRow}>
+                <span style={styles.detailLabel}>Month</span>
+                <span style={styles.detailValue}>{formatMonth(claimRow.winner_month)}</span>
+              </div>
+
+              <div style={styles.detailRow}>
+                <span style={styles.detailLabel}>Winner</span>
+                <span style={styles.detailValue}>{claimRow.winner_name ?? "Winner"}</span>
+              </div>
+
+              <div style={styles.detailRow}>
+                <span style={styles.detailLabel}>Base Prize</span>
+                <span style={styles.detailValue}>
+                  {formatCurrency(claimRow.base_prize_amount)}
+                </span>
+              </div>
+
+              <div style={styles.detailRow}>
+                <span style={styles.detailLabel}>Multiplier</span>
+                <span style={styles.detailValue}>{`${claimRow.prize_multiplier ?? 1}x`}</span>
+              </div>
+
+              <div style={styles.detailRow}>
+                <span style={styles.detailLabel}>Total Prize</span>
+                <span style={styles.totalValue}>
+                  {formatCurrency(claimRow.total_prize_amount)}
+                </span>
+              </div>
+
+              <div style={styles.detailRow}>
+                <span style={styles.detailLabel}>Status</span>
+                <span style={styles.detailValue}>
+                  {(claimRow.claim_status ?? "unclaimed").replace(/^./, (s) => s.toUpperCase())}
+                </span>
               </div>
             </div>
-
-            <div style={actionsStyle}>
-              <Link href="/dashboard" style={secondaryButtonStyle}>
-                Back to Dashboard
-              </Link>
-
-              <button type="submit" style={submitButtonStyle} disabled={saving}>
-                {saving ? "Submitting..." : "Submit Claim"}
-              </button>
-            </div>
-          </form>
-        </section>
+          </aside>
+        </div>
       </div>
     </main>
   );
 }
 
-const pageStyle: React.CSSProperties = {
-  minHeight: "100vh",
-  background: "linear-gradient(180deg, #07111f 0%, #0b1728 55%, #101d31 100%)",
-  color: "#ffffff",
-  padding: "32px 20px 60px",
-};
-
-const shellStyle: React.CSSProperties = {
-  maxWidth: "980px",
-  margin: "0 auto",
-  display: "grid",
-  gap: "20px",
-};
-
-const heroCardStyle: React.CSSProperties = {
-  background: "rgba(255,255,255,0.06)",
-  border: "1px solid rgba(255,255,255,0.10)",
-  borderRadius: "22px",
-  padding: "28px",
-  backdropFilter: "blur(8px)",
-};
-
-const detailsCardStyle: React.CSSProperties = {
-  background: "rgba(255,255,255,0.06)",
-  border: "1px solid rgba(255,255,255,0.10)",
-  borderRadius: "22px",
-  padding: "24px",
-};
-
-const formCardStyle: React.CSSProperties = {
-  background: "rgba(255,255,255,0.06)",
-  border: "1px solid rgba(255,255,255,0.10)",
-  borderRadius: "22px",
-  padding: "24px",
-};
-
-const cardStyle: React.CSSProperties = {
-  background: "rgba(255,255,255,0.06)",
-  border: "1px solid rgba(255,255,255,0.10)",
-  borderRadius: "22px",
-  padding: "28px",
-};
-
-const eyebrowStyle: React.CSSProperties = {
-  fontSize: "13px",
-  letterSpacing: "0.08em",
-  textTransform: "uppercase",
-  color: "#9bbcff",
-  marginBottom: "12px",
-};
-
-const titleStyle: React.CSSProperties = {
-  margin: "0 0 10px",
-  fontSize: "34px",
-  lineHeight: 1.1,
-  fontWeight: 800,
-};
-
-const bodyStyle: React.CSSProperties = {
-  margin: 0,
-  color: "rgba(255,255,255,0.78)",
-  fontSize: "15px",
-  lineHeight: 1.6,
-};
-
-const summaryGridStyle: React.CSSProperties = {
-  display: "grid",
-  gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
-  gap: "16px",
-};
-
-const summaryItemStyle: React.CSSProperties = {
-  background: "rgba(255,255,255,0.045)",
-  border: "1px solid rgba(255,255,255,0.08)",
-  borderRadius: "16px",
-  padding: "18px",
-};
-
-const summaryLabelStyle: React.CSSProperties = {
-  fontSize: "12px",
-  color: "rgba(255,255,255,0.62)",
-  textTransform: "uppercase",
-  letterSpacing: "0.06em",
-  marginBottom: "8px",
-};
-
-const summaryValueStyle: React.CSSProperties = {
-  fontSize: "18px",
-  fontWeight: 700,
-  color: "#ffffff",
-};
-
-const summaryValueBigStyle: React.CSSProperties = {
-  fontSize: "28px",
-  fontWeight: 800,
-  color: "#ffffff",
-};
-
-const formHeaderStyle: React.CSSProperties = {
-  display: "flex",
-  justifyContent: "space-between",
-  alignItems: "center",
-  gap: "12px",
-  flexWrap: "wrap",
-  marginBottom: "20px",
-};
-
-const sectionTitleStyle: React.CSSProperties = {
-  margin: 0,
-  fontSize: "22px",
-  fontWeight: 800,
-};
-
-const statusBadgeStyle: React.CSSProperties = {
-  display: "inline-block",
-  padding: "8px 14px",
-  borderRadius: "999px",
-  fontSize: "13px",
-  fontWeight: 700,
-  background: "rgba(255,255,255,0.08)",
-  border: "1px solid rgba(255,255,255,0.12)",
-  color: "#ffffff",
-};
-
-const formStyle: React.CSSProperties = {
-  display: "grid",
-  gap: "20px",
-};
-
-const fieldGridStyle: React.CSSProperties = {
-  display: "grid",
-  gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-  gap: "16px",
-};
-
-const fieldStyle: React.CSSProperties = {
-  display: "grid",
-  gap: "8px",
-  minWidth: 0,
-};
-
-const labelStyle: React.CSSProperties = {
-  fontSize: "14px",
-  fontWeight: 700,
-  color: "#ffffff",
-};
-
-const inputStyle: React.CSSProperties = {
-  width: "100%",
-  boxSizing: "border-box",
-  borderRadius: "14px",
-  border: "1px solid rgba(255,255,255,0.12)",
-  background: "rgba(255,255,255,0.06)",
-  color: "#ffffff",
-  padding: "14px 16px",
-  fontSize: "15px",
-  outline: "none",
-};
-
-const selectStyle: React.CSSProperties = {
-  width: "100%",
-  boxSizing: "border-box",
-  borderRadius: "14px",
-  border: "1px solid rgba(255,255,255,0.12)",
-  background: "#162338",
-  color: "#ffffff",
-  padding: "14px 16px",
-  fontSize: "15px",
-  outline: "none",
-};
-
-const textareaStyle: React.CSSProperties = {
-  width: "100%",
-  boxSizing: "border-box",
-  borderRadius: "14px",
-  border: "1px solid rgba(255,255,255,0.12)",
-  background: "rgba(255,255,255,0.06)",
-  color: "#ffffff",
-  padding: "14px 16px",
-  fontSize: "15px",
-  outline: "none",
-  resize: "vertical",
-};
-
-const actionsStyle: React.CSSProperties = {
-  display: "flex",
-  gap: "12px",
-  flexWrap: "wrap",
-};
-
-const primaryButtonStyle: React.CSSProperties = {
-  display: "inline-block",
-  background: "#ffffff",
-  color: "#07111f",
-  textDecoration: "none",
-  padding: "14px 20px",
-  borderRadius: "14px",
-  fontWeight: 800,
-  fontSize: "15px",
-};
-
-const secondaryButtonStyle: React.CSSProperties = {
-  display: "inline-block",
-  background: "transparent",
-  color: "#ffffff",
-  textDecoration: "none",
-  padding: "14px 20px",
-  borderRadius: "14px",
-  fontWeight: 700,
-  fontSize: "15px",
-  border: "1px solid rgba(255,255,255,0.18)",
-};
-
-const submitButtonStyle: React.CSSProperties = {
-  background: "#ffffff",
-  color: "#07111f",
-  border: "none",
-  padding: "14px 20px",
-  borderRadius: "14px",
-  fontWeight: 800,
-  fontSize: "15px",
-  cursor: "pointer",
-};
-
-const loadingStyle: React.CSSProperties = {
-  color: "#ffffff",
-  fontSize: "18px",
-  opacity: 0.9,
-  padding: "40px 0",
-};
-
-const errorStyle: React.CSSProperties = {
-  background: "rgba(255, 87, 87, 0.12)",
-  border: "1px solid rgba(255, 87, 87, 0.35)",
-  color: "#ffd5d5",
-  borderRadius: "14px",
-  padding: "14px 16px",
-  whiteSpace: "pre-wrap",
+const styles: Record<string, React.CSSProperties> = {
+  page: {
+    minHeight: "100vh",
+    background: "linear-gradient(180deg, #07111f 0%, #0b1728 55%, #101d31 100%)",
+    color: "#ffffff",
+    padding: "32px 20px 60px",
+  },
+  wrap: {
+    maxWidth: 1100,
+    margin: "0 auto",
+  },
+  centerCard: {
+    maxWidth: 700,
+    margin: "120px auto 0",
+    background: "rgba(255,255,255,0.06)",
+    border: "1px solid rgba(255,255,255,0.10)",
+    borderRadius: 22,
+    padding: 28,
+    textAlign: "center",
+    fontSize: 18,
+    fontWeight: 700,
+  },
+  headerRow: {
+    marginBottom: 18,
+  },
+  backLink: {
+    color: "#9bbcff",
+    textDecoration: "none",
+    fontWeight: 700,
+    fontSize: 14,
+  },
+  grid: {
+    display: "grid",
+    gridTemplateColumns: "1.35fr 0.9fr",
+    gap: 20,
+  },
+  card: {
+    background: "rgba(255,255,255,0.06)",
+    border: "1px solid rgba(255,255,255,0.10)",
+    borderRadius: 22,
+    padding: 24,
+    minWidth: 0,
+  },
+  kicker: {
+    fontSize: 13,
+    letterSpacing: "0.08em",
+    textTransform: "uppercase",
+    color: "#9bbcff",
+    marginBottom: 12,
+  },
+  title: {
+    fontSize: 34,
+    lineHeight: 1.1,
+    margin: "0 0 10px",
+    fontWeight: 800,
+  },
+  sideTitle: {
+    fontSize: 24,
+    lineHeight: 1.15,
+    margin: "0 0 18px",
+    fontWeight: 800,
+  },
+  text: {
+    fontSize: 15,
+    lineHeight: 1.6,
+    color: "rgba(255,255,255,0.78)",
+    margin: "0 0 20px",
+  },
+  errorBox: {
+    background: "rgba(255, 87, 87, 0.12)",
+    border: "1px solid rgba(255, 87, 87, 0.35)",
+    color: "#ffd5d5",
+    borderRadius: 14,
+    padding: "14px 16px",
+    marginBottom: 18,
+    whiteSpace: "pre-wrap",
+  },
+  successBox: {
+    background: "rgba(34,197,94,0.12)",
+    border: "1px solid rgba(34,197,94,0.28)",
+    color: "#c9f7d8",
+    borderRadius: 14,
+    padding: "14px 16px",
+    marginBottom: 18,
+    whiteSpace: "pre-wrap",
+  },
+  form: {
+    display: "grid",
+    gap: 16,
+  },
+  label: {
+    display: "grid",
+    gap: 8,
+  },
+  labelText: {
+    fontSize: 13,
+    fontWeight: 700,
+    color: "rgba(255,255,255,0.84)",
+  },
+  input: {
+    width: "100%",
+    boxSizing: "border-box",
+    background: "rgba(255,255,255,0.08)",
+    color: "#ffffff",
+    border: "1px solid rgba(255,255,255,0.14)",
+    borderRadius: 14,
+    padding: "14px 16px",
+    fontSize: 15,
+    outline: "none",
+  },
+  select: {
+    width: "100%",
+    boxSizing: "border-box",
+    background: "#132238",
+    color: "#ffffff",
+    border: "1px solid rgba(255,255,255,0.14)",
+    borderRadius: 14,
+    padding: "14px 16px",
+    fontSize: 15,
+    outline: "none",
+  },
+  textarea: {
+    width: "100%",
+    boxSizing: "border-box",
+    background: "rgba(255,255,255,0.08)",
+    color: "#ffffff",
+    border: "1px solid rgba(255,255,255,0.14)",
+    borderRadius: 14,
+    padding: "14px 16px",
+    fontSize: 15,
+    outline: "none",
+    resize: "vertical",
+    minHeight: 110,
+  },
+  actions: {
+    display: "flex",
+    gap: 12,
+    flexWrap: "wrap",
+    marginTop: 8,
+  },
+  primaryButton: {
+    background: "#ffffff",
+    color: "#07111f",
+    border: "none",
+    borderRadius: 14,
+    padding: "14px 18px",
+    fontSize: 15,
+    fontWeight: 800,
+    cursor: "pointer",
+  },
+  primaryLink: {
+    display: "inline-block",
+    background: "#ffffff",
+    color: "#07111f",
+    textDecoration: "none",
+    borderRadius: 14,
+    padding: "14px 18px",
+    fontSize: 15,
+    fontWeight: 800,
+  },
+  secondaryLink: {
+    display: "inline-block",
+    background: "transparent",
+    color: "#ffffff",
+    textDecoration: "none",
+    borderRadius: 14,
+    padding: "14px 18px",
+    fontSize: 15,
+    fontWeight: 700,
+    border: "1px solid rgba(255,255,255,0.18)",
+  },
+  detailList: {
+    display: "grid",
+    gap: 14,
+  },
+  detailRow: {
+    display: "flex",
+    justifyContent: "space-between",
+    gap: 16,
+    paddingBottom: 12,
+    borderBottom: "1px solid rgba(255,255,255,0.08)",
+  },
+  detailLabel: {
+    color: "rgba(255,255,255,0.66)",
+    fontSize: 14,
+    fontWeight: 600,
+  },
+  detailValue: {
+    color: "#ffffff",
+    fontSize: 15,
+    fontWeight: 700,
+    textAlign: "right",
+  },
+  totalValue: {
+    color: "#7ef0d1",
+    fontSize: 18,
+    fontWeight: 900,
+    textAlign: "right",
+  },
 };
