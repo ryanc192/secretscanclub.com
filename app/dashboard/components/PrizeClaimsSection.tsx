@@ -33,9 +33,9 @@ function formatPrizeLabel(category: string, placement: number | null | undefined
     return "Random Winner";
   }
 
-  if (normalized === "first_place") return "1st Place on the Leaderboard";
-  if (normalized === "second_place") return "2nd Place on the Leaderboard";
-  if (normalized === "third_place") return "3rd Place on the Leaderboard";
+  if (normalized === "first_place") return "1st Place";
+  if (normalized === "second_place") return "2nd Place";
+  if (normalized === "third_place") return "3rd Place";
 
   if (normalized.startsWith("random_")) {
     return "Random Winner";
