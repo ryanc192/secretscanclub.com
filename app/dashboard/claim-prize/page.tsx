@@ -71,7 +71,7 @@ function getPrizeLabel(category: string | null | undefined, placement: number | 
     (normalized === "leaderboard" && placement === 1) ||
     placement === 1
   ) {
-    return "1st Place on the Leaderboard";
+    return "1st Place";
   }
 
   if (
@@ -79,7 +79,7 @@ function getPrizeLabel(category: string | null | undefined, placement: number | 
     (normalized === "leaderboard" && placement === 2) ||
     placement === 2
   ) {
-    return "2nd Place on the Leaderboard";
+    return "2nd Place";
   }
 
   if (
@@ -87,7 +87,7 @@ function getPrizeLabel(category: string | null | undefined, placement: number | 
     (normalized === "leaderboard" && placement === 3) ||
     placement === 3
   ) {
-    return "3rd Place on the Leaderboard";
+    return "3rd Place";
   }
 
   if (normalized === "random" || normalized.startsWith("random_")) {
