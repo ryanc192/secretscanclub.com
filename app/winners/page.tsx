@@ -39,29 +39,78 @@ function formatMonthLabel(date: Date) {
   });
 }
 
-function normalizeCategory(value: unknown) {
+function normalizeCategory(value: unknown, placement?: unknown) {
   const raw = String(value ?? "").trim().toLowerCase();
+  const placementNumber =
+    typeof placement === "number" && Number.isFinite(placement) ? placement : Number(placement);
 
-  if (!raw) return "";
-  if (raw === "1st" || raw === "1st place" || raw === "first" || raw === "first_place") {
+  if (!raw) {
+    if (placementNumber === 1) return "first_place";
+    if (placementNumber === 2) return "second_place";
+    if (placementNumber === 3) return "third_place";
+    return "";
+  }
+
+  if (
+    raw === "1st" ||
+    raw === "1st place" ||
+    raw === "first" ||
+    raw === "first_place"
+  ) {
     return "first_place";
   }
-  if (raw === "2nd" || raw === "2nd place" || raw === "second" || raw === "second_place") {
+
+  if (
+    raw === "2nd" ||
+    raw === "2nd place" ||
+    raw === "second" ||
+    raw === "second_place"
+  ) {
     return "second_place";
   }
-  if (raw === "3rd" || raw === "3rd place" || raw === "third" || raw === "third_place") {
+
+  if (
+    raw === "3rd" ||
+    raw === "3rd place" ||
+    raw === "third" ||
+    raw === "third_place"
+  ) {
     return "third_place";
+  }
+
+  if (raw === "leaderboard") {
+    if (placementNumber === 1) return "first_place";
+    if (placementNumber === 2) return "second_place";
+    if (placementNumber === 3) return "third_place";
+    return "leaderboard";
+  }
+
+  if (raw === "random") {
+    return "random";
   }
 
   if (raw.includes("random")) {
     const match = raw.match(/(\d+)/);
     if (match) return `random_${match[1]}`;
+    return "random";
   }
 
   return raw.replace(/\s+/g, "_");
 }
 
 function categoryLabelFromKey(key: string) {
+  if (key === "first_place") return "1st Place";
+  if (key === "second_place") return "2nd Place";
+  if (key === "third_place") return "3rd Place";
+  if (key === "leaderboard") return "Leaderboard Winner";
+  if (key === "random") return "Random Winner";
+
+  if (key.startsWith("random_")) {
+    const match = key.match(/(\d+)/);
+    if (match) return `Random ${match[1]}`;
+    return "Random Winner";
+  }
+
   return key
     .replace(/_/g, " ")
     .replace(/\b\w/g, (c) => c.toUpperCase())
@@ -74,11 +123,12 @@ function categorySortOrder(key: string) {
   if (key === "first_place") return 1;
   if (key === "second_place") return 2;
   if (key === "third_place") return 3;
-  if (key === "random_1") return 4;
+  if (key === "random" || key === "random_1") return 4;
   if (key === "random_2") return 5;
   if (key === "random_3") return 6;
   if (key === "random_4") return 7;
   if (key === "random_5") return 8;
+  if (key === "leaderboard") return 999;
   return 999;
 }
 
@@ -90,11 +140,23 @@ function isTopThreeCategory(categoryKey: string) {
   );
 }
 
+function formatMembershipTier(value: unknown) {
+  const normalized = String(value ?? "").trim().toLowerCase();
+
+  if (["vip", "pro", "vip member"].includes(normalized)) return "VIP Member";
+  if (["club", "plus", "club member", "plus member"].includes(normalized)) {
+    return "Club Member";
+  }
+  if (["free", "member"].includes(normalized)) return "Member";
+
+  return String(value ?? "").trim() || "Member";
+}
+
 function getMultiplierFromTier(tier: unknown) {
   const value = String(tier ?? "").trim().toLowerCase();
 
-  if (value.includes("vip")) return 3;
-  if (value.includes("club")) return 2;
+  if (value.includes("vip") || value.includes("pro")) return 3;
+  if (value.includes("club") || value.includes("plus")) return 2;
   return 1;
 }
 
@@ -154,9 +216,7 @@ export default function WinnersPage() {
       return {
         monthKey: formatMonthKey(date),
         monthLabel:
-          index === 0
-            ? `This Month — ${formatMonthLabel(date)}`
-            : formatMonthLabel(date),
+          index === 0 ? `This Month — ${formatMonthLabel(date)}` : formatMonthLabel(date),
       };
     });
   }, []);
@@ -175,7 +235,10 @@ export default function WinnersPage() {
           .from("monthly_winners")
           .select("*")
           .gte("winner_month", `${earliestMonth}-01`)
-          .order("winner_month", { ascending: false });
+          .order("winner_month", { ascending: false })
+          .order("placement", { ascending: true, nullsFirst: false })
+          .order("sort_order", { ascending: true, nullsFirst: false })
+          .order("created_at", { ascending: true });
 
         if (error) {
           throw error;
@@ -210,7 +273,8 @@ export default function WinnersPage() {
               row.place_type ??
               row.placement_type ??
               row.prize_type ??
-              row.winner_type
+              row.winner_type,
+            row.placement
           );
 
           const winnerName =
@@ -221,15 +285,13 @@ export default function WinnersPage() {
             row.name ??
             "TBD Winner";
 
-          const membershipTier =
-            row.membership_tier ??
-            row.subscription_tier ??
-            row.tier ??
-            row.plan ??
-            "TBD";
+          const membershipTierRaw =
+            row.membership_tier ?? row.subscription_tier ?? row.tier ?? row.plan ?? "Member";
 
-          const prizeAmountRaw = row.prize_amount ?? row.prize ?? "?";
-          const basePrizeNumber = parseMoneyAmount(prizeAmountRaw);
+          const membershipTier = formatMembershipTier(membershipTierRaw);
+
+          const basePrizeNumber =
+            parseMoneyAmount(row.base_prize_amount) ?? parseMoneyAmount(row.prize_amount ?? row.prize ?? "?");
 
           const topThree = isTopThreeCategory(categoryKey);
 
@@ -242,10 +304,11 @@ export default function WinnersPage() {
             ) ?? null;
 
           const prizeMultiplier = topThree
-            ? explicitMultiplier ?? getMultiplierFromTier(membershipTier)
+            ? explicitMultiplier ?? getMultiplierFromTier(membershipTierRaw)
             : 1;
 
           const totalPayoutRaw =
+            row.total_prize_amount ??
             row.total_payout ??
             row.total_prize_payout ??
             row.payout_total ??
@@ -264,11 +327,11 @@ export default function WinnersPage() {
             monthLabel: formatMonthLabel(parsedDate),
             category: categoryLabelFromKey(categoryKey),
             winnerName: String(winnerName || "TBD Winner"),
-            membershipTier: String(membershipTier || "TBD"),
+            membershipTier,
             prizeAmount:
               basePrizeNumber !== null
                 ? formatCurrencyAmount(basePrizeNumber)
-                : String(prizeAmountRaw || "?"),
+                : String(row.prize_amount ?? row.prize ?? "?"),
             prizeMultiplier,
             totalPayout:
               finalTotalPayoutNumber !== null
@@ -279,6 +342,7 @@ export default function WinnersPage() {
                 row.sort_order ??
                   row.place_order ??
                   row.position ??
+                  row.placement ??
                   categorySortOrder(categoryKey)
               ) || categorySortOrder(categoryKey),
             showMultiplier: topThree,
