@@ -1,91 +1,21 @@
 "use client";
 
-import { CSSProperties, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { createBrowserSupabaseClient } from "../../../lib/supabase/client";
 
-type PrizeClaimRow = {
+export type PrizeClaimRow = {
   id: string;
-  winner_month: string;
-  category: string;
-  placement: number | null;
-  prize_multiplier: number | null;
-  base_prize_amount: number | null;
-  total_prize_amount: number | null;
-  claim_status: string | null;
+  winnerMonth: string | null;
+  label: string;
+  totalPrizeAmount: number;
+  claimStatus: string;
+  prizeMultiplier: number;
+  showMultiplier: boolean;
+  isClaimable: boolean;
 };
 
-function formatMoney(value: number | null | undefined) {
-  if (value == null || Number.isNaN(Number(value))) return "—";
-  return `$${Number(value).toFixed(0)}`;
-}
+function formatWinnerMonth(value: string | null) {
+  if (!value) return "Unknown month";
 
-function normalizeCategory(category: string | null | undefined, placement: number | null | undefined) {
-  const normalized = (category ?? "").trim().toLowerCase();
-
-  if (
-    normalized === "first_place" ||
-    normalized === "1st" ||
-    normalized === "1st place" ||
-    normalized === "first"
-  ) {
-    return "first_place";
-  }
-
-  if (
-    normalized === "second_place" ||
-    normalized === "2nd" ||
-    normalized === "2nd place" ||
-    normalized === "second"
-  ) {
-    return "second_place";
-  }
-
-  if (
-    normalized === "third_place" ||
-    normalized === "3rd" ||
-    normalized === "3rd place" ||
-    normalized === "third"
-  ) {
-    return "third_place";
-  }
-
-  if (normalized === "leaderboard") {
-    if (placement === 1) return "first_place";
-    if (placement === 2) return "second_place";
-    if (placement === 3) return "third_place";
-    return "leaderboard";
-  }
-
-  if (normalized === "random") return "random";
-  if (normalized.startsWith("random_")) return "random";
-
-  return normalized;
-}
-
-function isTopThreePrize(category: string | null | undefined, placement: number | null | undefined) {
-  const normalized = normalizeCategory(category, placement);
-  return (
-    normalized === "first_place" ||
-    normalized === "second_place" ||
-    normalized === "third_place" ||
-    normalized === "leaderboard"
-  );
-}
-
-function formatPrizeLabel(category: string, placement: number | null | undefined) {
-  const normalized = normalizeCategory(category, placement);
-
-  if (normalized === "first_place") return "1st Place";
-  if (normalized === "second_place") return "2nd Place";
-  if (normalized === "third_place") return "3rd Place";
-  if (normalized === "leaderboard") return "Leaderboard Winner";
-  if (normalized === "random") return "Random Winner";
-
-  return category.replace(/_/g, " ");
-}
-
-function formatMonth(value: string) {
   const parsed = new Date(`${value}T00:00:00`);
   if (Number.isNaN(parsed.getTime())) return value;
 
@@ -95,252 +25,405 @@ function formatMonth(value: string) {
   });
 }
 
-function formatStatusLabel(status: string | null | undefined) {
-  if (!status) return "Unclaimed";
-
-  const normalized = status.trim().toLowerCase();
-
-  if (normalized === "paid") return "Paid";
-  if (normalized === "approved") return "Approved";
-  if (normalized === "submitted") return "Submitted";
-  if (normalized === "pending") return "Pending";
-  if (normalized === "unclaimed") return "Unclaimed";
-
-  return status.charAt(0).toUpperCase() + status.slice(1);
+function formatCurrency(value: number) {
+  return `$${value.toFixed(0)}`;
 }
 
-function normalizeMultiplier(value: number | null | undefined) {
-  const parsed = Number(value ?? 1);
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : 1;
-}
+function getStatusStyles(status: string) {
+  const normalized = status.toLowerCase();
 
-function getDisplayMultiplier(row: PrizeClaimRow) {
-  if (!isTopThreePrize(row.category, row.placement)) {
-    return 1;
-  }
-
-  const base = Number(row.base_prize_amount ?? 0);
-  const total = Number(row.total_prize_amount ?? 0);
-
-  if (Number.isFinite(base) && base > 0 && Number.isFinite(total) && total > 0) {
-    const ratio = total / base;
-    const rounded = Math.round(ratio);
-
-    if (Number.isFinite(rounded) && rounded > 0) {
-      return rounded;
-    }
-  }
-
-  return normalizeMultiplier(row.prize_multiplier);
-}
-
-export default function PrizeClaimsSection() {
-  const supabase = useMemo(() => createBrowserSupabaseClient(), []);
-  const [rows, setRows] = useState<PrizeClaimRow[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    let active = true;
-
-    async function loadPrizeClaims() {
-      setLoading(true);
-
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
-      if (!active) return;
-
-      if (!user) {
-        setRows([]);
-        setLoading(false);
-        return;
-      }
-
-      const { data, error } = await supabase
-        .from("monthly_winners")
-        .select(
-          "id, winner_month, category, placement, prize_multiplier, base_prize_amount, total_prize_amount, claim_status"
-        )
-        .eq("user_id", user.id)
-        .order("winner_month", { ascending: false })
-        .order("created_at", { ascending: false });
-
-      if (!active) return;
-
-      if (error) {
-        console.error("Failed to load prize claims:", error);
-        setRows([]);
-      } else {
-        setRows((data as PrizeClaimRow[]) ?? []);
-      }
-
-      setLoading(false);
-    }
-
-    loadPrizeClaims();
-
-    return () => {
-      active = false;
+  if (normalized === "paid") {
+    return {
+      background: "rgba(34,197,94,0.16)",
+      color: "#86efac",
+      border: "1px solid rgba(34,197,94,0.28)",
     };
-  }, [supabase]);
+  }
 
+  if (normalized === "pending") {
+    return {
+      background: "rgba(245,158,11,0.16)",
+      color: "#fcd34d",
+      border: "1px solid rgba(245,158,11,0.28)",
+    };
+  }
+
+  if (normalized === "approved") {
+    return {
+      background: "rgba(59,130,246,0.16)",
+      color: "#93c5fd",
+      border: "1px solid rgba(59,130,246,0.28)",
+    };
+  }
+
+  return {
+    background: "rgba(255,255,255,0.08)",
+    color: "rgba(255,255,255,0.86)",
+    border: "1px solid rgba(255,255,255,0.12)",
+  };
+}
+
+export default function PrizeClaimsSection({
+  prizes,
+}: {
+  prizes: PrizeClaimRow[];
+}) {
   return (
     <section
       style={{
+        width: "100%",
         marginTop: "28px",
-        background: "rgba(255,255,255,0.06)",
-        border: "1px solid rgba(255,255,255,0.10)",
-        borderRadius: "22px",
-        padding: "20px",
-        overflowX: "auto",
       }}
     >
-      <h2
+      <div
         style={{
-          margin: "0 0 8px",
-          fontSize: "20px",
-          fontWeight: 800,
-          color: "#ffffff",
+          width: "100%",
+          background: "rgba(255,255,255,0.06)",
+          borderTop: "1px solid rgba(255,255,255,0.08)",
+          borderBottom: "1px solid rgba(255,255,255,0.08)",
+          padding: "26px 20px 24px",
         }}
       >
-        Prize Claims
-      </h2>
-
-      <p
-        style={{
-          margin: "0 0 18px",
-          color: "rgba(255,255,255,0.78)",
-          fontSize: "14px",
-        }}
-      >
-        Your past winnings stay here as a record. Claim buttons disappear after payout.
-      </p>
-
-      {loading ? (
-        <div style={{ color: "rgba(255,255,255,0.75)" }}>Loading prize claims...</div>
-      ) : rows.length === 0 ? (
-        <div style={{ color: "rgba(255,255,255,0.75)" }}>No prize claims yet.</div>
-      ) : (
-        <>
-          <table
-            className="prize-claims-table"
+        <div
+          style={{
+            maxWidth: "1800px",
+            margin: "0 auto",
+          }}
+        >
+          <h2
             style={{
-              width: "100%",
-              borderCollapse: "collapse",
-              minWidth: "760px",
+              margin: "0 0 8px",
+              fontSize: "22px",
+              fontWeight: 800,
+              color: "#ffffff",
             }}
           >
-            <thead>
-              <tr>
-                <th style={thStyle}>MONTH</th>
-                <th style={thStyle}>PRIZE</th>
-                <th style={thStyle}>MULTIPLIER</th>
-                <th style={thStyle}>TOTAL WON</th>
-                <th style={thStyle}>STATUS</th>
-                <th style={thStyle}>ACTION</th>
-              </tr>
-            </thead>
+            Prize Claims
+          </h2>
 
-            <tbody>
-              {rows.map((row) => {
-                const normalizedStatus = (row.claim_status ?? "").toLowerCase();
-                const isPaid = normalizedStatus === "paid";
-                const displayMultiplier = getDisplayMultiplier(row);
+          <p
+            style={{
+              margin: "0 0 24px",
+              color: "rgba(255,255,255,0.8)",
+              fontSize: "15px",
+              lineHeight: 1.6,
+            }}
+          >
+            Your past winnings stay here as a record. Claim buttons are only active for
+            unclaimed prizes.
+          </p>
 
-                return (
-                  <tr
-                    key={row.id}
-                    style={{
-                      borderTop: "1px solid rgba(255,255,255,0.08)",
-                    }}
-                  >
-                    <td style={tdStyle}>{formatMonth(row.winner_month)}</td>
-                    <td style={tdStyle}>{formatPrizeLabel(row.category, row.placement)}</td>
-                    <td style={tdStyle}>{`${displayMultiplier}x`}</td>
-                    <td style={tdStyle}>{formatMoney(row.total_prize_amount)}</td>
-                    <td style={tdStyle}>
-                      <span
+          {prizes.length === 0 ? (
+            <div
+              style={{
+                color: "rgba(255,255,255,0.72)",
+                fontSize: "15px",
+                lineHeight: 1.6,
+              }}
+            >
+              No prize records yet.
+            </div>
+          ) : (
+            <>
+              <div className="claims-table-wrapper">
+                <table
+                  style={{
+                    width: "100%",
+                    borderCollapse: "collapse",
+                    minWidth: "980px",
+                  }}
+                >
+                  <thead>
+                    <tr>
+                      <th style={headerCellStyle}>MONTH</th>
+                      <th style={headerCellStyle}>PRIZE</th>
+                      <th style={headerCellStyle}>MULTIPLIER</th>
+                      <th style={headerCellStyle}>TOTAL WON</th>
+                      <th style={headerCellStyle}>STATUS</th>
+                      <th style={headerCellStyle}>ACTION</th>
+                    </tr>
+                  </thead>
+
+                  <tbody>
+                    {prizes.map((prize) => {
+                      const statusStyles = getStatusStyles(prize.claimStatus);
+
+                      return (
+                        <tr key={prize.id} style={{ borderTop: "1px solid rgba(255,255,255,0.08)" }}>
+                          <td style={bodyCellStyle}>{formatWinnerMonth(prize.winnerMonth)}</td>
+                          <td style={bodyCellStyle}>{prize.label}</td>
+                          <td style={bodyCellStyle}>
+                            {prize.showMultiplier ? `${prize.prizeMultiplier}x` : "—"}
+                          </td>
+                          <td style={bodyCellStyle}>{formatCurrency(prize.totalPrizeAmount)}</td>
+                          <td style={bodyCellStyle}>
+                            <span
+                              style={{
+                                display: "inline-flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                minWidth: "80px",
+                                padding: "8px 14px",
+                                borderRadius: "999px",
+                                fontSize: "13px",
+                                fontWeight: 700,
+                                whiteSpace: "nowrap",
+                                ...statusStyles,
+                              }}
+                            >
+                              {prize.claimStatus}
+                            </span>
+                          </td>
+                          <td style={bodyCellStyle}>
+                            {prize.isClaimable ? (
+                              <Link
+                                href={`/dashboard/claim-prize?winner=${encodeURIComponent(prize.id)}`}
+                                style={{
+                                  display: "inline-flex",
+                                  alignItems: "center",
+                                  justifyContent: "center",
+                                  minWidth: "122px",
+                                  padding: "12px 18px",
+                                  borderRadius: "999px",
+                                  textDecoration: "none",
+                                  fontWeight: 800,
+                                  fontSize: "15px",
+                                  background: "#ffffff",
+                                  color: "#07111f",
+                                }}
+                              >
+                                Claim Prize
+                              </Link>
+                            ) : (
+                              <button
+                                type="button"
+                                disabled
+                                style={{
+                                  display: "inline-flex",
+                                  alignItems: "center",
+                                  justifyContent: "center",
+                                  minWidth: "122px",
+                                  padding: "12px 18px",
+                                  borderRadius: "999px",
+                                  fontWeight: 800,
+                                  fontSize: "15px",
+                                  background: "rgba(255,255,255,0.08)",
+                                  color: "rgba(255,255,255,0.55)",
+                                  border: "1px solid rgba(255,255,255,0.12)",
+                                  cursor: "not-allowed",
+                                }}
+                              >
+                                {prize.claimStatus === "Paid"
+                                  ? "Already Paid"
+                                  : prize.claimStatus === "Pending"
+                                  ? "Pending"
+                                  : prize.claimStatus === "Approved"
+                                  ? "Approved"
+                                  : "Already Claimed"}
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="claims-mobile-list">
+                {prizes.map((prize) => {
+                  const statusStyles = getStatusStyles(prize.claimStatus);
+
+                  return (
+                    <div
+                      key={prize.id}
+                      style={{
+                        borderTop: "1px solid rgba(255,255,255,0.08)",
+                        padding: "16px 0",
+                        display: "grid",
+                        gap: "12px",
+                      }}
+                    >
+                      <div
                         style={{
-                          display: "inline-block",
-                          padding: "8px 14px",
-                          borderRadius: "999px",
-                          fontSize: "13px",
-                          fontWeight: 700,
-                          background:
-                            normalizedStatus === "paid"
-                              ? "rgba(34,197,94,0.16)"
-                              : normalizedStatus === "pending"
-                              ? "rgba(245,158,11,0.16)"
-                              : "rgba(255,255,255,0.08)",
-                          border:
-                            normalizedStatus === "paid"
-                              ? "1px solid rgba(34,197,94,0.28)"
-                              : normalizedStatus === "pending"
-                              ? "1px solid rgba(245,158,11,0.28)"
-                              : "1px solid rgba(255,255,255,0.12)",
-                          color:
-                            normalizedStatus === "paid"
-                              ? "#86efac"
-                              : normalizedStatus === "pending"
-                              ? "#fcd34d"
-                              : "#ffffff",
+                          display: "flex",
+                          justifyContent: "space-between",
+                          gap: "12px",
+                          alignItems: "flex-start",
                         }}
                       >
-                        {formatStatusLabel(row.claim_status)}
-                      </span>
-                    </td>
-                    <td style={tdStyle}>
-                      {!isPaid ? (
-                        <Link
-                          href="/dashboard/claim-prize"
+                        <div style={{ minWidth: 0 }}>
+                          <div
+                            style={{
+                              fontSize: "16px",
+                              fontWeight: 800,
+                              color: "#ffffff",
+                              marginBottom: "4px",
+                            }}
+                          >
+                            {prize.label}
+                          </div>
+                          <div
+                            style={{
+                              color: "rgba(255,255,255,0.72)",
+                              fontSize: "14px",
+                            }}
+                          >
+                            {formatWinnerMonth(prize.winnerMonth)}
+                          </div>
+                        </div>
+
+                        <div
                           style={{
-                            display: "inline-block",
-                            background: "#ffffff",
-                            color: "#07111f",
-                            textDecoration: "none",
+                            fontSize: "16px",
+                            fontWeight: 800,
+                            color: "#ffffff",
+                            whiteSpace: "nowrap",
+                          }}
+                        >
+                          {formatCurrency(prize.totalPrizeAmount)}
+                        </div>
+                      </div>
+
+                      <div
+                        style={{
+                          display: "flex",
+                          gap: "8px",
+                          flexWrap: "wrap",
+                          alignItems: "center",
+                        }}
+                      >
+                        <span
+                          style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            padding: "8px 14px",
+                            borderRadius: "999px",
+                            fontSize: "13px",
+                            fontWeight: 700,
+                            whiteSpace: "nowrap",
+                            ...statusStyles,
+                          }}
+                        >
+                          {prize.claimStatus}
+                        </span>
+
+                        {prize.showMultiplier ? (
+                          <span
+                            style={{
+                              display: "inline-flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              padding: "8px 14px",
+                              borderRadius: "999px",
+                              fontSize: "13px",
+                              fontWeight: 700,
+                              whiteSpace: "nowrap",
+                              background: "rgba(255,255,255,0.08)",
+                              color: "rgba(255,255,255,0.85)",
+                              border: "1px solid rgba(255,255,255,0.12)",
+                            }}
+                          >
+                            {prize.prizeMultiplier}x multiplier
+                          </span>
+                        ) : null}
+                      </div>
+
+                      {prize.isClaimable ? (
+                        <Link
+                          href={`/dashboard/claim-prize?winner=${encodeURIComponent(prize.id)}`}
+                          style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            width: "100%",
+                            boxSizing: "border-box",
                             padding: "12px 18px",
                             borderRadius: "999px",
+                            textDecoration: "none",
                             fontWeight: 800,
-                            fontSize: "14px",
+                            fontSize: "15px",
+                            background: "#ffffff",
+                            color: "#07111f",
                           }}
                         >
                           Claim Prize
                         </Link>
                       ) : (
-                        <span style={{ color: "rgba(255,255,255,0.55)" }}>Paid</span>
+                        <button
+                          type="button"
+                          disabled
+                          style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            width: "100%",
+                            boxSizing: "border-box",
+                            padding: "12px 18px",
+                            borderRadius: "999px",
+                            fontWeight: 800,
+                            fontSize: "15px",
+                            background: "rgba(255,255,255,0.08)",
+                            color: "rgba(255,255,255,0.55)",
+                            border: "1px solid rgba(255,255,255,0.12)",
+                            cursor: "not-allowed",
+                          }}
+                        >
+                          {prize.claimStatus === "Paid"
+                            ? "Already Paid"
+                            : prize.claimStatus === "Pending"
+                            ? "Pending"
+                            : prize.claimStatus === "Approved"
+                            ? "Approved"
+                            : "Already Claimed"}
+                        </button>
                       )}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                    </div>
+                  );
+                })}
+              </div>
+            </>
+          )}
+        </div>
+      </div>
 
-          <style jsx>{`
-            @media (max-width: 700px) {
-              .prize-claims-table {
-                min-width: 680px !important;
-              }
-            }
-          `}</style>
-        </>
-      )}
+      <style jsx>{`
+        .claims-mobile-list {
+          display: none;
+        }
+
+        @media (max-width: 980px) {
+          .claims-table-wrapper {
+            display: none;
+          }
+
+          .claims-mobile-list {
+            display: block;
+          }
+        }
+
+        @media (max-width: 700px) {
+          section {
+            margin-top: 20px !important;
+          }
+        }
+      `}</style>
     </section>
   );
 }
 
-const thStyle: CSSProperties = {
+const headerCellStyle: React.CSSProperties = {
   textAlign: "left",
-  padding: "14px 0",
-  fontSize: "13px",
+  color: "#8fb7ff",
+  fontSize: "14px",
   fontWeight: 800,
-  color: "#9bbcff",
+  padding: "10px 0 16px",
 };
 
-const tdStyle: CSSProperties = {
-  textAlign: "left",
-  padding: "20px 0",
-  fontSize: "15px",
+const bodyCellStyle: React.CSSProperties = {
   color: "#ffffff",
+  fontSize: "15px",
+  padding: "20px 0",
+  verticalAlign: "middle",
 };
