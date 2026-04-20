@@ -51,6 +51,7 @@ type WinnerRow = {
   winner_month: string | null;
   category: string | null;
   placement: number | null;
+  prize_multiplier: number | null;
   total_prize_amount: number | string | null;
   claim_status: string | null;
 };
@@ -61,6 +62,8 @@ type PrizeSummaryItem = {
   label: string;
   totalPrizeAmount: number;
   claimStatus: string;
+  prizeMultiplier: number;
+  showMultiplier: boolean;
 };
 
 const STRIPE_PRICE_IDS = {
@@ -185,19 +188,78 @@ function buildDisplayName(profile: {
   return fullName || "Name not set";
 }
 
-function getWinnerLabel(category: string | null | undefined, placement: number | null | undefined) {
-  const normalizedCategory = (category ?? "").toLowerCase();
+function normalizeWinnerCategory(
+  category: string | null | undefined,
+  placement: number | null | undefined
+) {
+  const normalizedCategory = (category ?? "").trim().toLowerCase();
+
+  if (
+    normalizedCategory === "first_place" ||
+    normalizedCategory === "1st" ||
+    normalizedCategory === "1st place" ||
+    normalizedCategory === "first"
+  ) {
+    return "first_place";
+  }
+
+  if (
+    normalizedCategory === "second_place" ||
+    normalizedCategory === "2nd" ||
+    normalizedCategory === "2nd place" ||
+    normalizedCategory === "second"
+  ) {
+    return "second_place";
+  }
+
+  if (
+    normalizedCategory === "third_place" ||
+    normalizedCategory === "3rd" ||
+    normalizedCategory === "3rd place" ||
+    normalizedCategory === "third"
+  ) {
+    return "third_place";
+  }
 
   if (normalizedCategory === "leaderboard") {
-    if (placement === 1) return "1st Place";
-    if (placement === 2) return "2nd Place";
-    if (placement === 3) return "3rd Place";
-    return "Leaderboard Winner";
+    if (placement === 1) return "first_place";
+    if (placement === 2) return "second_place";
+    if (placement === 3) return "third_place";
+    return "leaderboard";
   }
 
   if (normalizedCategory === "random") {
-    return "Random Winner";
+    return "random";
   }
+
+  if (normalizedCategory.startsWith("random_")) {
+    return "random";
+  }
+
+  return normalizedCategory;
+}
+
+function isTopThreeWinner(
+  category: string | null | undefined,
+  placement: number | null | undefined
+) {
+  const normalized = normalizeWinnerCategory(category, placement);
+  return (
+    normalized === "first_place" ||
+    normalized === "second_place" ||
+    normalized === "third_place" ||
+    normalized === "leaderboard"
+  );
+}
+
+function getWinnerLabel(category: string | null | undefined, placement: number | null | undefined) {
+  const normalized = normalizeWinnerCategory(category, placement);
+
+  if (normalized === "first_place") return "1st Place";
+  if (normalized === "second_place") return "2nd Place";
+  if (normalized === "third_place") return "3rd Place";
+  if (normalized === "leaderboard") return "Leaderboard Winner";
+  if (normalized === "random") return "Random Winner";
 
   return "Winner";
 }
@@ -224,6 +286,11 @@ function formatClaimStatus(value: string | null | undefined) {
   if (normalized === "paid") return "Paid";
 
   return normalized.charAt(0).toUpperCase() + normalized.slice(1);
+}
+
+function normalizePrizeMultiplier(value: number | null | undefined) {
+  const parsed = Number(value ?? 1);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 1;
 }
 
 export default function DashboardPage() {
@@ -348,7 +415,9 @@ export default function DashboardPage() {
 
           supabase
             .from("monthly_winners")
-            .select("id, winner_month, category, placement, total_prize_amount, claim_status")
+            .select(
+              "id, winner_month, category, placement, prize_multiplier, total_prize_amount, claim_status"
+            )
             .eq("user_id", user.id)
             .order("winner_month", { ascending: false })
             .order("created_at", { ascending: false }),
@@ -416,13 +485,20 @@ export default function DashboardPage() {
           }, 0);
 
           setPrizeSummaries(
-            winnerRows.slice(0, 6).map((row) => ({
-              id: row.id,
-              winnerMonth: row.winner_month,
-              label: getWinnerLabel(row.category, row.placement),
-              totalPrizeAmount: Number(row.total_prize_amount ?? 0) || 0,
-              claimStatus: formatClaimStatus(row.claim_status),
-            }))
+            winnerRows.slice(0, 6).map((row) => {
+              const prizeMultiplier = normalizePrizeMultiplier(row.prize_multiplier);
+              const showMultiplier = isTopThreeWinner(row.category, row.placement);
+
+              return {
+                id: row.id,
+                winnerMonth: row.winner_month,
+                label: getWinnerLabel(row.category, row.placement),
+                totalPrizeAmount: Number(row.total_prize_amount ?? 0) || 0,
+                claimStatus: formatClaimStatus(row.claim_status),
+                prizeMultiplier,
+                showMultiplier,
+              };
+            })
           );
         }
 
@@ -1040,9 +1116,19 @@ export default function DashboardPage() {
                           fontSize: "13px",
                           color: "rgba(255,255,255,0.68)",
                           wordBreak: "break-word",
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "8px",
+                          flexWrap: "wrap",
                         }}
                       >
-                        {formatWinnerMonth(prize.winnerMonth)}
+                        <span>{formatWinnerMonth(prize.winnerMonth)}</span>
+                        {prize.showMultiplier ? (
+                          <>
+                            <span style={{ color: "rgba(255,255,255,0.32)" }}>•</span>
+                            <span>{`${prize.prizeMultiplier}x multiplier`}</span>
+                          </>
+                        ) : null}
                       </div>
                     </div>
 
