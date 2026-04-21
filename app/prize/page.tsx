@@ -59,7 +59,19 @@ export default function PrizePage() {
     },
         {
       members: "12,000 monthly members",
-      monthly: "1st $1600 • 2nd $800 • 3rd $320 • Random winners $160 each",
+      monthly: "1st $1,600 • 2nd $800 • 3rd $320 • Random winners $160 each",
+    },
+            {
+      members: "15,000 monthly members",
+      monthly: "1st $3,200 • 2nd $1,600 • 3rd $640 • Random winners $320 each",
+    },
+            {
+      members: "18,000 monthly members",
+      monthly: "1st $6,400 • 2nd $3,200 • 3rd $1,280 • Random winners $640 each",
+    },
+            {
+      members: "21,000 monthly members",
+      monthly: "1st $12,800 • 2nd $6,400 • 3rd $2,560 • Random winners $1,280 each",
     },
   ];
 
