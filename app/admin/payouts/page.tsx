@@ -197,9 +197,12 @@ export default function AdminPayoutsPage() {
   const [savingId, setSavingId] = useState<string | null>(null);
   const [notesMap, setNotesMap] = useState<Record<string, string>>({});
   const [referenceMap, setReferenceMap] = useState<Record<string, string>>({});
-  const [selectedYear, setSelectedYear] = useState("all");
-  const [selectedMonth, setSelectedMonth] = useState("all");
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
+
+  const [unclaimedYear, setUnclaimedYear] = useState("all");
+  const [unclaimedMonth, setUnclaimedMonth] = useState("all");
+  const [paidYear, setPaidYear] = useState("all");
+  const [paidMonth, setPaidMonth] = useState("all");
 
   useEffect(() => {
     let mounted = true;
@@ -331,56 +334,110 @@ export default function AdminPayoutsPage() {
     }
   }
 
-  const allMonthKeys = useMemo(() => {
-    return Array.from(new Set(rows.map((row) => getMonthKey(row.winner_month)))).sort((a, b) =>
+  const unclaimedBaseRows = useMemo(
+    () => rows.filter((row) => getDisplayStatus(row.claim_status) === "unclaimed"),
+    [rows]
+  );
+
+  const pendingRows = useMemo(
+    () => rows.filter((row) => getDisplayStatus(row.claim_status) === "pending"),
+    [rows]
+  );
+
+  const approvedRows = useMemo(
+    () => rows.filter((row) => getDisplayStatus(row.claim_status) === "approved"),
+    [rows]
+  );
+
+  const paidBaseRows = useMemo(
+    () => rows.filter((row) => getDisplayStatus(row.claim_status) === "paid"),
+    [rows]
+  );
+
+  const unclaimedMonthKeys = useMemo(() => {
+    return Array.from(new Set(unclaimedBaseRows.map((row) => getMonthKey(row.winner_month)))).sort((a, b) =>
       b.localeCompare(a)
     );
-  }, [rows]);
+  }, [unclaimedBaseRows]);
 
-  const yearOptions = useMemo(() => {
-    return Array.from(
-      new Set(
-        allMonthKeys.map((monthKey) => getYearFromMonthKey(monthKey))
-      )
-    ).sort((a, b) => b.localeCompare(a));
-  }, [allMonthKeys]);
+  const unclaimedYearOptions = useMemo(() => {
+    return Array.from(new Set(unclaimedMonthKeys.map((monthKey) => getYearFromMonthKey(monthKey)))).sort((a, b) =>
+      b.localeCompare(a)
+    );
+  }, [unclaimedMonthKeys]);
 
-  const monthOptions = useMemo(() => {
-    if (selectedYear === "all") {
-      return allMonthKeys;
-    }
-
-    return allMonthKeys.filter((monthKey) => getYearFromMonthKey(monthKey) === selectedYear);
-  }, [allMonthKeys, selectedYear]);
+  const unclaimedMonthOptions = useMemo(() => {
+    if (unclaimedYear === "all") return unclaimedMonthKeys;
+    return unclaimedMonthKeys.filter((monthKey) => getYearFromMonthKey(monthKey) === unclaimedYear);
+  }, [unclaimedMonthKeys, unclaimedYear]);
 
   useEffect(() => {
-    if (selectedMonth === "all") return;
-    if (!monthOptions.includes(selectedMonth)) {
-      setSelectedMonth("all");
+    if (unclaimedMonth === "all") return;
+    if (!unclaimedMonthOptions.includes(unclaimedMonth)) {
+      setUnclaimedMonth("all");
     }
-  }, [monthOptions, selectedMonth]);
+  }, [unclaimedMonth, unclaimedMonthOptions]);
 
-  const filteredRows = useMemo(() => {
-    return rows.filter((row) => {
+  const paidMonthKeys = useMemo(() => {
+    return Array.from(new Set(paidBaseRows.map((row) => getMonthKey(row.winner_month)))).sort((a, b) =>
+      b.localeCompare(a)
+    );
+  }, [paidBaseRows]);
+
+  const paidYearOptions = useMemo(() => {
+    return Array.from(new Set(paidMonthKeys.map((monthKey) => getYearFromMonthKey(monthKey)))).sort((a, b) =>
+      b.localeCompare(a)
+    );
+  }, [paidMonthKeys]);
+
+  const paidMonthOptions = useMemo(() => {
+    if (paidYear === "all") return paidMonthKeys;
+    return paidMonthKeys.filter((monthKey) => getYearFromMonthKey(monthKey) === paidYear);
+  }, [paidMonthKeys, paidYear]);
+
+  useEffect(() => {
+    if (paidMonth === "all") return;
+    if (!paidMonthOptions.includes(paidMonth)) {
+      setPaidMonth("all");
+    }
+  }, [paidMonth, paidMonthOptions]);
+
+  const unclaimedRows = useMemo(() => {
+    return unclaimedBaseRows.filter((row) => {
       const monthKey = getMonthKey(row.winner_month);
       const year = getYearFromMonthKey(monthKey);
-
-      const matchesYear = selectedYear === "all" || year === selectedYear;
-      const matchesMonth = selectedMonth === "all" || monthKey === selectedMonth;
-
+      const matchesYear = unclaimedYear === "all" || year === unclaimedYear;
+      const matchesMonth = unclaimedMonth === "all" || monthKey === unclaimedMonth;
       return matchesYear && matchesMonth;
     });
-  }, [rows, selectedYear, selectedMonth]);
+  }, [unclaimedBaseRows, unclaimedYear, unclaimedMonth]);
 
-  const unclaimedRows = filteredRows.filter((row) => getDisplayStatus(row.claim_status) === "unclaimed");
-  const pendingRows = filteredRows.filter((row) => getDisplayStatus(row.claim_status) === "pending");
-  const approvedRows = filteredRows.filter((row) => getDisplayStatus(row.claim_status) === "approved");
-  const paidRows = filteredRows.filter((row) => getDisplayStatus(row.claim_status) === "paid");
+  const paidRows = useMemo(() => {
+    return paidBaseRows.filter((row) => {
+      const monthKey = getMonthKey(row.winner_month);
+      const year = getYearFromMonthKey(monthKey);
+      const matchesYear = paidYear === "all" || year === paidYear;
+      const matchesMonth = paidMonth === "all" || monthKey === paidMonth;
+      return matchesYear && matchesMonth;
+    });
+  }, [paidBaseRows, paidYear, paidMonth]);
 
-  const totalUnclaimedAmount = unclaimedRows.reduce((sum, row) => sum + Number(row.total_prize_amount ?? 0), 0);
-  const totalPendingAmount = pendingRows.reduce((sum, row) => sum + Number(row.total_prize_amount ?? 0), 0);
-  const totalApprovedAmount = approvedRows.reduce((sum, row) => sum + Number(row.total_prize_amount ?? 0), 0);
-  const totalPaidAmount = paidRows.reduce((sum, row) => sum + Number(row.total_prize_amount ?? 0), 0);
+  const totalUnclaimedAmount = unclaimedBaseRows.reduce(
+    (sum, row) => sum + Number(row.total_prize_amount ?? 0),
+    0
+  );
+  const totalPendingAmount = pendingRows.reduce(
+    (sum, row) => sum + Number(row.total_prize_amount ?? 0),
+    0
+  );
+  const totalApprovedAmount = approvedRows.reduce(
+    (sum, row) => sum + Number(row.total_prize_amount ?? 0),
+    0
+  );
+  const totalPaidAmount = paidBaseRows.reduce(
+    (sum, row) => sum + Number(row.total_prize_amount ?? 0),
+    0
+  );
 
   if (loading) {
     return (
@@ -427,59 +484,11 @@ export default function AdminPayoutsPage() {
 
         {error ? <div style={styles.errorBox}>{error}</div> : null}
 
-        <section style={styles.filterCard}>
-          <div style={styles.filterHeader}>
-            <div>
-              <div style={styles.filterTitle}>Organizer</div>
-              <div style={styles.filterSubtitle}>Filter the payout dashboard by year and month.</div>
-            </div>
-          </div>
-
-          <div style={styles.filterGrid}>
-            <label style={styles.field}>
-              <span style={styles.fieldLabel}>Year</span>
-              <select
-                value={selectedYear}
-                onChange={(e) => {
-                  setSelectedYear(e.target.value);
-                  setSelectedMonth("all");
-                }}
-                style={styles.select}
-              >
-                <option value="all">All Years</option>
-                {yearOptions.map((year) => (
-                  <option key={year} value={year}>
-                    {year}
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            <label style={styles.field}>
-              <span style={styles.fieldLabel}>Month</span>
-              <select
-                value={selectedMonth}
-                onChange={(e) => setSelectedMonth(e.target.value)}
-                style={styles.select}
-              >
-                <option value="all">
-                  {selectedYear === "all" ? "All Months" : `All Months in ${selectedYear}`}
-                </option>
-                {monthOptions.map((monthKey) => (
-                  <option key={monthKey} value={monthKey}>
-                    {getMonthLabelFromKey(monthKey)}
-                  </option>
-                ))}
-              </select>
-            </label>
-          </div>
-        </section>
-
         <SummaryRow
-          unclaimedCount={unclaimedRows.length}
+          unclaimedCount={unclaimedBaseRows.length}
           pendingCount={pendingRows.length}
           approvedCount={approvedRows.length}
-          paidCount={paidRows.length}
+          paidCount={paidBaseRows.length}
           totalUnclaimedAmount={totalUnclaimedAmount}
           totalPendingAmount={totalPendingAmount}
           totalApprovedAmount={totalApprovedAmount}
@@ -500,6 +509,24 @@ export default function AdminPayoutsPage() {
           allowApprove={false}
           allowPaid={false}
           showAdminInputs={false}
+          filterControls={
+            <FilterBar
+              yearLabel="Unclaimed Year"
+              monthLabel="Unclaimed Month"
+              yearValue={unclaimedYear}
+              monthValue={unclaimedMonth}
+              onYearChange={(value) => {
+                setUnclaimedYear(value);
+                setUnclaimedMonth("all");
+              }}
+              onMonthChange={setUnclaimedMonth}
+              yearOptions={unclaimedYearOptions}
+              monthOptions={unclaimedMonthOptions}
+              allMonthsLabel={
+                unclaimedYear === "all" ? "All Unclaimed Months" : `All Months in ${unclaimedYear}`
+              }
+            />
+          }
         />
 
         <Section
@@ -548,6 +575,22 @@ export default function AdminPayoutsPage() {
           allowApprove={false}
           allowPaid={false}
           showAdminInputs
+          filterControls={
+            <FilterBar
+              yearLabel="Paid Year"
+              monthLabel="Paid Month"
+              yearValue={paidYear}
+              monthValue={paidMonth}
+              onYearChange={(value) => {
+                setPaidYear(value);
+                setPaidMonth("all");
+              }}
+              onMonthChange={setPaidMonth}
+              yearOptions={paidYearOptions}
+              monthOptions={paidMonthOptions}
+              allMonthsLabel={paidYear === "all" ? "All Paid Months" : `All Months in ${paidYear}`}
+            />
+          }
         />
       </div>
     </main>
@@ -599,6 +642,64 @@ function SummaryRow({
   );
 }
 
+function FilterBar({
+  yearLabel,
+  monthLabel,
+  yearValue,
+  monthValue,
+  onYearChange,
+  onMonthChange,
+  yearOptions,
+  monthOptions,
+  allMonthsLabel,
+}: {
+  yearLabel: string;
+  monthLabel: string;
+  yearValue: string;
+  monthValue: string;
+  onYearChange: (value: string) => void;
+  onMonthChange: (value: string) => void;
+  yearOptions: string[];
+  monthOptions: string[];
+  allMonthsLabel: string;
+}) {
+  return (
+    <div style={styles.sectionFilterWrap}>
+      <label style={styles.field}>
+        <span style={styles.fieldLabel}>{yearLabel}</span>
+        <select
+          value={yearValue}
+          onChange={(e) => onYearChange(e.target.value)}
+          style={styles.select}
+        >
+          <option value="all">All Years</option>
+          {yearOptions.map((year) => (
+            <option key={year} value={year}>
+              {year}
+            </option>
+          ))}
+        </select>
+      </label>
+
+      <label style={styles.field}>
+        <span style={styles.fieldLabel}>{monthLabel}</span>
+        <select
+          value={monthValue}
+          onChange={(e) => onMonthChange(e.target.value)}
+          style={styles.select}
+        >
+          <option value="all">{allMonthsLabel}</option>
+          {monthOptions.map((monthKey) => (
+            <option key={monthKey} value={monthKey}>
+              {getMonthLabelFromKey(monthKey)}
+            </option>
+          ))}
+        </select>
+      </label>
+    </div>
+  );
+}
+
 function Section(props: {
   title: string;
   rows: WinnerRow[];
@@ -613,6 +714,7 @@ function Section(props: {
   allowApprove: boolean;
   allowPaid: boolean;
   showAdminInputs: boolean;
+  filterControls?: React.ReactNode;
 }) {
   const {
     title,
@@ -628,14 +730,19 @@ function Section(props: {
     allowApprove,
     allowPaid,
     showAdminInputs,
+    filterControls,
   } = props;
 
   return (
     <section style={styles.sectionCard}>
       <div style={styles.sectionHeader}>
-        <h2 style={styles.sectionTitle}>{title}</h2>
-        <div style={styles.sectionCount}>{rows.length} total</div>
+        <div>
+          <h2 style={styles.sectionTitle}>{title}</h2>
+          <div style={styles.sectionCount}>{rows.length} shown</div>
+        </div>
       </div>
+
+      {filterControls ? filterControls : null}
 
       {rows.length === 0 ? (
         <div style={styles.emptyState}>No rows here right now.</div>
@@ -924,42 +1031,6 @@ const styles: Record<string, CSSProperties> = {
     padding: "14px 16px",
     marginBottom: 20,
   },
-  filterCard: {
-    background: "rgba(255,255,255,0.06)",
-    border: "1px solid rgba(255,255,255,0.10)",
-    borderRadius: 22,
-    padding: 20,
-    marginBottom: 20,
-  },
-  filterHeader: {
-    marginBottom: 14,
-  },
-  filterTitle: {
-    fontSize: 18,
-    fontWeight: 800,
-    marginBottom: 6,
-  },
-  filterSubtitle: {
-    color: "rgba(255,255,255,0.7)",
-    fontSize: 14,
-  },
-  filterGrid: {
-    display: "grid",
-    gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-    gap: 14,
-  },
-  select: {
-    width: "100%",
-    boxSizing: "border-box",
-    background: "rgba(255,255,255,0.08)",
-    color: "#ffffff",
-    border: "1px solid rgba(255,255,255,0.14)",
-    borderRadius: 14,
-    padding: "14px 16px",
-    fontSize: 15,
-    outline: "none",
-    appearance: "none",
-  },
   summaryGrid: {
     display: "grid",
     gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
@@ -1012,6 +1083,13 @@ const styles: Record<string, CSSProperties> = {
     color: "rgba(255,255,255,0.7)",
     fontWeight: 700,
     fontSize: 14,
+    marginTop: 4,
+  },
+  sectionFilterWrap: {
+    display: "grid",
+    gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+    gap: 14,
+    marginBottom: 16,
   },
   emptyState: {
     color: "rgba(255,255,255,0.72)",
@@ -1150,6 +1228,18 @@ const styles: Record<string, CSSProperties> = {
     padding: "14px 16px",
     fontSize: 15,
     outline: "none",
+  },
+  select: {
+    width: "100%",
+    boxSizing: "border-box",
+    background: "rgba(255,255,255,0.08)",
+    color: "#ffffff",
+    border: "1px solid rgba(255,255,255,0.14)",
+    borderRadius: 14,
+    padding: "14px 16px",
+    fontSize: 15,
+    outline: "none",
+    appearance: "none",
   },
   actionRow: {
     display: "flex",
