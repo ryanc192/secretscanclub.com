@@ -55,6 +55,7 @@ type WinnerRow = {
   placement: number | null;
   prize_multiplier: number | null;
   total_prize_amount: number | string | null;
+  base_prize_amount: number | string | null;
   claim_status: string | null;
 };
 
@@ -62,6 +63,7 @@ type PrizeSummaryItem = {
   id: string;
   winnerMonth: string | null;
   label: string;
+  basePrizeAmount: number;
   totalPrizeAmount: number;
   claimStatus: string;
   prizeMultiplier: number;
@@ -125,12 +127,12 @@ function getPlanFromSubscription(
       return "VIP Member";
     }
 
-    if (normalizedTier === "plus") return "Club Member";
-    if (normalizedTier === "pro") return "VIP Member";
+    if (normalizedTier === "plus" || normalizedTier === "club") return "Club Member";
+    if (normalizedTier === "pro" || normalizedTier === "vip") return "VIP Member";
   }
 
-  if (normalizedTier === "plus") return "Club Member";
-  if (normalizedTier === "pro") return "VIP Member";
+  if (normalizedTier === "plus" || normalizedTier === "club") return "Club Member";
+  if (normalizedTier === "pro" || normalizedTier === "vip") return "VIP Member";
 
   return "Free";
 }
@@ -178,7 +180,11 @@ function formatAccuracy(value: number) {
 }
 
 function formatCurrency(value: number) {
-  return `$${value.toFixed(0)}`;
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    maximumFractionDigits: value % 1 === 0 ? 0 : 2,
+  }).format(value);
 }
 
 function buildDisplayName(profile: {
@@ -231,11 +237,7 @@ function normalizeWinnerCategory(
     return "leaderboard";
   }
 
-  if (normalizedCategory === "random") {
-    return "random";
-  }
-
-  if (normalizedCategory.startsWith("random_")) {
+  if (normalizedCategory === "random" || normalizedCategory.startsWith("random_")) {
     return "random";
   }
 
@@ -294,6 +296,11 @@ function formatClaimStatus(value: string | null | undefined) {
 function normalizePrizeMultiplier(value: number | null | undefined) {
   const parsed = Number(value ?? 1);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : 1;
+}
+
+function normalizeMoney(value: number | string | null | undefined) {
+  const parsed = Number(value ?? 0);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
 }
 
 function isClaimableStatus(value: string | null | undefined) {
@@ -425,7 +432,7 @@ export default function DashboardPage() {
           supabase
             .from("monthly_winners")
             .select(
-              "id, winner_month, category, placement, prize_multiplier, total_prize_amount, claim_status"
+              "id, winner_month, category, placement, prize_multiplier, total_prize_amount, base_prize_amount, claim_status"
             )
             .eq("user_id", user.id)
             .order("winner_month", { ascending: false })
@@ -489,8 +496,7 @@ export default function DashboardPage() {
           const winnerRows = (winnersData as WinnerRow[]) ?? [];
 
           totalPrizeWon = winnerRows.reduce((sum, row) => {
-            const amount = Number(row.total_prize_amount ?? 0);
-            return sum + (Number.isFinite(amount) ? amount : 0);
+            return sum + normalizeMoney(row.total_prize_amount);
           }, 0);
 
           const mappedClaimRows: PrizeClaimRow[] = winnerRows.map((row) => {
@@ -502,7 +508,8 @@ export default function DashboardPage() {
               id: row.id,
               winnerMonth: row.winner_month,
               label: getWinnerLabel(row.category, row.placement),
-              totalPrizeAmount: Number(row.total_prize_amount ?? 0) || 0,
+              basePrizeAmount: normalizeMoney(row.base_prize_amount),
+              totalPrizeAmount: normalizeMoney(row.total_prize_amount),
               claimStatus,
               prizeMultiplier,
               showMultiplier: isTopThreeWinner(row.category, row.placement),
@@ -513,10 +520,11 @@ export default function DashboardPage() {
           setPrizeClaimRows(mappedClaimRows);
 
           setPrizeSummaries(
-            mappedClaimRows.slice(0, 6).map((row) => ({
+            mappedClaimRows.map((row) => ({
               id: row.id,
               winnerMonth: row.winnerMonth,
               label: row.label,
+              basePrizeAmount: row.basePrizeAmount,
               totalPrizeAmount: row.totalPrizeAmount,
               claimStatus: row.claimStatus,
               prizeMultiplier: row.prizeMultiplier,
@@ -1147,6 +1155,8 @@ export default function DashboardPage() {
                         }}
                       >
                         <span>{formatWinnerMonth(prize.winnerMonth)}</span>
+                        <span style={{ color: "rgba(255,255,255,0.32)" }}>•</span>
+                        <span>Base {formatCurrency(prize.basePrizeAmount)}</span>
                         {prize.showMultiplier ? (
                           <>
                             <span style={{ color: "rgba(255,255,255,0.32)" }}>•</span>
@@ -1188,18 +1198,24 @@ export default function DashboardPage() {
                               ? "rgba(34,197,94,0.16)"
                               : prize.claimStatus.toLowerCase() === "pending"
                               ? "rgba(245,158,11,0.16)"
+                              : prize.claimStatus.toLowerCase() === "approved"
+                              ? "rgba(59,130,246,0.16)"
                               : "rgba(255,255,255,0.08)",
                           color:
                             prize.claimStatus.toLowerCase() === "paid"
                               ? "#86efac"
                               : prize.claimStatus.toLowerCase() === "pending"
                               ? "#fcd34d"
+                              : prize.claimStatus.toLowerCase() === "approved"
+                              ? "#93c5fd"
                               : "rgba(255,255,255,0.86)",
                           border:
                             prize.claimStatus.toLowerCase() === "paid"
                               ? "1px solid rgba(34,197,94,0.28)"
                               : prize.claimStatus.toLowerCase() === "pending"
                               ? "1px solid rgba(245,158,11,0.28)"
+                              : prize.claimStatus.toLowerCase() === "approved"
+                              ? "1px solid rgba(59,130,246,0.28)"
                               : "1px solid rgba(255,255,255,0.12)",
                         }}
                       >
