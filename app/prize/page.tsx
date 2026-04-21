@@ -17,8 +17,8 @@ export default function PrizePage() {
 
   const multipliers = [
     {
-      tier: "Free",
       multiplier: "1x",
+      tier: "Free",
       detail: "Every qualifying action counts once toward prize weighting.",
     },
     {
@@ -41,20 +41,20 @@ export default function PrizePage() {
 
   const growthExamples = [
     {
-      members: "Base prize level",
+      members: "Current prize level",
       monthly: "1st $100 • 2nd $50 • 3rd $20 • Random winners $10 each",
     },
     {
-      members: "+3,000 new monthly members",
-      monthly: "All listed prizes double",
+      members: "3,000 monthly members",
+      monthly: "1st $200 • 2nd $100 • 3rd $40 • Random winners $20 each",
     },
     {
-      members: "+6,000 new monthly members",
-      monthly: "All listed prizes double again",
+      members: "6,000 monthly members",
+      monthly: "1st $400 • 2nd $200 • 3rd $80 • Random winners $40 each",
     },
     {
-      members: "+8,000 new monthly members",
-      monthly: "All listed prizes double again",
+      members: "9,000 monthly members",
+      monthly: "1st $800 • 2nd $400 • 3rd $100 • Random winners $80 each",
     },
   ];
 
