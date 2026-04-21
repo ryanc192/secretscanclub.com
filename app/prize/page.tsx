@@ -31,6 +31,7 @@ export default function PrizePage() {
       multiplier: "3x",
       detail: "Your prize weighting is tripled and unlocks weekly VIP prize opportunities.",
     },
+    
   ];
 
   const leaderboardFactors = [
@@ -54,7 +55,11 @@ export default function PrizePage() {
     },
     {
       members: "9,000 monthly members",
-      monthly: "1st $800 • 2nd $400 • 3rd $100 • Random winners $80 each",
+      monthly: "1st $800 • 2nd $400 • 3rd $160 • Random winners $80 each",
+    },
+        {
+      members: "12,000 monthly members",
+      monthly: "1st $1600 • 2nd $800 • 3rd $320 • Random winners $160 each",
     },
   ];
 
