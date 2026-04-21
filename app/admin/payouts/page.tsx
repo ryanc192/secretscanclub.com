@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import type { CSSProperties, Dispatch, SetStateAction } from "react";
 import Link from "next/link";
 import { createBrowserSupabaseClient } from "../../../lib/supabase/client";
 
@@ -36,6 +37,7 @@ type WinnerRow = {
   prize_multiplier: number | null;
   total_prize_amount: number | null;
   base_prize_amount: number | null;
+  created_at?: string | null;
 };
 
 function formatCurrency(value: number | null | undefined) {
@@ -89,9 +91,27 @@ function normalizeCategory(category: string | null | undefined, placement: numbe
 function getPortalLink(method: string | null | undefined) {
   const normalized = (method ?? "").trim().toLowerCase();
 
-  if (normalized === "paypal") return "https://www.paypal.com";
-  if (normalized === "venmo") return "https://venmo.com";
-  if (normalized === "cashapp") return "https://cash.app";
+  if (normalized === "paypal") {
+    return {
+      href: "https://www.paypal.com",
+      label: "Go to PayPal",
+    };
+  }
+
+  if (normalized === "venmo") {
+    return {
+      href: "https://venmo.com",
+      label: "Go to Venmo",
+    };
+  }
+
+  if (normalized === "cashapp") {
+    return {
+      href: "https://cash.app",
+      label: "Go to Cash App",
+    };
+  }
+
   return null;
 }
 
@@ -129,6 +149,44 @@ function getStatusStyles(status: string) {
   };
 }
 
+function getMonthKey(value: string | null | undefined) {
+  if (!value) return "unknown";
+  const normalized = value.slice(0, 7);
+  if (/^\d{4}-\d{2}$/.test(normalized)) return normalized;
+  const parsed = new Date(`${value}T00:00:00`);
+  if (Number.isNaN(parsed.getTime())) return "unknown";
+  const year = parsed.getFullYear();
+  const month = String(parsed.getMonth() + 1).padStart(2, "0");
+  return `${year}-${month}`;
+}
+
+function getYearFromMonthKey(monthKey: string) {
+  if (!monthKey || monthKey === "unknown") return "Unknown";
+  return monthKey.slice(0, 4);
+}
+
+function getMonthLabelFromKey(monthKey: string) {
+  if (!monthKey || monthKey === "unknown") return "Unknown month";
+  const parsed = new Date(`${monthKey}-01T00:00:00`);
+  if (Number.isNaN(parsed.getTime())) return monthKey;
+  return parsed.toLocaleDateString("en-US", {
+    month: "long",
+    year: "numeric",
+  });
+}
+
+function getPreferredPayoutDetail(row: WinnerRow) {
+  return row.claim_handle || row.claim_email || row.claim_phone || "—";
+}
+
+function getDisplayStatus(status: string | null | undefined): ClaimStatus {
+  const normalized = (status ?? "").trim().toLowerCase();
+  if (normalized === "pending") return "pending";
+  if (normalized === "approved") return "approved";
+  if (normalized === "paid") return "paid";
+  return "unclaimed";
+}
+
 export default function AdminPayoutsPage() {
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
   const [loading, setLoading] = useState(true);
@@ -139,6 +197,9 @@ export default function AdminPayoutsPage() {
   const [savingId, setSavingId] = useState<string | null>(null);
   const [notesMap, setNotesMap] = useState<Record<string, string>>({});
   const [referenceMap, setReferenceMap] = useState<Record<string, string>>({});
+  const [selectedYear, setSelectedYear] = useState("all");
+  const [selectedMonth, setSelectedMonth] = useState("all");
+  const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -183,9 +244,9 @@ export default function AdminPayoutsPage() {
         const { data: winnerRows, error: winnersError } = await supabase
           .from("monthly_winners")
           .select(
-            "id, winner_month, category, placement, winner_name, membership_tier, claim_status, claim_method, claim_full_name, claim_email, claim_phone, claim_handle, claim_notes, admin_notes, payment_reference, claimed_at, approved_at, paid_at, prize_multiplier, total_prize_amount, base_prize_amount"
+            "id, winner_month, category, placement, winner_name, membership_tier, claim_status, claim_method, claim_full_name, claim_email, claim_phone, claim_handle, claim_notes, admin_notes, payment_reference, claimed_at, approved_at, paid_at, prize_multiplier, total_prize_amount, base_prize_amount, created_at"
           )
-          .in("claim_status", ["pending", "approved", "paid"])
+          .in("claim_status", ["unclaimed", "pending", "approved", "paid"])
           .order("winner_month", { ascending: false })
           .order("claimed_at", { ascending: true, nullsFirst: false })
           .order("created_at", { ascending: false });
@@ -228,9 +289,19 @@ export default function AdminPayoutsPage() {
     };
   }, [supabase]);
 
-  async function copyText(value: string | null | undefined) {
-    if (!value) return;
-    await navigator.clipboard.writeText(value);
+  async function copyText(key: string, value: string | null | undefined) {
+    if (!value || value === "—") return;
+
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopiedKey(key);
+
+      window.setTimeout(() => {
+        setCopiedKey((current) => (current === key ? null : current));
+      }, 1500);
+    } catch (err) {
+      console.error(err);
+    }
   }
 
   async function updateClaim(rowId: string, nextStatus: "approved" | "paid") {
@@ -251,9 +322,7 @@ export default function AdminPayoutsPage() {
 
       const updated = data as WinnerRow;
 
-      setRows((prev) =>
-        prev.map((row) => (row.id === rowId ? { ...row, ...updated } : row))
-      );
+      setRows((prev) => prev.map((row) => (row.id === rowId ? { ...row, ...updated } : row)));
     } catch (err) {
       console.error(err);
       setError(`Could not update claim ${rowId}.`);
@@ -262,9 +331,56 @@ export default function AdminPayoutsPage() {
     }
   }
 
-  const pendingRows = rows.filter((row) => (row.claim_status ?? "") === "pending");
-  const approvedRows = rows.filter((row) => (row.claim_status ?? "") === "approved");
-  const paidRows = rows.filter((row) => (row.claim_status ?? "") === "paid");
+  const allMonthKeys = useMemo(() => {
+    return Array.from(new Set(rows.map((row) => getMonthKey(row.winner_month)))).sort((a, b) =>
+      b.localeCompare(a)
+    );
+  }, [rows]);
+
+  const yearOptions = useMemo(() => {
+    return Array.from(
+      new Set(
+        allMonthKeys.map((monthKey) => getYearFromMonthKey(monthKey))
+      )
+    ).sort((a, b) => b.localeCompare(a));
+  }, [allMonthKeys]);
+
+  const monthOptions = useMemo(() => {
+    if (selectedYear === "all") {
+      return allMonthKeys;
+    }
+
+    return allMonthKeys.filter((monthKey) => getYearFromMonthKey(monthKey) === selectedYear);
+  }, [allMonthKeys, selectedYear]);
+
+  useEffect(() => {
+    if (selectedMonth === "all") return;
+    if (!monthOptions.includes(selectedMonth)) {
+      setSelectedMonth("all");
+    }
+  }, [monthOptions, selectedMonth]);
+
+  const filteredRows = useMemo(() => {
+    return rows.filter((row) => {
+      const monthKey = getMonthKey(row.winner_month);
+      const year = getYearFromMonthKey(monthKey);
+
+      const matchesYear = selectedYear === "all" || year === selectedYear;
+      const matchesMonth = selectedMonth === "all" || monthKey === selectedMonth;
+
+      return matchesYear && matchesMonth;
+    });
+  }, [rows, selectedYear, selectedMonth]);
+
+  const unclaimedRows = filteredRows.filter((row) => getDisplayStatus(row.claim_status) === "unclaimed");
+  const pendingRows = filteredRows.filter((row) => getDisplayStatus(row.claim_status) === "pending");
+  const approvedRows = filteredRows.filter((row) => getDisplayStatus(row.claim_status) === "approved");
+  const paidRows = filteredRows.filter((row) => getDisplayStatus(row.claim_status) === "paid");
+
+  const totalUnclaimedAmount = unclaimedRows.reduce((sum, row) => sum + Number(row.total_prize_amount ?? 0), 0);
+  const totalPendingAmount = pendingRows.reduce((sum, row) => sum + Number(row.total_prize_amount ?? 0), 0);
+  const totalApprovedAmount = approvedRows.reduce((sum, row) => sum + Number(row.total_prize_amount ?? 0), 0);
+  const totalPaidAmount = paidRows.reduce((sum, row) => sum + Number(row.total_prize_amount ?? 0), 0);
 
   if (loading) {
     return (
@@ -311,10 +427,79 @@ export default function AdminPayoutsPage() {
 
         {error ? <div style={styles.errorBox}>{error}</div> : null}
 
+        <section style={styles.filterCard}>
+          <div style={styles.filterHeader}>
+            <div>
+              <div style={styles.filterTitle}>Organizer</div>
+              <div style={styles.filterSubtitle}>Filter the payout dashboard by year and month.</div>
+            </div>
+          </div>
+
+          <div style={styles.filterGrid}>
+            <label style={styles.field}>
+              <span style={styles.fieldLabel}>Year</span>
+              <select
+                value={selectedYear}
+                onChange={(e) => {
+                  setSelectedYear(e.target.value);
+                  setSelectedMonth("all");
+                }}
+                style={styles.select}
+              >
+                <option value="all">All Years</option>
+                {yearOptions.map((year) => (
+                  <option key={year} value={year}>
+                    {year}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label style={styles.field}>
+              <span style={styles.fieldLabel}>Month</span>
+              <select
+                value={selectedMonth}
+                onChange={(e) => setSelectedMonth(e.target.value)}
+                style={styles.select}
+              >
+                <option value="all">
+                  {selectedYear === "all" ? "All Months" : `All Months in ${selectedYear}`}
+                </option>
+                {monthOptions.map((monthKey) => (
+                  <option key={monthKey} value={monthKey}>
+                    {getMonthLabelFromKey(monthKey)}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+        </section>
+
         <SummaryRow
+          unclaimedCount={unclaimedRows.length}
           pendingCount={pendingRows.length}
           approvedCount={approvedRows.length}
           paidCount={paidRows.length}
+          totalUnclaimedAmount={totalUnclaimedAmount}
+          totalPendingAmount={totalPendingAmount}
+          totalApprovedAmount={totalApprovedAmount}
+          totalPaidAmount={totalPaidAmount}
+        />
+
+        <Section
+          title="Unclaimed Winners"
+          rows={unclaimedRows}
+          notesMap={notesMap}
+          referenceMap={referenceMap}
+          setNotesMap={setNotesMap}
+          setReferenceMap={setReferenceMap}
+          copyText={copyText}
+          copiedKey={copiedKey}
+          updateClaim={updateClaim}
+          savingId={savingId}
+          allowApprove={false}
+          allowPaid={false}
+          showAdminInputs={false}
         />
 
         <Section
@@ -325,10 +510,12 @@ export default function AdminPayoutsPage() {
           setNotesMap={setNotesMap}
           setReferenceMap={setReferenceMap}
           copyText={copyText}
+          copiedKey={copiedKey}
           updateClaim={updateClaim}
           savingId={savingId}
           allowApprove
           allowPaid={false}
+          showAdminInputs
         />
 
         <Section
@@ -339,24 +526,28 @@ export default function AdminPayoutsPage() {
           setNotesMap={setNotesMap}
           setReferenceMap={setReferenceMap}
           copyText={copyText}
+          copiedKey={copiedKey}
           updateClaim={updateClaim}
           savingId={savingId}
           allowApprove={false}
           allowPaid
+          showAdminInputs
         />
 
         <Section
-          title="Paid History"
+          title="Paid Out"
           rows={paidRows}
           notesMap={notesMap}
           referenceMap={referenceMap}
           setNotesMap={setNotesMap}
           setReferenceMap={setReferenceMap}
           copyText={copyText}
+          copiedKey={copiedKey}
           updateClaim={updateClaim}
           savingId={savingId}
           allowApprove={false}
           allowPaid={false}
+          showAdminInputs
         />
       </div>
     </main>
@@ -364,19 +555,46 @@ export default function AdminPayoutsPage() {
 }
 
 function SummaryRow({
+  unclaimedCount,
   pendingCount,
   approvedCount,
   paidCount,
+  totalUnclaimedAmount,
+  totalPendingAmount,
+  totalApprovedAmount,
+  totalPaidAmount,
 }: {
+  unclaimedCount: number;
   pendingCount: number;
   approvedCount: number;
   paidCount: number;
+  totalUnclaimedAmount: number;
+  totalPendingAmount: number;
+  totalApprovedAmount: number;
+  totalPaidAmount: number;
 }) {
   return (
     <section style={styles.summaryGrid}>
-      <StatCard label="Pending" value={String(pendingCount)} />
-      <StatCard label="Approved" value={String(approvedCount)} />
-      <StatCard label="Paid" value={String(paidCount)} />
+      <StatCard
+        label="Unclaimed Winners"
+        value={String(unclaimedCount)}
+        subValue={formatCurrency(totalUnclaimedAmount)}
+      />
+      <StatCard
+        label="Pending Claims"
+        value={String(pendingCount)}
+        subValue={formatCurrency(totalPendingAmount)}
+      />
+      <StatCard
+        label="Approved"
+        value={String(approvedCount)}
+        subValue={formatCurrency(totalApprovedAmount)}
+      />
+      <StatCard
+        label="Paid Out"
+        value={String(paidCount)}
+        subValue={formatCurrency(totalPaidAmount)}
+      />
     </section>
   );
 }
@@ -386,13 +604,15 @@ function Section(props: {
   rows: WinnerRow[];
   notesMap: Record<string, string>;
   referenceMap: Record<string, string>;
-  setNotesMap: React.Dispatch<React.SetStateAction<Record<string, string>>>;
-  setReferenceMap: React.Dispatch<React.SetStateAction<Record<string, string>>>;
-  copyText: (value: string | null | undefined) => Promise<void>;
+  setNotesMap: Dispatch<SetStateAction<Record<string, string>>>;
+  setReferenceMap: Dispatch<SetStateAction<Record<string, string>>>;
+  copyText: (key: string, value: string | null | undefined) => Promise<void>;
+  copiedKey: string | null;
   updateClaim: (rowId: string, nextStatus: "approved" | "paid") => Promise<void>;
   savingId: string | null;
   allowApprove: boolean;
   allowPaid: boolean;
+  showAdminInputs: boolean;
 }) {
   const {
     title,
@@ -402,16 +622,19 @@ function Section(props: {
     setNotesMap,
     setReferenceMap,
     copyText,
+    copiedKey,
     updateClaim,
     savingId,
     allowApprove,
     allowPaid,
+    showAdminInputs,
   } = props;
 
   return (
     <section style={styles.sectionCard}>
       <div style={styles.sectionHeader}>
         <h2 style={styles.sectionTitle}>{title}</h2>
+        <div style={styles.sectionCount}>{rows.length} total</div>
       </div>
 
       {rows.length === 0 ? (
@@ -420,7 +643,8 @@ function Section(props: {
         <div style={{ display: "grid", gap: 16 }}>
           {rows.map((row) => {
             const portalLink = getPortalLink(row.claim_method);
-            const statusStyles = getStatusStyles(row.claim_status ?? "pending");
+            const statusStyles = getStatusStyles(row.claim_status ?? "unclaimed");
+            const payoutDetail = getPreferredPayoutDetail(row);
 
             return (
               <div key={row.id} style={styles.rowCard}>
@@ -430,15 +654,13 @@ function Section(props: {
                       {normalizeCategory(row.category, row.placement)} • {row.winner_name ?? "Winner"}
                     </div>
                     <div style={styles.rowMeta}>
-                      {formatMonth(row.winner_month)} • {row.membership_tier ?? "Member"} •{" "}
-                      Base {formatCurrency(row.base_prize_amount)} •{" "}
-                      Multiplier {row.prize_multiplier ?? 1}x •{" "}
-                      Total {formatCurrency(row.total_prize_amount)}
+                      {formatMonth(row.winner_month)} • {row.membership_tier ?? "Member"} • Base{" "}
+                      {formatCurrency(row.base_prize_amount)} • Multiplier {row.prize_multiplier ?? 1}x
                     </div>
                   </div>
 
                   <span style={{ ...styles.statusPill, ...statusStyles }}>
-                    {row.claim_status ?? "pending"}
+                    {getDisplayStatus(row.claim_status)}
                   </span>
                 </div>
 
@@ -449,6 +671,22 @@ function Section(props: {
                   <Detail label="Phone" value={row.claim_phone ?? "—"} />
                   <Detail label="Handle" value={row.claim_handle ?? "—"} />
                   <Detail label="Submitted" value={formatDateTime(row.claimed_at)} />
+                  <CopyableDetail
+                    label="Payout Details"
+                    value={payoutDetail}
+                    copied={copiedKey === `detail-${row.id}`}
+                    onCopy={() => copyText(`detail-${row.id}`, payoutDetail)}
+                  />
+                  <CopyableDetail
+                    label="Payout Amount"
+                    value={formatCurrency(row.total_prize_amount)}
+                    copied={copiedKey === `amount-${row.id}`}
+                    onCopy={() =>
+                      copyText(`amount-${row.id}`, String(Number(row.total_prize_amount ?? 0)))
+                    }
+                    accent
+                  />
+                  <Detail label="Paid At" value={formatDateTime(row.paid_at)} />
                 </div>
 
                 {row.claim_notes ? (
@@ -457,57 +695,43 @@ function Section(props: {
                   </div>
                 ) : null}
 
-                <div style={styles.inputGrid}>
-                  <label style={styles.field}>
-                    <span style={styles.fieldLabel}>Admin Notes</span>
-                    <textarea
-                      value={notesMap[row.id] ?? ""}
-                      onChange={(e) =>
-                        setNotesMap((prev) => ({ ...prev, [row.id]: e.target.value }))
-                      }
-                      rows={3}
-                      style={styles.textarea}
-                    />
-                  </label>
+                {showAdminInputs ? (
+                  <div style={styles.inputGrid}>
+                    <label style={styles.field}>
+                      <span style={styles.fieldLabel}>Admin Notes</span>
+                      <textarea
+                        value={notesMap[row.id] ?? ""}
+                        onChange={(e) =>
+                          setNotesMap((prev) => ({ ...prev, [row.id]: e.target.value }))
+                        }
+                        rows={3}
+                        style={styles.textarea}
+                      />
+                    </label>
 
-                  <label style={styles.field}>
-                    <span style={styles.fieldLabel}>Payment Reference</span>
-                    <input
-                      value={referenceMap[row.id] ?? ""}
-                      onChange={(e) =>
-                        setReferenceMap((prev) => ({ ...prev, [row.id]: e.target.value }))
-                      }
-                      placeholder="PayPal txn / Venmo note / Cash App ref"
-                      style={styles.input}
-                    />
-                  </label>
-                </div>
+                    <label style={styles.field}>
+                      <span style={styles.fieldLabel}>Payment Reference</span>
+                      <input
+                        value={referenceMap[row.id] ?? ""}
+                        onChange={(e) =>
+                          setReferenceMap((prev) => ({ ...prev, [row.id]: e.target.value }))
+                        }
+                        placeholder="PayPal txn / Venmo note / Cash App ref"
+                        style={styles.input}
+                      />
+                    </label>
+                  </div>
+                ) : null}
 
                 <div style={styles.actionRow}>
-                  <button
-                    type="button"
-                    onClick={() => copyText(row.claim_handle || row.claim_email || row.claim_phone)}
-                    style={styles.helperButton}
-                  >
-                    Copy Payout Details
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => copyText(String(row.total_prize_amount ?? ""))}
-                    style={styles.helperButton}
-                  >
-                    Copy Amount
-                  </button>
-
                   {portalLink ? (
                     <a
-                      href={portalLink}
+                      href={portalLink.href}
                       target="_blank"
                       rel="noreferrer"
                       style={styles.helperLink}
                     >
-                      Open Portal
+                      {portalLink.label}
                     </a>
                   ) : null}
 
@@ -551,16 +775,102 @@ function Detail({ label, value }: { label: string; value: string }) {
   );
 }
 
-function StatCard({ label, value }: { label: string; value: string }) {
+function CopyableDetail({
+  label,
+  value,
+  copied,
+  onCopy,
+  accent = false,
+}: {
+  label: string;
+  value: string;
+  copied: boolean;
+  onCopy: () => void;
+  accent?: boolean;
+}) {
   return (
-    <div style={styles.statCard}>
-      <div style={styles.statLabel}>{label}</div>
-      <div style={styles.statValue}>{value}</div>
+    <div
+      style={{
+        ...styles.detailCard,
+        ...(accent ? styles.detailCardAccent : null),
+      }}
+    >
+      <div style={styles.copyableHeader}>
+        <div style={styles.detailLabel}>{label}</div>
+        <button type="button" onClick={onCopy} style={styles.copyIconButton} aria-label={`Copy ${label}`}>
+          {copied ? <CheckIcon /> : <CopyIcon />}
+        </button>
+      </div>
+      <div style={styles.detailValue}>{value}</div>
     </div>
   );
 }
 
-const styles: Record<string, React.CSSProperties> = {
+function StatCard({
+  label,
+  value,
+  subValue,
+}: {
+  label: string;
+  value: string;
+  subValue?: string;
+}) {
+  return (
+    <div style={styles.statCard}>
+      <div style={styles.statLabel}>{label}</div>
+      <div style={styles.statValue}>{value}</div>
+      {subValue ? <div style={styles.statSubValue}>{subValue}</div> : null}
+    </div>
+  );
+}
+
+function CopyIcon() {
+  return (
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      aria-hidden="true"
+      style={{ display: "block" }}
+    >
+      <path
+        d="M9 9.75A2.25 2.25 0 0 1 11.25 7.5h7.5A2.25 2.25 0 0 1 21 9.75v7.5a2.25 2.25 0 0 1-2.25 2.25h-7.5A2.25 2.25 0 0 1 9 17.25v-7.5Z"
+        stroke="currentColor"
+        strokeWidth="1.8"
+      />
+      <path
+        d="M15 7.5V6.75A2.25 2.25 0 0 0 12.75 4.5h-7.5A2.25 2.25 0 0 0 3 6.75v7.5A2.25 2.25 0 0 0 5.25 16.5H6"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+function CheckIcon() {
+  return (
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      aria-hidden="true"
+      style={{ display: "block" }}
+    >
+      <path
+        d="M5 12.5l4.2 4.2L19 7"
+        stroke="currentColor"
+        strokeWidth="2.2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+const styles: Record<string, CSSProperties> = {
   page: {
     minHeight: "100vh",
     background: "linear-gradient(180deg, #07111f 0%, #0b1728 55%, #101d31 100%)",
@@ -614,9 +924,45 @@ const styles: Record<string, React.CSSProperties> = {
     padding: "14px 16px",
     marginBottom: 20,
   },
+  filterCard: {
+    background: "rgba(255,255,255,0.06)",
+    border: "1px solid rgba(255,255,255,0.10)",
+    borderRadius: 22,
+    padding: 20,
+    marginBottom: 20,
+  },
+  filterHeader: {
+    marginBottom: 14,
+  },
+  filterTitle: {
+    fontSize: 18,
+    fontWeight: 800,
+    marginBottom: 6,
+  },
+  filterSubtitle: {
+    color: "rgba(255,255,255,0.7)",
+    fontSize: 14,
+  },
+  filterGrid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+    gap: 14,
+  },
+  select: {
+    width: "100%",
+    boxSizing: "border-box",
+    background: "rgba(255,255,255,0.08)",
+    color: "#ffffff",
+    border: "1px solid rgba(255,255,255,0.14)",
+    borderRadius: 14,
+    padding: "14px 16px",
+    fontSize: 15,
+    outline: "none",
+    appearance: "none",
+  },
   summaryGrid: {
     display: "grid",
-    gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+    gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
     gap: 16,
     marginBottom: 20,
   },
@@ -634,6 +980,13 @@ const styles: Record<string, React.CSSProperties> = {
   statValue: {
     fontSize: 32,
     fontWeight: 800,
+    lineHeight: 1.1,
+  },
+  statSubValue: {
+    marginTop: 10,
+    color: "#9bbcff",
+    fontWeight: 700,
+    fontSize: 14,
   },
   sectionCard: {
     background: "rgba(255,255,255,0.06)",
@@ -644,11 +997,21 @@ const styles: Record<string, React.CSSProperties> = {
   },
   sectionHeader: {
     marginBottom: 14,
+    display: "flex",
+    justifyContent: "space-between",
+    gap: 12,
+    alignItems: "center",
+    flexWrap: "wrap",
   },
   sectionTitle: {
     margin: 0,
     fontSize: 24,
     fontWeight: 800,
+  },
+  sectionCount: {
+    color: "rgba(255,255,255,0.7)",
+    fontWeight: 700,
+    fontSize: 14,
   },
   emptyState: {
     color: "rgba(255,255,255,0.72)",
@@ -682,12 +1045,13 @@ const styles: Record<string, React.CSSProperties> = {
     display: "inline-flex",
     alignItems: "center",
     justifyContent: "center",
-    minWidth: 90,
+    minWidth: 96,
     padding: "8px 14px",
     borderRadius: 999,
     fontSize: 13,
     fontWeight: 700,
     whiteSpace: "nowrap",
+    textTransform: "capitalize",
   },
   detailsGrid: {
     display: "grid",
@@ -700,6 +1064,11 @@ const styles: Record<string, React.CSSProperties> = {
     border: "1px solid rgba(255,255,255,0.08)",
     borderRadius: 14,
     padding: 14,
+    minHeight: 86,
+  },
+  detailCardAccent: {
+    background: "rgba(155,188,255,0.08)",
+    border: "1px solid rgba(155,188,255,0.24)",
   },
   detailLabel: {
     fontSize: 12,
@@ -712,6 +1081,28 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 14,
     fontWeight: 600,
     wordBreak: "break-word",
+    lineHeight: 1.5,
+  },
+  copyableHeader: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 10,
+    marginBottom: 6,
+  },
+  copyIconButton: {
+    width: 30,
+    height: 30,
+    borderRadius: 999,
+    border: "1px solid rgba(255,255,255,0.14)",
+    background: "rgba(255,255,255,0.08)",
+    color: "#ffffff",
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    cursor: "pointer",
+    padding: 0,
+    flexShrink: 0,
   },
   notesBox: {
     background: "rgba(255,255,255,0.05)",
@@ -764,15 +1155,6 @@ const styles: Record<string, React.CSSProperties> = {
     display: "flex",
     flexWrap: "wrap",
     gap: 10,
-  },
-  helperButton: {
-    background: "rgba(255,255,255,0.08)",
-    color: "#ffffff",
-    border: "1px solid rgba(255,255,255,0.12)",
-    borderRadius: 12,
-    padding: "12px 16px",
-    fontWeight: 700,
-    cursor: "pointer",
   },
   helperLink: {
     display: "inline-flex",
