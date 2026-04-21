@@ -14,6 +14,7 @@ type ClaimRow = {
   placement: number | null;
   winner_name: string | null;
   membership_tier: string | null;
+  prize_multiplier: number | null;
   total_prize_amount: number | null;
   base_prize_amount: number | null;
   claim_status: string | null;
@@ -121,12 +122,19 @@ function getDisplayMultiplier(row: ClaimRow) {
     }
   }
 
-  const parsed = Number((row as ClaimRow & { prize_multiplier?: number | null }).prize_multiplier ?? 1);
+  const parsed = Number(row.prize_multiplier ?? 1);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : 1;
 }
 
-function isClaimRow(value: unknown): value is ClaimRow {
-  return !!value && typeof value === "object" && !Array.isArray(value) && "id" in value;
+function getWinnerIdFromUrl() {
+  if (typeof window === "undefined") return null;
+  const params = new URLSearchParams(window.location.search);
+  return params.get("winner");
+}
+
+function isLockedStatus(status: string | null | undefined) {
+  const normalized = (status ?? "").trim().toLowerCase();
+  return normalized === "pending" || normalized === "approved" || normalized === "paid";
 }
 
 export default function ClaimPrizePage() {
@@ -136,7 +144,6 @@ export default function ClaimPrizePage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
 
   const [claimRow, setClaimRow] = useState<ClaimRow | null>(null);
   const [claimMethod, setClaimMethod] = useState<ClaimMethod>("paypal");
@@ -152,7 +159,6 @@ export default function ClaimPrizePage() {
     async function loadClaim() {
       setLoading(true);
       setError("");
-      setSuccess("");
 
       try {
         const {
@@ -165,16 +171,22 @@ export default function ClaimPrizePage() {
           return;
         }
 
+        const winnerId = getWinnerIdFromUrl();
+
+        if (!winnerId) {
+          setError("No prize was selected.");
+          setLoading(false);
+          return;
+        }
+
         const { data, error: claimError } = await supabase
           .from("monthly_winners")
           .select(
             "id, winner_month, category, placement, winner_name, membership_tier, prize_multiplier, total_prize_amount, base_prize_amount, claim_status, claim_method, claim_full_name, claim_email, claim_phone, claim_handle, claim_notes"
           )
+          .eq("id", winnerId)
           .eq("user_id", user.id)
-          .in("claim_status", ["unclaimed", "pending", "submitted", "approved"])
-          .order("winner_month", { ascending: false })
-          .order("created_at", { ascending: false })
-          .limit(10);
+          .maybeSingle();
 
         if (claimError) {
           throw claimError;
@@ -182,15 +194,14 @@ export default function ClaimPrizePage() {
 
         if (!active) return;
 
-        const rows = Array.isArray(data) ? data.filter(isClaimRow) : [];
-        const row = rows[0] ?? null;
-
-        if (!row) {
+        if (!data) {
           setClaimRow(null);
+          setError("That prize could not be found for your account.");
           setLoading(false);
           return;
         }
 
+        const row = data as ClaimRow;
         const nextMethod =
           ((row.claim_method ?? "paypal").toLowerCase() as ClaimMethod) || "paypal";
 
@@ -226,18 +237,19 @@ export default function ClaimPrizePage() {
       return;
     }
 
+    if (isLockedStatus(claimRow.claim_status)) {
+      setError("This prize is already pending review or has already been processed.");
+      return;
+    }
+
     setSaving(true);
     setError("");
-    setSuccess("");
 
     try {
-      const nextStatus =
-        (claimRow.claim_status ?? "").toLowerCase() === "approved" ? "approved" : "pending";
-
       const { error: updateError } = await supabase
         .from("monthly_winners")
         .update({
-          claim_status: nextStatus,
+          claim_status: "pending",
           claim_method: claimMethod,
           claim_full_name: fullName.trim() || null,
           claim_email: email.trim() || null,
@@ -246,28 +258,14 @@ export default function ClaimPrizePage() {
           claim_notes: notes.trim() || null,
           claimed_at: new Date().toISOString(),
         })
-        .eq("id", claimRow.id);
+        .eq("id", claimRow.id)
+        .eq("user_id", (await supabase.auth.getUser()).data.user?.id ?? "");
 
       if (updateError) {
         throw updateError;
       }
 
-      setClaimRow((prev) =>
-        prev
-          ? {
-              ...prev,
-              claim_status: nextStatus,
-              claim_method: claimMethod,
-              claim_full_name: fullName.trim() || null,
-              claim_email: email.trim() || null,
-              claim_phone: phone.trim() || null,
-              claim_handle: handle.trim() || null,
-              claim_notes: notes.trim() || null,
-            }
-          : prev
-      );
-
-      setSuccess("Your prize claim was submitted successfully.");
+      router.push("/dashboard/claim-prize/confirmation");
     } catch (err) {
       console.error("Failed to submit prize claim:", err);
       setError(`Could not submit your claim. ${getErrorMessage(err)}`);
@@ -292,7 +290,7 @@ export default function ClaimPrizePage() {
             <div style={styles.kicker}>Prize Claim</div>
             <h1 style={styles.title}>No active prize claim</h1>
             <p style={styles.text}>
-              You do not have an unclaimed or pending prize available right now.
+              You do not have a matching prize available to claim right now.
             </p>
             <div style={styles.actions}>
               <Link href="/dashboard" style={styles.primaryLink}>
@@ -310,6 +308,7 @@ export default function ClaimPrizePage() {
 
   const displayMultiplier = getDisplayMultiplier(claimRow);
   const prizeLabel = getPrizeLabel(claimRow.category, claimRow.placement);
+  const locked = isLockedStatus(claimRow.claim_status);
 
   return (
     <main style={styles.page}>
@@ -322,22 +321,16 @@ export default function ClaimPrizePage() {
 
         <section style={styles.heroCard}>
           <div style={styles.kicker}>Prize Claim</div>
-          <h1 style={styles.title}>
-            {(claimRow.claim_status ?? "").toLowerCase() === "pending"
-              ? "Update your prize claim"
-              : "Claim your prize"}
-          </h1>
+          <h1 style={styles.title}>{locked ? "Prize claim already submitted" : "Claim your prize"}</h1>
           <p style={styles.text}>
-            Fill out your payout details below so your prize can be reviewed and sent.
+            {locked
+              ? "This prize is already pending review or has already been processed."
+              : "Fill out your payout details below so your prize can be reviewed and sent."}
           </p>
 
           <div style={styles.summaryRow} className="claim-summary-row">
             <div style={styles.prizeHeroCard}>
-              <img
-                src="/ssc-logo.png"
-                alt="SSC Logo"
-                style={styles.logoBadge}
-              />
+              <img src="/ssc-logo.png" alt="SSC Logo" style={styles.logoBadge} />
 
               <div style={{ minWidth: 0, width: "100%" }}>
                 <div style={styles.prizeCategory}>{prizeLabel}</div>
@@ -372,7 +365,6 @@ export default function ClaimPrizePage() {
           </div>
 
           {error ? <div style={styles.errorBox}>{error}</div> : null}
-          {success ? <div style={styles.successBox}>{success}</div> : null}
         </section>
 
         <section style={styles.card}>
@@ -383,6 +375,7 @@ export default function ClaimPrizePage() {
                 value={claimMethod}
                 onChange={(e) => setClaimMethod(e.target.value as ClaimMethod)}
                 style={styles.select}
+                disabled={locked || saving}
               >
                 <option value="paypal">PayPal</option>
                 <option value="cashapp">Cash App</option>
@@ -399,6 +392,7 @@ export default function ClaimPrizePage() {
                 onChange={(e) => setFullName(e.target.value)}
                 placeholder="Your full name"
                 style={styles.input}
+                disabled={locked || saving}
               />
             </label>
 
@@ -410,6 +404,7 @@ export default function ClaimPrizePage() {
                 placeholder="you@example.com"
                 type="email"
                 style={styles.input}
+                disabled={locked || saving}
               />
             </label>
 
@@ -420,6 +415,7 @@ export default function ClaimPrizePage() {
                 onChange={(e) => setPhone(e.target.value)}
                 placeholder="Your phone number"
                 style={styles.input}
+                disabled={locked || saving}
               />
             </label>
 
@@ -446,6 +442,7 @@ export default function ClaimPrizePage() {
                     : "Enter payout details"
                 }
                 style={styles.input}
+                disabled={locked || saving}
               />
             </label>
 
@@ -457,16 +454,27 @@ export default function ClaimPrizePage() {
                 placeholder="Anything you want us to know about this payout"
                 rows={4}
                 style={styles.textarea}
+                disabled={locked || saving}
               />
             </label>
 
             <div style={styles.actions}>
-              <button type="submit" disabled={saving} style={styles.primaryButton}>
-                {saving ? "Saving..." : "Submit Claim"}
-              </button>
+              {locked ? (
+                <button type="button" disabled style={styles.disabledButton}>
+                  {claimRow.claim_status?.toLowerCase() === "paid"
+                    ? "Already Paid"
+                    : claimRow.claim_status?.toLowerCase() === "approved"
+                    ? "Approved"
+                    : "Pending"}
+                </button>
+              ) : (
+                <button type="submit" disabled={saving} style={styles.primaryButton}>
+                  {saving ? "Saving..." : "Submit Claim"}
+                </button>
+              )}
 
               <Link href="/dashboard" style={styles.secondaryLink}>
-                Cancel
+                Back to Dashboard
               </Link>
             </div>
           </form>
@@ -563,11 +571,10 @@ const styles: Record<string, React.CSSProperties> = {
     marginTop: 8,
   },
   prizeHeroCard: {
-    prizeHeroCard: {
-  display: "flex",
-  alignItems: "center",
-  gap: 20,
-  flexWrap: "wrap", // prevents layout breaking on smaller screens
+    display: "flex",
+    alignItems: "center",
+    gap: 20,
+    flexWrap: "wrap",
     justifyContent: "space-between",
     padding: "18px 20px",
     borderRadius: 20,
@@ -654,15 +661,6 @@ const styles: Record<string, React.CSSProperties> = {
     marginTop: 18,
     whiteSpace: "pre-wrap",
   },
-  successBox: {
-    background: "rgba(34,197,94,0.12)",
-    border: "1px solid rgba(34,197,94,0.28)",
-    color: "#c9f7d8",
-    borderRadius: 14,
-    padding: "14px 16px",
-    marginTop: 18,
-    whiteSpace: "pre-wrap",
-  },
   form: {
     display: "grid",
     gap: 16,
@@ -726,6 +724,16 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 15,
     fontWeight: 800,
     cursor: "pointer",
+  },
+  disabledButton: {
+    background: "rgba(255,255,255,0.08)",
+    color: "rgba(255,255,255,0.55)",
+    border: "1px solid rgba(255,255,255,0.12)",
+    borderRadius: 14,
+    padding: "14px 18px",
+    fontSize: 15,
+    fontWeight: 800,
+    cursor: "not-allowed",
   },
   primaryLink: {
     display: "inline-block",
