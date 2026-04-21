@@ -51,30 +51,15 @@ function normalizeCategory(value: unknown, placement?: unknown) {
     return "";
   }
 
-  if (
-    raw === "1st" ||
-    raw === "1st place" ||
-    raw === "first" ||
-    raw === "first_place"
-  ) {
+  if (raw === "1st" || raw === "1st place" || raw === "first" || raw === "first_place") {
     return "first_place";
   }
 
-  if (
-    raw === "2nd" ||
-    raw === "2nd place" ||
-    raw === "second" ||
-    raw === "second_place"
-  ) {
+  if (raw === "2nd" || raw === "2nd place" || raw === "second" || raw === "second_place") {
     return "second_place";
   }
 
-  if (
-    raw === "3rd" ||
-    raw === "3rd place" ||
-    raw === "third" ||
-    raw === "third_place"
-  ) {
+  if (raw === "3rd" || raw === "3rd place" || raw === "third" || raw === "third_place") {
     return "third_place";
   }
 
@@ -85,13 +70,7 @@ function normalizeCategory(value: unknown, placement?: unknown) {
     return "leaderboard";
   }
 
-  if (raw === "random") {
-    return "random";
-  }
-
-  if (raw.includes("random")) {
-    const match = raw.match(/(\d+)/);
-    if (match) return `random_${match[1]}`;
+  if (raw === "random" || raw.startsWith("random_") || raw.includes("random")) {
     return "random";
   }
 
@@ -105,12 +84,6 @@ function categoryLabelFromKey(key: string) {
   if (key === "leaderboard") return "Leaderboard Winner";
   if (key === "random") return "Random Winner";
 
-  if (key.startsWith("random_")) {
-    const match = key.match(/(\d+)/);
-    if (match) return `Random ${match[1]}`;
-    return "Random Winner";
-  }
-
   return key
     .replace(/_/g, " ")
     .replace(/\b\w/g, (c) => c.toUpperCase())
@@ -123,11 +96,7 @@ function categorySortOrder(key: string) {
   if (key === "first_place") return 1;
   if (key === "second_place") return 2;
   if (key === "third_place") return 3;
-  if (key === "random" || key === "random_1") return 4;
-  if (key === "random_2") return 5;
-  if (key === "random_3") return 6;
-  if (key === "random_4") return 7;
-  if (key === "random_5") return 8;
+  if (key === "random") return 4;
   if (key === "leaderboard") return 999;
   return 999;
 }
@@ -291,7 +260,8 @@ export default function WinnersPage() {
           const membershipTier = formatMembershipTier(membershipTierRaw);
 
           const basePrizeNumber =
-            parseMoneyAmount(row.base_prize_amount) ?? parseMoneyAmount(row.prize_amount ?? row.prize ?? "?");
+            parseMoneyAmount(row.base_prize_amount) ??
+            parseMoneyAmount(row.prize_amount ?? row.prize ?? "?");
 
           const topThree = isTopThreeCategory(categoryKey);
 
@@ -444,14 +414,14 @@ export default function WinnersPage() {
                     </div>
                   ) : (
                     <div style={styles.winnerGrid}>
-                      {rows.map((item, index) => (
+                      {rows.map((item) => (
                         <div
                           key={item.id}
                           style={styles.winnerRow}
                           className="winner-row"
                         >
                           <div style={styles.winnerLeft} className="winner-left">
-                            <div style={styles.rankBadge}>{index + 1}</div>
+                            <div style={styles.rankBadge}>{item.sortOrder}</div>
 
                             <div style={{ minWidth: 0, width: "100%" }}>
                               <div style={styles.winnerCategory}>{item.category}</div>
@@ -613,11 +583,6 @@ export default function WinnersPage() {
 
           .winner-row {
             padding: 14px !important;
-          }
-
-          .rank-badge-mobile-fix {
-            width: 34px !important;
-            height: 34px !important;
           }
         }
       `}</style>
