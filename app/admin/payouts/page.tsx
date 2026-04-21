@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { CSSProperties, Dispatch, SetStateAction } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { createBrowserSupabaseClient } from "../../../lib/supabase/client";
 
 type ClaimStatus = "unclaimed" | "pending" | "approved" | "paid";
@@ -189,6 +190,8 @@ function getDisplayStatus(status: string | null | undefined): ClaimStatus {
 
 export default function AdminPayoutsPage() {
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
+  const router = useRouter();
+
   const [loading, setLoading] = useState(true);
   const [authorized, setAuthorized] = useState(false);
   const [profile, setProfile] = useState<AdminProfile | null>(null);
@@ -220,7 +223,7 @@ export default function AdminPayoutsPage() {
         if (userError || !user) {
           if (mounted) {
             setAuthorized(false);
-            setLoading(false);
+            router.replace("/admin/login?redirect=/admin/payouts");
           }
           return;
         }
@@ -238,8 +241,7 @@ export default function AdminPayoutsPage() {
         if (!profileRow?.is_admin) {
           if (mounted) {
             setAuthorized(false);
-            setProfile(profileRow ?? null);
-            setLoading(false);
+            router.replace("/admin/login?redirect=/admin/payouts");
           }
           return;
         }
@@ -290,7 +292,7 @@ export default function AdminPayoutsPage() {
     return () => {
       mounted = false;
     };
-  }, [supabase]);
+  }, [router, supabase]);
 
   async function copyText(key: string, value: string | null | undefined) {
     if (!value || value === "—") return;
@@ -448,19 +450,7 @@ export default function AdminPayoutsPage() {
   }
 
   if (!authorized) {
-    return (
-      <main style={styles.page}>
-        <div style={styles.centerCard}>
-          <div style={{ fontSize: 22, fontWeight: 800, marginBottom: 10 }}>Access denied</div>
-          <div style={{ color: "rgba(255,255,255,0.75)", marginBottom: 18 }}>
-            This page is only available to your admin account.
-          </div>
-          <Link href="/dashboard" style={styles.primaryLink}>
-            Back to Dashboard
-          </Link>
-        </div>
-      </main>
-    );
+    return null;
   }
 
   return (
@@ -933,14 +923,7 @@ function StatCard({
 
 function CopyIcon() {
   return (
-    <svg
-      width="16"
-      height="16"
-      viewBox="0 0 24 24"
-      fill="none"
-      aria-hidden="true"
-      style={{ display: "block" }}
-    >
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true" style={{ display: "block" }}>
       <path
         d="M9 9.75A2.25 2.25 0 0 1 11.25 7.5h7.5A2.25 2.25 0 0 1 21 9.75v7.5a2.25 2.25 0 0 1-2.25 2.25h-7.5A2.25 2.25 0 0 1 9 17.25v-7.5Z"
         stroke="currentColor"
@@ -958,14 +941,7 @@ function CopyIcon() {
 
 function CheckIcon() {
   return (
-    <svg
-      width="16"
-      height="16"
-      viewBox="0 0 24 24"
-      fill="none"
-      aria-hidden="true"
-      style={{ display: "block" }}
-    >
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true" style={{ display: "block" }}>
       <path
         d="M5 12.5l4.2 4.2L19 7"
         stroke="currentColor"
