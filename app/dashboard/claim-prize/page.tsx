@@ -329,10 +329,15 @@ export default function ClaimPrizePage() {
           </p>
 
           <div style={styles.summaryRow} className="claim-summary-row">
-            <div style={styles.prizeHeroCard}>
-              <img src="/ssc-logo.png" alt="SSC Logo" style={styles.logoBadge} />
+            <div style={styles.prizeHeroCard} className="claim-prize-hero-card">
+              <img
+                src="/ssc-logo.png"
+                alt="SSC Logo"
+                style={styles.logoBadge}
+                className="claim-logo-badge"
+              />
 
-              <div style={{ minWidth: 0, width: "100%" }}>
+              <div style={styles.prizeContent} className="claim-prize-content">
                 <div style={styles.prizeCategory}>{prizeLabel}</div>
 
                 <div style={styles.prizeMeta}>
@@ -486,11 +491,37 @@ export default function ClaimPrizePage() {
           .claim-summary-row {
             grid-template-columns: 1fr !important;
           }
+
+          .claim-prize-hero-card {
+            align-items: flex-start !important;
+          }
         }
 
         @media (max-width: 700px) {
           .claim-summary-row {
             gap: 14px !important;
+          }
+
+          .claim-prize-hero-card {
+            flex-direction: column !important;
+            align-items: flex-start !important;
+            gap: 14px !important;
+            padding: 16px !important;
+          }
+
+          .claim-logo-badge {
+            width: 96px !important;
+            height: auto !important;
+          }
+
+          .claim-prize-content {
+            width: 100% !important;
+          }
+        }
+
+        @media (max-width: 560px) {
+          .claim-prize-hero-card {
+            padding: 14px !important;
           }
         }
       `}</style>
@@ -574,8 +605,6 @@ const styles: Record<string, React.CSSProperties> = {
     display: "flex",
     alignItems: "center",
     gap: 20,
-    flexWrap: "wrap",
-    justifyContent: "space-between",
     padding: "18px 20px",
     borderRadius: 20,
     background: "rgba(255,255,255,0.04)",
@@ -584,12 +613,15 @@ const styles: Record<string, React.CSSProperties> = {
   },
   logoBadge: {
     width: 138,
-    height: 138,
+    height: "auto",
     objectFit: "contain",
     flexShrink: 0,
-    background: "rgba(255,255,255,0.05)",
-    border: "1px solid rgba(255,255,255,0.08)",
-    padding: 4,
+    display: "block",
+  },
+  prizeContent: {
+    minWidth: 0,
+    flex: 1,
+    width: "100%",
   },
   prizeCategory: {
     fontSize: 20,
