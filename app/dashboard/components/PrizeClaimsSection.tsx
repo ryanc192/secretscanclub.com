@@ -6,6 +6,7 @@ export type PrizeClaimRow = {
   id: string;
   winnerMonth: string | null;
   label: string;
+  basePrizeAmount: number;
   totalPrizeAmount: number;
   claimStatus: string;
   prizeMultiplier: number;
@@ -26,7 +27,11 @@ function formatWinnerMonth(value: string | null) {
 }
 
 function formatCurrency(value: number) {
-  return `$${value.toFixed(0)}`;
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    maximumFractionDigits: value % 1 === 0 ? 0 : 2,
+  }).format(value);
 }
 
 function getStatusStyles(status: string) {
@@ -61,6 +66,13 @@ function getStatusStyles(status: string) {
     color: "rgba(255,255,255,0.86)",
     border: "1px solid rgba(255,255,255,0.12)",
   };
+}
+
+function getLockedButtonLabel(status: string) {
+  if (status === "Paid") return "Already Paid";
+  if (status === "Pending") return "Pending";
+  if (status === "Approved") return "Approved";
+  return "Already Claimed";
 }
 
 export default function PrizeClaimsSection({
@@ -130,13 +142,14 @@ export default function PrizeClaimsSection({
                   style={{
                     width: "100%",
                     borderCollapse: "collapse",
-                    minWidth: "980px",
+                    minWidth: "1120px",
                   }}
                 >
                   <thead>
                     <tr>
                       <th style={headerCellStyle}>MONTH</th>
                       <th style={headerCellStyle}>PRIZE</th>
+                      <th style={headerCellStyle}>BASE PRIZE</th>
                       <th style={headerCellStyle}>MULTIPLIER</th>
                       <th style={headerCellStyle}>TOTAL WON</th>
                       <th style={headerCellStyle}>STATUS</th>
@@ -149,9 +162,13 @@ export default function PrizeClaimsSection({
                       const statusStyles = getStatusStyles(prize.claimStatus);
 
                       return (
-                        <tr key={prize.id} style={{ borderTop: "1px solid rgba(255,255,255,0.08)" }}>
+                        <tr
+                          key={prize.id}
+                          style={{ borderTop: "1px solid rgba(255,255,255,0.08)" }}
+                        >
                           <td style={bodyCellStyle}>{formatWinnerMonth(prize.winnerMonth)}</td>
                           <td style={bodyCellStyle}>{prize.label}</td>
+                          <td style={bodyCellStyle}>{formatCurrency(prize.basePrizeAmount)}</td>
                           <td style={bodyCellStyle}>
                             {prize.showMultiplier ? `${prize.prizeMultiplier}x` : "—"}
                           </td>
@@ -213,13 +230,7 @@ export default function PrizeClaimsSection({
                                   cursor: "not-allowed",
                                 }}
                               >
-                                {prize.claimStatus === "Paid"
-                                  ? "Already Paid"
-                                  : prize.claimStatus === "Pending"
-                                  ? "Pending"
-                                  : prize.claimStatus === "Approved"
-                                  ? "Approved"
-                                  : "Already Claimed"}
+                                {getLockedButtonLabel(prize.claimStatus)}
                               </button>
                             )}
                           </td>
@@ -309,6 +320,24 @@ export default function PrizeClaimsSection({
                           {prize.claimStatus}
                         </span>
 
+                        <span
+                          style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            padding: "8px 14px",
+                            borderRadius: "999px",
+                            fontSize: "13px",
+                            fontWeight: 700,
+                            whiteSpace: "nowrap",
+                            background: "rgba(255,255,255,0.08)",
+                            color: "rgba(255,255,255,0.85)",
+                            border: "1px solid rgba(255,255,255,0.12)",
+                          }}
+                        >
+                          Base {formatCurrency(prize.basePrizeAmount)}
+                        </span>
+
                         {prize.showMultiplier ? (
                           <span
                             style={{
@@ -370,13 +399,7 @@ export default function PrizeClaimsSection({
                             cursor: "not-allowed",
                           }}
                         >
-                          {prize.claimStatus === "Paid"
-                            ? "Already Paid"
-                            : prize.claimStatus === "Pending"
-                            ? "Pending"
-                            : prize.claimStatus === "Approved"
-                            ? "Approved"
-                            : "Already Claimed"}
+                          {getLockedButtonLabel(prize.claimStatus)}
                         </button>
                       )}
                     </div>
