@@ -1,24 +1,80 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import type { CSSProperties } from "react";
+import { useEffect, useMemo, useState } from "react";
+import type { CSSProperties, FormEvent } from "react";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { createBrowserSupabaseClient } from "../../../lib/supabase/client";
 
 export default function AdminLoginPage() {
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
   const router = useRouter();
-  const searchParams = useSearchParams();
 
-  const redirectTo = searchParams.get("redirect") || "/admin/payouts";
-
+  const [redirectTo, setRedirectTo] = useState("/admin/payouts");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [checkingSession, setCheckingSession] = useState(true);
   const [error, setError] = useState("");
 
-  async function handleLogin(e: React.FormEvent<HTMLFormElement>) {
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const redirectParam = params.get("redirect");
+
+    if (redirectParam && redirectParam.startsWith("/")) {
+      setRedirectTo(redirectParam);
+    }
+
+    let mounted = true;
+
+    async function checkExistingSession() {
+      try {
+        const {
+          data: { user },
+          error: userError,
+        } = await supabase.auth.getUser();
+
+        if (userError || !user) {
+          if (mounted) setCheckingSession(false);
+          return;
+        }
+
+        const { data: profile, error: profileError } = await supabase
+          .from("profiles")
+          .select("is_admin")
+          .eq("id", user.id)
+          .maybeSingle();
+
+        if (profileError) {
+          throw profileError;
+        }
+
+        if (profile?.is_admin) {
+          router.replace(redirectParam && redirectParam.startsWith("/") ? redirectParam : "/admin/payouts");
+          return;
+        }
+
+        await supabase.auth.signOut();
+
+        if (mounted) {
+          setCheckingSession(false);
+        }
+      } catch (err) {
+        console.error(err);
+        if (mounted) {
+          setCheckingSession(false);
+        }
+      }
+    }
+
+    checkExistingSession();
+
+    return () => {
+      mounted = false;
+    };
+  }, [router, supabase]);
+
+  async function handleLogin(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setLoading(true);
     setError("");
@@ -62,6 +118,18 @@ export default function AdminLoginPage() {
     } finally {
       setLoading(false);
     }
+  }
+
+  if (checkingSession) {
+    return (
+      <main style={styles.page}>
+        <div style={styles.card}>
+          <div style={styles.kicker}>Admin Access</div>
+          <h1 style={styles.title}>Admin Login</h1>
+          <p style={styles.subtitle}>Checking access...</p>
+        </div>
+      </main>
+    );
   }
 
   return (
