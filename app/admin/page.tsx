@@ -48,16 +48,16 @@ export default function AdminDashboardPage() {
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-    if (!url || !anonKey) {
-      return null;
-    }
-
+    if (!url || !anonKey) return null;
     return createClient(url, anonKey);
   }, []);
 
   const [loading, setLoading] = useState(true);
   const [envError, setEnvError] = useState("");
+  const [authUserId, setAuthUserId] = useState<string | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
+  const [profileError, setProfileError] = useState<string>("");
+  const [isAdmin, setIsAdmin] = useState(false);
   const [monthKey, setMonthKey] = useState("");
   const [totalWinners, setTotalWinners] = useState(0);
   const [pendingClaims, setPendingClaims] = useState(0);
@@ -89,28 +89,31 @@ export default function AdminDashboardPage() {
           return;
         }
 
-        const { data: profileData, error: profileError } = await supabase
+        setAuthUserId(user.id);
+
+        const { data: profileData, error } = await supabase
           .from("profiles")
           .select("id, first_name, email, is_admin, role, subscription_tier")
           .eq("id", user.id)
           .maybeSingle();
 
-        if (profileError || !profileData) {
-          router.replace("/dashboard");
-          return;
+        if (error) {
+          setProfileError(error.message || "Unable to read profile row.");
         }
+
+        setProfile(profileData ?? null);
 
         const adminCheck =
-          profileData.is_admin === true ||
-          String(profileData.role || "").toLowerCase() === "admin" ||
-          String(profileData.subscription_tier || "").toLowerCase() === "admin";
+          profileData?.is_admin === true ||
+          String(profileData?.role || "").toLowerCase() === "admin" ||
+          String(profileData?.subscription_tier || "").toLowerCase() === "admin";
+
+        setIsAdmin(adminCheck);
 
         if (!adminCheck) {
-          router.replace("/dashboard");
+          setLoading(false);
           return;
         }
-
-        setProfile(profileData);
 
         const [
           winnersResult,
@@ -169,6 +172,7 @@ export default function AdminDashboardPage() {
         setRecentClaims((recentClaimsResult.data as WinnerRow[]) ?? []);
       } catch (error) {
         console.error("Admin dashboard load error:", error);
+        setProfileError(error instanceof Error ? error.message : "Unknown error");
       } finally {
         setLoading(false);
       }
@@ -205,6 +209,119 @@ export default function AdminDashboardPage() {
     );
   }
 
+  if (!isAdmin) {
+    return (
+      <main className="min-h-screen bg-[#07111f] text-white">
+        <div className="mx-auto max-w-4xl px-4 py-10">
+          <div className="rounded-[28px] border border-amber-400/20 bg-amber-400/10 p-6 shadow-2xl">
+            <p className="text-sm uppercase tracking-[0.2em] text-amber-200/90">
+              Admin Access Check
+            </p>
+            <h1 className="mt-2 text-3xl font-bold">This user is not passing the admin check</h1>
+            <p className="mt-3 text-sm text-amber-100/90">
+              The page loaded, but your profile values do not currently match the
+              admin logic.
+            </p>
+
+            <div className="mt-6 grid gap-4 md:grid-cols-2">
+              <div className="rounded-3xl border border-white/10 bg-black/20 p-4">
+                <p className="text-xs uppercase tracking-[0.18em] text-slate-400">
+                  Auth User ID
+                </p>
+                <p className="mt-2 break-all text-sm text-white">
+                  {authUserId || "Not found"}
+                </p>
+              </div>
+
+              <div className="rounded-3xl border border-white/10 bg-black/20 p-4">
+                <p className="text-xs uppercase tracking-[0.18em] text-slate-400">
+                  Profile Query Error
+                </p>
+                <p className="mt-2 break-all text-sm text-white">
+                  {profileError || "No query error returned"}
+                </p>
+              </div>
+
+              <div className="rounded-3xl border border-white/10 bg-black/20 p-4">
+                <p className="text-xs uppercase tracking-[0.18em] text-slate-400">
+                  first_name
+                </p>
+                <p className="mt-2 text-sm text-white">
+                  {profile?.first_name ?? "null"}
+                </p>
+              </div>
+
+              <div className="rounded-3xl border border-white/10 bg-black/20 p-4">
+                <p className="text-xs uppercase tracking-[0.18em] text-slate-400">
+                  email
+                </p>
+                <p className="mt-2 text-sm text-white">
+                  {profile?.email ?? "null"}
+                </p>
+              </div>
+
+              <div className="rounded-3xl border border-white/10 bg-black/20 p-4">
+                <p className="text-xs uppercase tracking-[0.18em] text-slate-400">
+                  is_admin
+                </p>
+                <p className="mt-2 text-sm text-white">
+                  {String(profile?.is_admin ?? null)}
+                </p>
+              </div>
+
+              <div className="rounded-3xl border border-white/10 bg-black/20 p-4">
+                <p className="text-xs uppercase tracking-[0.18em] text-slate-400">
+                  role
+                </p>
+                <p className="mt-2 text-sm text-white">
+                  {profile?.role ?? "null"}
+                </p>
+              </div>
+
+              <div className="rounded-3xl border border-white/10 bg-black/20 p-4 md:col-span-2">
+                <p className="text-xs uppercase tracking-[0.18em] text-slate-400">
+                  subscription_tier
+                </p>
+                <p className="mt-2 text-sm text-white">
+                  {profile?.subscription_tier ?? "null"}
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-6 rounded-3xl border border-cyan-400/20 bg-cyan-400/10 p-4">
+              <p className="text-sm font-semibold text-cyan-200">
+                Fastest fix
+              </p>
+              <p className="mt-2 text-sm text-cyan-100/90">
+                In your <span className="font-semibold">profiles</span> table,
+                set either <span className="font-semibold">is_admin = true</span>
+                {" "}or{" "}
+                <span className="font-semibold">role = 'admin'</span> for this
+                user’s profile row.
+              </p>
+            </div>
+
+            <div className="mt-6 flex flex-wrap gap-3">
+              <Link
+                href="/dashboard"
+                className="inline-flex items-center justify-center rounded-full border border-white/15 bg-white/5 px-5 py-3 text-sm font-semibold text-white transition hover:bg-white/10"
+              >
+                Back to Dashboard
+              </Link>
+
+              <Link
+                href="/admin/payouts"
+                className="inline-flex items-center justify-center rounded-full border border-cyan-400/30 bg-cyan-400/10 px-5 py-3 text-sm font-semibold text-cyan-200 transition hover:bg-cyan-400/15"
+              >
+                Try Payout Page
+              </Link>
+            </div>
+          </div>
+        </div>
+      </main>
+    );
+  }
+
   return (
     <main className="min-h-screen bg-[#07111f] text-white">
       <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
@@ -221,8 +338,7 @@ export default function AdminDashboardPage() {
                 <p className="mt-2 max-w-2xl text-sm text-slate-300 sm:text-base">
                   Welcome back
                   {profile?.first_name ? `, ${profile.first_name}` : ""}. Manage
-                  payouts, review claims, and jump into admin tools from one
-                  place.
+                  payouts, review claims, and jump into admin tools from one place.
                 </p>
               </div>
 
