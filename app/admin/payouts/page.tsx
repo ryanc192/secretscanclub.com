@@ -455,18 +455,18 @@ export default function AdminPayoutsPage() {
 
   return (
     <main style={styles.page}>
-          {/* 🔥 GLOBAL FIX FOR DROPDOWN OPTIONS */}
-    <style jsx global>{`
-      select {
-        background-color: rgba(255,255,255,0.08);
-        color: #ffffff;
-      }
+      <style jsx global>{`
+        select {
+          background-color: rgba(255,255,255,0.08);
+          color: #ffffff;
+        }
 
-      select option {
-        background-color: #0b1728;
-        color: #ffffff;
-      }
-    `}
+        select option {
+          background-color: #0b1728;
+          color: #ffffff;
+        }
+      `}</style>
+
       <div style={styles.wrap}>
         <div style={styles.header}>
           <div>
@@ -1217,32 +1217,30 @@ const styles: Record<string, CSSProperties> = {
     fontSize: 15,
     outline: "none",
   },
-select: {
-  width: "100%",
-  boxSizing: "border-box",
-  background: "rgba(255,255,255,0.08)",
-  color: "#ffffff",
-  border: "1px solid rgba(255,255,255,0.14)",
-  borderRadius: 14,
-  padding: "14px 16px",
-  fontSize: 15,
-  outline: "none",
-  appearance: "none",
+  select: {
+    width: "100%",
+    boxSizing: "border-box",
+    background: "rgba(255,255,255,0.08)",
+    color: "#ffffff",
+    border: "1px solid rgba(255,255,255,0.14)",
+    borderRadius: 14,
+    padding: "14px 16px",
+    fontSize: 15,
+    outline: "none",
+    appearance: "none",
+    WebkitAppearance: "none",
+    MozAppearance: "none",
+    backgroundImage:
+      "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='white' viewBox='0 0 20 20'%3E%3Cpath d='M5.5 7l4.5 4 4.5-4'/%3E%3C/svg%3E\")",
+    backgroundRepeat: "no-repeat",
+    backgroundPosition: "right 12px center",
+    backgroundSize: "16px",
+  },
   actionRow: {
     display: "flex",
     flexWrap: "wrap",
     gap: 10,
   },
-      WebkitAppearance: "none",
-  MozAppearance: "none",
-
-  // Optional: nicer dropdown arrow
-  backgroundImage:
-    "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='white' viewBox='0 0 20 20'%3E%3Cpath d='M5.5 7l4.5 4 4.5-4'/%3E%3C/svg%3E\")",
-  backgroundRepeat: "no-repeat",
-  backgroundPosition: "right 12px center",
-  backgroundSize: "16px",
-},
   helperLink: {
     display: "inline-flex",
     alignItems: "center",
