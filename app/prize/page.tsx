@@ -9,11 +9,13 @@ export default function PrizePage() {
     { place: "2nd Place", prize: "$50" },
     { place: "3rd Place", prize: "$20" },
   ];
+
   const potentialPrizes = [
     { place: "1st Place", prize: "$300" },
     { place: "2nd Place", prize: "$150" },
     { place: "3rd Place", prize: "$60" },
   ];
+
   const randomWinners = Array.from({ length: 5 }, (_, i) => ({
     label: `Random Winner ${i + 1}`,
     prize: "$10",
@@ -130,11 +132,15 @@ export default function PrizePage() {
             <div style={styles.heroUserBox} className="hero-user-box">
               <div>
                 <div style={styles.userLabel}>Monthly leaderboard resets</div>
-                <div style={styles.userValue} className="user-value">Beginning of every month</div>
+                <div style={styles.userValue} className="user-value">
+                  Beginning of every month
+                </div>
               </div>
               <div>
                 <div style={styles.userLabel}>Prize multipliers</div>
-                <div style={styles.userValue} className="user-value">Free 1x • Club 2x • VIP 3x</div>
+                <div style={styles.userValue} className="user-value">
+                  Free 1x • Club 2x • VIP 3x
+                </div>
               </div>
             </div>
           </div>
@@ -155,8 +161,9 @@ export default function PrizePage() {
           <div style={styles.infoCard} className="info-card">
             <h3 style={styles.infoTitle}>Monthly Placement Prizes</h3>
             <p style={styles.infoText}>
-              These are base prizes each winner will recieve. They will continue to increase as we hit our membership level goals.
-              Want more prize money? Refer a friend! The more people that join means more money you can win!
+              These are base prizes each winner will recieve. They will continue to
+              increase as we hit our membership level goals. Want more prize money?
+              Refer a friend! The more people that join means more money you can win!
             </p>
             <div style={styles.prizeList}>
               {monthlyPrizes.map((item) => (
@@ -171,8 +178,8 @@ export default function PrizePage() {
           <div style={styles.infoCard} className="info-card">
             <h3 style={styles.infoTitle}>Random Monthly Winners</h3>
             <p style={styles.infoText}>
-              In addition to leaderboard placement prizes, five random winners are selected
-              each month to receive an extra reward.
+              In addition to leaderboard placement prizes, five random winners are
+              selected each month to receive an extra reward.
             </p>
             <div style={styles.prizeList}>
               {randomWinners.map((item) => (
@@ -187,9 +194,9 @@ export default function PrizePage() {
           <div style={styles.infoCard} className="info-card">
             <h3 style={styles.infoTitle}>Total Potential Prizes</h3>
             <p style={styles.infoText}>
-              When you upgrade your membership tier you upgrade your prize tier as well. As explained below,
-              club members get to double their prize reward and VIP members get to triple their prizes.
-              The highest possible prizes are below.
+              When you upgrade your membership tier you upgrade your prize tier as well.
+              As explained below, club members get to double their prize reward and VIP
+              members get to triple their prizes. The highest possible prizes are below.
             </p>
 
             <div style={styles.inlineCtaWrap}>
@@ -210,7 +217,9 @@ export default function PrizePage() {
         </section>
 
         <section style={styles.faqSection} className="faq-section">
-          <h2 style={styles.faqHeading} className="faq-heading">Membership Prize Multipliers</h2>
+          <h2 style={styles.faqHeading} className="faq-heading">
+            Membership Prize Multipliers
+          </h2>
 
           <div style={styles.multiplierGrid} className="multiplier-grid">
             {multipliers.map((item) => (
@@ -230,8 +239,8 @@ export default function PrizePage() {
             <div style={styles.faqItem} className="faq-item">
               <div style={styles.faqQuestion}>Longest daily streak for the month</div>
               <div style={styles.faqAnswer}>
-                The leaderboard rewards members who keep showing up. A stronger streak gives
-                you a stronger position.
+                The leaderboard rewards members who keep showing up. A stronger streak
+                gives you a stronger position.
               </div>
             </div>
 
@@ -263,10 +272,10 @@ export default function PrizePage() {
 
         <section style={styles.faqSection} className="faq-section">
           <h2 style={styles.faqHeading} className="faq-heading">Prize Growth Model</h2>
-          <p style={styles.bottomCtaText}>
-            As the member base grows, the prize pool grows with it. Each listed prize grows as the platform
-            hits each member pool benchmark, creating an ecosystem that becomes more exciting
-            as monthly traffic and engagement increase.
+          <p style={styles.growthIntroText}>
+            As the member base grows, the prize pool grows with it. Each listed prize
+            grows as the platform hits each member pool benchmark, creating an ecosystem
+            that becomes more exciting as monthly traffic and engagement increase.
           </p>
 
           <div style={styles.growthGrid} className="growth-grid">
@@ -280,11 +289,13 @@ export default function PrizePage() {
         </section>
 
         <section style={styles.bottomCta} className="bottom-cta">
-          <h2 style={styles.bottomCtaTitle} className="bottom-cta-title">More members means bigger prizes.</h2>
+          <h2 style={styles.bottomCtaTitle} className="bottom-cta-title">
+            More members means bigger prizes.
+          </h2>
           <p style={styles.bottomCtaText}>
-            Our structure is designed to reward repeat visits, strengthen competition, and
-            scale prize excitement as the member base grows. More engagement means a bigger
-            leaderboard, bigger incentives, and more rewards for you.
+            Our structure is designed to reward repeat visits, strengthen competition,
+            and scale prize excitement as the member base grows. More engagement means a
+            bigger leaderboard, bigger incentives, and more rewards for you.
           </p>
 
           <div style={styles.bottomCtaButtons} className="bottom-cta-buttons">
@@ -624,9 +635,10 @@ const styles: Record<string, React.CSSProperties> = {
   },
   inlineCtaWrap: {
     display: "flex",
-    justifyContent: "flex-start",
+    justifyContent: "center",
     marginTop: 16,
     marginBottom: 18,
+    width: "100%",
   },
   inlineCtaPill: {
     display: "inline-flex",
@@ -678,6 +690,7 @@ const styles: Record<string, React.CSSProperties> = {
     margin: "0 0 20px",
     fontSize: 28,
     fontWeight: 900,
+    textAlign: "left",
   },
   faqList: {
     display: "grid",
@@ -728,6 +741,14 @@ const styles: Record<string, React.CSSProperties> = {
     lineHeight: 1.6,
     fontSize: 14,
   },
+  growthIntroText: {
+    margin: "0 0 20px",
+    maxWidth: 760,
+    color: "rgba(255,255,255,0.78)",
+    fontSize: 16,
+    lineHeight: 1.7,
+    textAlign: "left",
+  },
   growthGrid: {
     display: "grid",
     gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
@@ -740,17 +761,20 @@ const styles: Record<string, React.CSSProperties> = {
     background: "rgba(255,255,255,0.04)",
     border: "1px solid rgba(255,255,255,0.07)",
     minWidth: 0,
+    textAlign: "left",
   },
   growthMembers: {
     fontSize: 16,
     fontWeight: 800,
     marginBottom: 10,
     color: "#dfeaff",
+    textAlign: "left",
   },
   growthText: {
     color: "rgba(255,255,255,0.78)",
     lineHeight: 1.6,
     fontSize: 14,
+    textAlign: "left",
   },
   bottomCta: {
     textAlign: "center",
