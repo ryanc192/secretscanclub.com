@@ -25,17 +25,19 @@ export default function PrizePage() {
     {
       multiplier: "1x",
       tier: "Free",
-      detail: "Free members qualify for the base prizes. ",
+      detail: "Free members qualify for the base prizes.",
     },
     {
       tier: "Club Member",
       multiplier: "2x",
-      detail: "Club members qualify for double the base prize values on the 1st, 2nd, and 3rd place leaderboard prizes.",
+      detail:
+        "Club members qualify for double the base prize values on the 1st, 2nd, and 3rd place leaderboard prizes.",
     },
     {
       tier: "VIP Member",
       multiplier: "3x",
-      detail: "VIP members qualify for triple the base prize values on the 1st, 2nd, and 3rd place leaderboard prizes.",
+      detail:
+        "VIP members qualify for triple the base prize values on the 1st, 2nd, and 3rd place leaderboard prizes.",
     },
   ];
 
@@ -49,73 +51,73 @@ export default function PrizePage() {
     {
       members: "Current prize level",
       prizes: [
-        { label: "1st Place", value: "$100" },
-        { label: "2nd Place", value: "$50" },
-        { label: "3rd Place", value: "$20" },
-        { label: "Random Winners", value: "$10 each" },
+        { label: "1st Place", base: "$100", vip: "$300" },
+        { label: "2nd Place", base: "$50", vip: "$150" },
+        { label: "3rd Place", base: "$20", vip: "$60" },
+        { label: "Random Winners", base: "$10 each" },
       ],
     },
     {
       members: "3,000 monthly members",
       prizes: [
-        { label: "1st Place", value: "$200" },
-        { label: "2nd Place", value: "$100" },
-        { label: "3rd Place", value: "$40" },
-        { label: "Random Winners", value: "$20 each" },
+        { label: "1st Place", base: "$200", vip: "$600" },
+        { label: "2nd Place", base: "$100", vip: "$300" },
+        { label: "3rd Place", base: "$40", vip: "$120" },
+        { label: "Random Winners", base: "$20 each" },
       ],
     },
     {
       members: "6,000 monthly members",
       prizes: [
-        { label: "1st Place", value: "$400" },
-        { label: "2nd Place", value: "$200" },
-        { label: "3rd Place", value: "$80" },
-        { label: "Random Winners", value: "$40 each" },
+        { label: "1st Place", base: "$400", vip: "$1,200" },
+        { label: "2nd Place", base: "$200", vip: "$600" },
+        { label: "3rd Place", base: "$80", vip: "$240" },
+        { label: "Random Winners", base: "$40 each" },
       ],
     },
     {
       members: "10,000 monthly members",
       prizes: [
-        { label: "1st Place", value: "$600" },
-        { label: "2nd Place", value: "$300" },
-        { label: "3rd Place", value: "$120" },
-        { label: "Random Winners", value: "$60 each" },
+        { label: "1st Place", base: "$600", vip: "$1,800" },
+        { label: "2nd Place", base: "$300", vip: "$900" },
+        { label: "3rd Place", base: "$120", vip: "$360" },
+        { label: "Random Winners", base: "$60 each" },
       ],
     },
     {
       members: "15,000 monthly members",
       prizes: [
-        { label: "1st Place", value: "$800" },
-        { label: "2nd Place", value: "$400" },
-        { label: "3rd Place", value: "$160" },
-        { label: "Random Winners", value: "$80 each" },
+        { label: "1st Place", base: "$800", vip: "$2,400" },
+        { label: "2nd Place", base: "$400", vip: "$1,200" },
+        { label: "3rd Place", base: "$160", vip: "$480" },
+        { label: "Random Winners", base: "$80 each" },
       ],
     },
     {
       members: "20,000 monthly members",
       prizes: [
-        { label: "1st Place", value: "$1,000" },
-        { label: "2nd Place", value: "$500" },
-        { label: "3rd Place", value: "$200" },
-        { label: "Random Winners", value: "$100 each" },
+        { label: "1st Place", base: "$1,000", vip: "$3,000" },
+        { label: "2nd Place", base: "$500", vip: "$1,500" },
+        { label: "3rd Place", base: "$200", vip: "$600" },
+        { label: "Random Winners", base: "$100 each" },
       ],
     },
     {
       members: "30,000 monthly members",
       prizes: [
-        { label: "1st Place", value: "$1,400" },
-        { label: "2nd Place", value: "$600" },
-        { label: "3rd Place", value: "$240" },
-        { label: "Random Winners", value: "$120 each" },
+        { label: "1st Place", base: "$1,400", vip: "$4,200" },
+        { label: "2nd Place", base: "$600", vip: "$1,800" },
+        { label: "3rd Place", base: "$240", vip: "$720" },
+        { label: "Random Winners", base: "$120 each" },
       ],
     },
     {
       members: "40,000 monthly members",
       prizes: [
-        { label: "1st Place", value: "$1,600" },
-        { label: "2nd Place", value: "$700" },
-        { label: "3rd Place", value: "$280" },
-        { label: "Random Winners", value: "$140 each" },
+        { label: "1st Place", base: "$1,600", vip: "$4,800" },
+        { label: "2nd Place", base: "$700", vip: "$2,100" },
+        { label: "3rd Place", base: "$280", vip: "$840" },
+        { label: "Random Winners", base: "$140 each" },
       ],
     },
   ];
@@ -318,6 +320,17 @@ export default function PrizePage() {
             that becomes more exciting as monthly traffic and engagement increase.
           </p>
 
+          <div style={styles.growthLegend}>
+            <div style={styles.growthLegendItem}>
+              <span style={styles.growthLegendDotBase} />
+              <span style={styles.growthLegendText}>Base Prize</span>
+            </div>
+            <div style={styles.growthLegendItem}>
+              <span style={styles.growthLegendDotVip} />
+              <span style={styles.growthLegendText}>Top VIP Prize</span>
+            </div>
+          </div>
+
           <div style={styles.growthGrid} className="growth-grid">
             {growthExamples.map((item) => (
               <div key={item.members} style={styles.growthCard} className="growth-card">
@@ -325,9 +338,18 @@ export default function PrizePage() {
 
                 <div style={styles.growthPrizeList}>
                   {item.prizes.map((prize) => (
-                    <div key={`${item.members}-${prize.label}`} style={styles.growthPrizeRow}>
-                      <span style={styles.growthPrizeLabel}>{prize.label}</span>
-                      <span style={styles.growthPrizeValue}>{prize.value}</span>
+                    <div
+                      key={`${item.members}-${prize.label}`}
+                      style={styles.growthPrizeRow}
+                      className="growthPrizeRow"
+                    >
+                      <div style={styles.growthPrizeTextBlock}>
+                        <div style={styles.growthPrizeLabel}>{prize.label}</div>
+                        <div style={styles.growthPrizeBase}>Base: {prize.base}</div>
+                        {"vip" in prize && prize.vip ? (
+                          <div style={styles.growthPrizeVip}>Top VIP: {prize.vip}</div>
+                        ) : null}
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -428,9 +450,7 @@ export default function PrizePage() {
           }
 
           .growthPrizeRow {
-            flex-direction: column !important;
-            align-items: flex-start !important;
-            gap: 6px !important;
+            padding: 12px !important;
           }
 
           .bottom-cta-buttons {
@@ -454,7 +474,7 @@ export default function PrizePage() {
           .info-card,
           .faq-section,
           .multiplier-card,
-          .growth-card,
+          .growthCard,
           .faq-item,
           .bottom-cta {
             padding: 18px !important;
@@ -803,6 +823,37 @@ const styles: Record<string, React.CSSProperties> = {
     lineHeight: 1.7,
     textAlign: "left",
   },
+  growthLegend: {
+    display: "flex",
+    alignItems: "center",
+    gap: 18,
+    flexWrap: "wrap",
+    marginBottom: 20,
+  },
+  growthLegendItem: {
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+  },
+  growthLegendDotBase: {
+    width: 10,
+    height: 10,
+    borderRadius: "50%",
+    background: "#ffffff",
+    boxShadow: "0 0 0 1px rgba(255,255,255,0.18)",
+  },
+  growthLegendDotVip: {
+    width: 10,
+    height: 10,
+    borderRadius: "50%",
+    background: "#7ef0d1",
+    boxShadow: "0 0 0 1px rgba(126,240,209,0.18)",
+  },
+  growthLegendText: {
+    fontSize: 13,
+    fontWeight: 700,
+    color: "rgba(255,255,255,0.8)",
+  },
   growthGrid: {
     display: "grid",
     gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
@@ -829,25 +880,31 @@ const styles: Record<string, React.CSSProperties> = {
     gap: 10,
   },
   growthPrizeRow: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    gap: 12,
-    padding: "10px 12px",
+    display: "block",
+    padding: "12px 14px",
     borderRadius: 14,
     background: "rgba(255,255,255,0.04)",
     border: "1px solid rgba(255,255,255,0.06)",
   },
+  growthPrizeTextBlock: {
+    display: "grid",
+    gap: 6,
+  },
   growthPrizeLabel: {
     fontSize: 14,
-    fontWeight: 700,
+    fontWeight: 800,
     color: "#eef5ff",
+    marginBottom: 2,
   },
-  growthPrizeValue: {
+  growthPrizeBase: {
+    fontSize: 14,
+    fontWeight: 700,
+    color: "#ffffff",
+  },
+  growthPrizeVip: {
     fontSize: 14,
     fontWeight: 900,
     color: "#7ef0d1",
-    flexShrink: 0,
   },
   bottomCta: {
     textAlign: "center",
