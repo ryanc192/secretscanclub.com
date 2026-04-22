@@ -10,7 +10,6 @@ type Profile = {
   first_name?: string | null;
   email?: string | null;
   is_admin?: boolean | null;
-  role?: string | null;
   subscription_tier?: string | null;
 };
 
@@ -93,7 +92,7 @@ export default function AdminDashboardPage() {
 
         const { data: profileData, error } = await supabase
           .from("profiles")
-          .select("id, first_name, email, is_admin, role, subscription_tier")
+          .select("id, first_name, email, is_admin, subscription_tier")
           .eq("id", user.id)
           .maybeSingle();
 
@@ -103,11 +102,7 @@ export default function AdminDashboardPage() {
 
         setProfile(profileData ?? null);
 
-        const adminCheck =
-          profileData?.is_admin === true ||
-          String(profileData?.role || "").toLowerCase() === "admin" ||
-          String(profileData?.subscription_tier || "").toLowerCase() === "admin";
-
+        const adminCheck = profileData?.is_admin === true;
         setIsAdmin(adminCheck);
 
         if (!adminCheck) {
@@ -217,10 +212,11 @@ export default function AdminDashboardPage() {
             <p className="text-sm uppercase tracking-[0.2em] text-amber-200/90">
               Admin Access Check
             </p>
-            <h1 className="mt-2 text-3xl font-bold">This user is not passing the admin check</h1>
+            <h1 className="mt-2 text-3xl font-bold">
+              This user is not passing the admin check
+            </h1>
             <p className="mt-3 text-sm text-amber-100/90">
-              The page loaded, but your profile values do not currently match the
-              admin logic.
+              The page loaded, but this profile is not marked as admin yet.
             </p>
 
             <div className="mt-6 grid gap-4 md:grid-cols-2">
@@ -260,7 +256,7 @@ export default function AdminDashboardPage() {
                 </p>
               </div>
 
-              <div className="rounded-3xl border border-white/10 bg-black/20 p-4">
+              <div className="rounded-3xl border border-white/10 bg-black/20 p-4 md:col-span-2">
                 <p className="text-xs uppercase tracking-[0.18em] text-slate-400">
                   is_admin
                 </p>
@@ -268,37 +264,6 @@ export default function AdminDashboardPage() {
                   {String(profile?.is_admin ?? null)}
                 </p>
               </div>
-
-              <div className="rounded-3xl border border-white/10 bg-black/20 p-4">
-                <p className="text-xs uppercase tracking-[0.18em] text-slate-400">
-                  role
-                </p>
-                <p className="mt-2 text-sm text-white">
-                  {profile?.role ?? "null"}
-                </p>
-              </div>
-
-              <div className="rounded-3xl border border-white/10 bg-black/20 p-4 md:col-span-2">
-                <p className="text-xs uppercase tracking-[0.18em] text-slate-400">
-                  subscription_tier
-                </p>
-                <p className="mt-2 text-sm text-white">
-                  {profile?.subscription_tier ?? "null"}
-                </p>
-              </div>
-            </div>
-
-            <div className="mt-6 rounded-3xl border border-cyan-400/20 bg-cyan-400/10 p-4">
-              <p className="text-sm font-semibold text-cyan-200">
-                Fastest fix
-              </p>
-              <p className="mt-2 text-sm text-cyan-100/90">
-                In your <span className="font-semibold">profiles</span> table,
-                set either <span className="font-semibold">is_admin = true</span>
-                {" "}or{" "}
-                <span className="font-semibold">role = 'admin'</span> for this
-                user’s profile row.
-              </p>
             </div>
 
             <div className="mt-6 flex flex-wrap gap-3">
@@ -307,13 +272,6 @@ export default function AdminDashboardPage() {
                 className="inline-flex items-center justify-center rounded-full border border-white/15 bg-white/5 px-5 py-3 text-sm font-semibold text-white transition hover:bg-white/10"
               >
                 Back to Dashboard
-              </Link>
-
-              <Link
-                href="/admin/payouts"
-                className="inline-flex items-center justify-center rounded-full border border-cyan-400/30 bg-cyan-400/10 px-5 py-3 text-sm font-semibold text-cyan-200 transition hover:bg-cyan-400/15"
-              >
-                Try Payout Page
               </Link>
             </div>
           </div>
