@@ -201,7 +201,7 @@ export default function PrizePage() {
 
             <div style={styles.inlineCtaWrap}>
               <Link href="/subscribe" style={styles.inlineCtaPill}>
-                Upgrade Membership
+                Upgrade Your Prize
               </Link>
             </div>
 
