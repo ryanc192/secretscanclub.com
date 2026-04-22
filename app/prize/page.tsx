@@ -25,17 +25,17 @@ export default function PrizePage() {
     {
       multiplier: "1x",
       tier: "Free",
-      detail: "Every qualifying action counts once toward prize weighting.",
+      detail: "Free members qualify for the base prizes. ",
     },
     {
       tier: "Club Member",
       multiplier: "2x",
-      detail: "Your prize weighting is doubled compared to the free tier.",
+      detail: "Club members qualify for double the base prize values on the 1st, 2nd, and 3rd place leaderboard prizes.",
     },
     {
       tier: "VIP Member",
       multiplier: "3x",
-      detail: "Your prize weighting is tripled and unlocks weekly VIP prize opportunities.",
+      detail: "VIP members qualify for triple the base prize values on the 1st, 2nd, and 3rd place leaderboard prizes.",
     },
   ];
 
