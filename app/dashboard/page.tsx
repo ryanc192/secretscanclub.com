@@ -308,6 +308,39 @@ function isClaimableStatus(value: string | null | undefined) {
   return !normalized || normalized === "unclaimed";
 }
 
+function isRegisteredAdmin(user: {
+  app_metadata?: Record<string, unknown> | null;
+  user_metadata?: Record<string, unknown> | null;
+} | null) {
+  if (!user) return false;
+
+  const appMeta = user.app_metadata ?? {};
+  const userMeta = user.user_metadata ?? {};
+
+  const adminFlagCandidates = [
+    appMeta["is_admin"],
+    appMeta["admin"],
+    userMeta["is_admin"],
+    userMeta["admin"],
+  ];
+
+  if (adminFlagCandidates.some((value) => value === true)) {
+    return true;
+  }
+
+  const roleCandidates = [
+    appMeta["role"],
+    userMeta["role"],
+    appMeta["user_role"],
+    userMeta["user_role"],
+  ];
+
+  return roleCandidates.some((value) => {
+    const normalized = String(value ?? "").trim().toLowerCase();
+    return normalized === "admin" || normalized === "super_admin";
+  });
+}
+
 export default function DashboardPage() {
   const router = useRouter();
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
@@ -317,6 +350,7 @@ export default function DashboardPage() {
   const [userEmail, setUserEmail] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [username, setUsername] = useState("");
+  const [isAdminUser, setIsAdminUser] = useState(false);
   const [stats, setStats] = useState<DashboardStats>({
     currentStreak: 0,
     longestStreak: 0,
@@ -349,6 +383,7 @@ export default function DashboardPage() {
         }
 
         setUserEmail(user.email ?? "");
+        setIsAdminUser(isRegisteredAdmin(user));
 
         let joinedAt: string | null = user.created_at ?? null;
         let plan: DashboardPlan = "Free";
@@ -595,6 +630,8 @@ export default function DashboardPage() {
         year: "numeric",
       })
     : "N/A";
+
+  const hasWonPrizes = prizeSummaries.length > 0;
 
   if (loading) {
     return (
@@ -1073,6 +1110,9 @@ export default function DashboardPage() {
                 href={stats.plan === "Free" ? "/subscribe" : "/account"}
                 label={stats.plan === "Free" ? "Upgrade Membership" : "Manage Membership"}
               />
+              {isAdminUser ? (
+                <DashboardLink href="/admin" label="Admin Dashboard" />
+              ) : null}
             </div>
           </div>
         </section>
@@ -1278,7 +1318,7 @@ export default function DashboardPage() {
         </section>
       </div>
 
-      <PrizeClaimsSection prizes={prizeClaimRows} />
+      {hasWonPrizes ? <PrizeClaimsSection prizes={prizeClaimRows} /> : null}
 
       <style jsx>{`
         @media (max-width: 1180px) {
