@@ -25,17 +25,17 @@ export default function PrizePage() {
     {
       multiplier: "1x",
       tier: "Free",
-      detail: "Free members qualify for the base prize payout. ",
+      detail: "Every qualifying action counts once toward prize weighting.",
     },
     {
       tier: "Club Member",
       multiplier: "2x",
-      detail: "Club members qualify for double the base prize payout on 1st, 2nd, and 3rd place leaderboard prizes.",
+      detail: "Your prize weighting is doubled compared to the free tier.",
     },
     {
       tier: "VIP Member",
       multiplier: "3x",
-      detail: "VIP members qualify for triple the base prize payout on 1st, 2nd, and 3rd place leaderboard prizes.",
+      detail: "Your prize weighting is tripled and unlocks weekly VIP prize opportunities.",
     },
   ];
 
@@ -48,35 +48,75 @@ export default function PrizePage() {
   const growthExamples = [
     {
       members: "Current prize level",
-      monthly: "1st $100 • 2nd $50 • 3rd $20 • Random winners $10 each",
+      prizes: [
+        { label: "1st Place", value: "$100" },
+        { label: "2nd Place", value: "$50" },
+        { label: "3rd Place", value: "$20" },
+        { label: "Random Winners", value: "$10 each" },
+      ],
     },
     {
       members: "3,000 monthly members",
-      monthly: "1st $200 • 2nd $100 • 3rd $40 • Random winners $20 each",
+      prizes: [
+        { label: "1st Place", value: "$200" },
+        { label: "2nd Place", value: "$100" },
+        { label: "3rd Place", value: "$40" },
+        { label: "Random Winners", value: "$20 each" },
+      ],
     },
     {
       members: "6,000 monthly members",
-      monthly: "1st $400 • 2nd $200 • 3rd $80 • Random winners $40 each",
+      prizes: [
+        { label: "1st Place", value: "$400" },
+        { label: "2nd Place", value: "$200" },
+        { label: "3rd Place", value: "$80" },
+        { label: "Random Winners", value: "$40 each" },
+      ],
     },
     {
       members: "10,000 monthly members",
-      monthly: "1st $600 • 2nd $300 • 3rd $120 • Random winners $60 each",
+      prizes: [
+        { label: "1st Place", value: "$600" },
+        { label: "2nd Place", value: "$300" },
+        { label: "3rd Place", value: "$120" },
+        { label: "Random Winners", value: "$60 each" },
+      ],
     },
     {
       members: "15,000 monthly members",
-      monthly: "1st $800 • 2nd $400 • 3rd $160 • Random winners $80 each",
+      prizes: [
+        { label: "1st Place", value: "$800" },
+        { label: "2nd Place", value: "$400" },
+        { label: "3rd Place", value: "$160" },
+        { label: "Random Winners", value: "$80 each" },
+      ],
     },
     {
       members: "20,000 monthly members",
-      monthly: "1st $1,000 • 2nd $500 • 3rd $200 • Random winners $100 each",
+      prizes: [
+        { label: "1st Place", value: "$1,000" },
+        { label: "2nd Place", value: "$500" },
+        { label: "3rd Place", value: "$200" },
+        { label: "Random Winners", value: "$100 each" },
+      ],
     },
     {
       members: "30,000 monthly members",
-      monthly: "1st $1,400 • 2nd $600 • 3rd $240 • Random winners $120 each",
+      prizes: [
+        { label: "1st Place", value: "$1,400" },
+        { label: "2nd Place", value: "$600" },
+        { label: "3rd Place", value: "$240" },
+        { label: "Random Winners", value: "$120 each" },
+      ],
     },
     {
       members: "40,000 monthly members",
-      monthly: "1st $1,600 • 2nd $700 • 3rd $280 • Random winners $140 each",
+      prizes: [
+        { label: "1st Place", value: "$1,600" },
+        { label: "2nd Place", value: "$700" },
+        { label: "3rd Place", value: "$280" },
+        { label: "Random Winners", value: "$140 each" },
+      ],
     },
   ];
 
@@ -201,7 +241,7 @@ export default function PrizePage() {
 
             <div style={styles.inlineCtaWrap}>
               <Link href="/subscribe" style={styles.inlineCtaPill}>
-                Upgrade Your Prize
+                Upgrade Membership
               </Link>
             </div>
 
@@ -282,7 +322,15 @@ export default function PrizePage() {
             {growthExamples.map((item) => (
               <div key={item.members} style={styles.growthCard} className="growth-card">
                 <div style={styles.growthMembers}>{item.members}</div>
-                <div style={styles.growthText}>{item.monthly}</div>
+
+                <div style={styles.growthPrizeList}>
+                  {item.prizes.map((prize) => (
+                    <div key={`${item.members}-${prize.label}`} style={styles.growthPrizeRow}>
+                      <span style={styles.growthPrizeLabel}>{prize.label}</span>
+                      <span style={styles.growthPrizeValue}>{prize.value}</span>
+                    </div>
+                  ))}
+                </div>
               </div>
             ))}
           </div>
@@ -377,6 +425,12 @@ export default function PrizePage() {
           .prize-row {
             flex-direction: column;
             align-items: flex-start !important;
+          }
+
+          .growthPrizeRow {
+            flex-direction: column !important;
+            align-items: flex-start !important;
+            gap: 6px !important;
           }
 
           .bottom-cta-buttons {
@@ -766,15 +820,34 @@ const styles: Record<string, React.CSSProperties> = {
   growthMembers: {
     fontSize: 16,
     fontWeight: 800,
-    marginBottom: 10,
+    marginBottom: 14,
     color: "#dfeaff",
     textAlign: "left",
   },
-  growthText: {
-    color: "rgba(255,255,255,0.78)",
-    lineHeight: 1.6,
+  growthPrizeList: {
+    display: "grid",
+    gap: 10,
+  },
+  growthPrizeRow: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: 12,
+    padding: "10px 12px",
+    borderRadius: 14,
+    background: "rgba(255,255,255,0.04)",
+    border: "1px solid rgba(255,255,255,0.06)",
+  },
+  growthPrizeLabel: {
     fontSize: 14,
-    textAlign: "left",
+    fontWeight: 700,
+    color: "#eef5ff",
+  },
+  growthPrizeValue: {
+    fontSize: 14,
+    fontWeight: 900,
+    color: "#7ef0d1",
+    flexShrink: 0,
   },
   bottomCta: {
     textAlign: "center",
