@@ -3,8 +3,11 @@
 import { useEffect, useMemo, useState } from "react";
 import type { CSSProperties, FormEvent } from "react";
 import Link from "next/link";
+import Script from "next/script";
 import { useRouter } from "next/navigation";
 import { createBrowserSupabaseClient } from "../../../lib/supabase/client";
+
+const TURNSTILE_SITE_KEY = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY ?? "";
 
 export default function AdminLoginPage() {
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
@@ -50,7 +53,11 @@ export default function AdminLoginPage() {
         }
 
         if (profile?.is_admin) {
-          router.replace(redirectParam && redirectParam.startsWith("/") ? redirectParam : "/admin/payouts");
+          router.replace(
+            redirectParam && redirectParam.startsWith("/")
+              ? redirectParam
+              : "/admin/payouts"
+          );
           return;
         }
 
@@ -80,9 +87,24 @@ export default function AdminLoginPage() {
     setError("");
 
     try {
+      if (!TURNSTILE_SITE_KEY) {
+        throw new Error("Captcha site key is missing.");
+      }
+
+      const token = (
+        document.querySelector('[name="cf-turnstile-response"]') as HTMLInputElement | null
+      )?.value;
+
+      if (!token) {
+        throw new Error("Please complete the security check.");
+      }
+
       const { data, error: signInError } = await supabase.auth.signInWithPassword({
         email: email.trim(),
         password,
+        options: {
+          captchaToken: token,
+        },
       });
 
       if (signInError) {
@@ -134,12 +156,23 @@ export default function AdminLoginPage() {
 
   return (
     <main style={styles.page}>
+      <Script
+        src="https://challenges.cloudflare.com/turnstile/v0/api.js"
+        strategy="afterInteractive"
+      />
+
       <div style={styles.card}>
         <div style={styles.kicker}>Admin Access</div>
         <h1 style={styles.title}>Admin Login</h1>
         <p style={styles.subtitle}>
           Sign in with your admin account to access the payout dashboard.
         </p>
+
+        {!TURNSTILE_SITE_KEY ? (
+          <div style={styles.errorBox}>
+            Missing <code>NEXT_PUBLIC_TURNSTILE_SITE_KEY</code> in Vercel.
+          </div>
+        ) : null}
 
         {error ? <div style={styles.errorBox}>{error}</div> : null}
 
@@ -170,7 +203,27 @@ export default function AdminLoginPage() {
             />
           </label>
 
-          <button type="submit" disabled={loading} style={styles.primaryButton}>
+          <div style={styles.field}>
+            <span style={styles.label}>Security Check</span>
+            <div style={styles.captchaShell}>
+              {TURNSTILE_SITE_KEY ? (
+                <div
+                  className="cf-turnstile"
+                  data-sitekey={TURNSTILE_SITE_KEY}
+                  data-theme="dark"
+                />
+              ) : null}
+            </div>
+          </div>
+
+          <button
+            type="submit"
+            disabled={loading || !TURNSTILE_SITE_KEY}
+            style={{
+              ...styles.primaryButton,
+              ...(loading || !TURNSTILE_SITE_KEY ? styles.primaryButtonDisabled : null),
+            }}
+          >
             {loading ? "Signing in..." : "Sign In"}
           </button>
         </form>
@@ -230,6 +283,8 @@ const styles: Record<string, CSSProperties> = {
     borderRadius: 14,
     padding: "14px 16px",
     marginBottom: 18,
+    lineHeight: 1.5,
+    wordBreak: "break-word",
   },
   form: {
     display: "grid",
@@ -255,6 +310,14 @@ const styles: Record<string, CSSProperties> = {
     fontSize: 15,
     outline: "none",
   },
+  captchaShell: {
+    minHeight: 76,
+    padding: 12,
+    borderRadius: 14,
+    border: "1px solid rgba(255,255,255,0.14)",
+    background: "rgba(255,255,255,0.04)",
+    overflowX: "auto",
+  },
   primaryButton: {
     background: "#ffffff",
     color: "#07111f",
@@ -264,6 +327,10 @@ const styles: Record<string, CSSProperties> = {
     fontWeight: 800,
     cursor: "pointer",
     marginTop: 6,
+  },
+  primaryButtonDisabled: {
+    opacity: 0.6,
+    cursor: "not-allowed",
   },
   footerRow: {
     marginTop: 18,
