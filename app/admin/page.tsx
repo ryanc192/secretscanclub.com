@@ -1,6 +1,30 @@
+"use client";
+
 import Link from "next/link";
-import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { createClient } from "@supabase/supabase-js";
+
+type Profile = {
+  id: string;
+  first_name?: string | null;
+  email?: string | null;
+  is_admin?: boolean | null;
+  role?: string | null;
+  subscription_tier?: string | null;
+};
+
+type WinnerRow = {
+  id: string;
+  rank_label?: string | null;
+  display_name?: string | null;
+  membership_tier?: string | null;
+  claim_status?: string | null;
+  total_prize_amount?: number | string | null;
+  prize_amount?: number | string | null;
+  base_prize_amount?: number | string | null;
+  created_at?: string | null;
+};
 
 function formatCurrency(value: number) {
   return new Intl.NumberFormat("en-US", {
@@ -17,88 +41,169 @@ function getMonthKey() {
   return `${year}-${month}`;
 }
 
-export default async function AdminDashboardPage() {
-  const supabase = await createClient();
+export default function AdminDashboardPage() {
+  const router = useRouter();
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const supabase = useMemo(() => {
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-  if (!user) {
-    redirect("/login");
+    if (!url || !anonKey) {
+      return null;
+    }
+
+    return createClient(url, anonKey);
+  }, []);
+
+  const [loading, setLoading] = useState(true);
+  const [envError, setEnvError] = useState("");
+  const [profile, setProfile] = useState<Profile | null>(null);
+  const [monthKey, setMonthKey] = useState("");
+  const [totalWinners, setTotalWinners] = useState(0);
+  const [pendingClaims, setPendingClaims] = useState(0);
+  const [paidClaims, setPaidClaims] = useState(0);
+  const [totalPayout, setTotalPayout] = useState(0);
+  const [recentClaims, setRecentClaims] = useState<WinnerRow[]>([]);
+
+  useEffect(() => {
+    const run = async () => {
+      try {
+        if (!supabase) {
+          setEnvError(
+            "Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY."
+          );
+          setLoading(false);
+          return;
+        }
+
+        const activeMonthKey = getMonthKey();
+        setMonthKey(activeMonthKey);
+
+        const {
+          data: { user },
+          error: userError,
+        } = await supabase.auth.getUser();
+
+        if (userError || !user) {
+          router.replace("/login");
+          return;
+        }
+
+        const { data: profileData, error: profileError } = await supabase
+          .from("profiles")
+          .select("id, first_name, email, is_admin, role, subscription_tier")
+          .eq("id", user.id)
+          .maybeSingle();
+
+        if (profileError || !profileData) {
+          router.replace("/dashboard");
+          return;
+        }
+
+        const adminCheck =
+          profileData.is_admin === true ||
+          String(profileData.role || "").toLowerCase() === "admin" ||
+          String(profileData.subscription_tier || "").toLowerCase() === "admin";
+
+        if (!adminCheck) {
+          router.replace("/dashboard");
+          return;
+        }
+
+        setProfile(profileData);
+
+        const [
+          winnersResult,
+          pendingClaimsResult,
+          paidClaimsResult,
+          payoutRowsResult,
+          recentClaimsResult,
+        ] = await Promise.all([
+          supabase
+            .from("monthly_winners")
+            .select("id", { count: "exact", head: true })
+            .eq("month_key", activeMonthKey),
+
+          supabase
+            .from("monthly_winners")
+            .select("id", { count: "exact", head: true })
+            .eq("month_key", activeMonthKey)
+            .in("claim_status", ["pending", "submitted"]),
+
+          supabase
+            .from("monthly_winners")
+            .select("id", { count: "exact", head: true })
+            .eq("month_key", activeMonthKey)
+            .eq("claim_status", "paid"),
+
+          supabase
+            .from("monthly_winners")
+            .select("total_prize_amount, prize_amount, base_prize_amount")
+            .eq("month_key", activeMonthKey),
+
+          supabase
+            .from("monthly_winners")
+            .select(
+              "id, rank_label, display_name, membership_tier, claim_status, total_prize_amount, prize_amount, base_prize_amount, created_at"
+            )
+            .eq("month_key", activeMonthKey)
+            .order("created_at", { ascending: false })
+            .limit(8),
+        ]);
+
+        setTotalWinners(winnersResult.count ?? 0);
+        setPendingClaims(pendingClaimsResult.count ?? 0);
+        setPaidClaims(paidClaimsResult.count ?? 0);
+
+        const payoutTotal =
+          payoutRowsResult.data?.reduce((sum, row) => {
+            const value =
+              Number(row.total_prize_amount) ||
+              Number(row.prize_amount) ||
+              Number(row.base_prize_amount) ||
+              0;
+            return sum + value;
+          }, 0) ?? 0;
+
+        setTotalPayout(payoutTotal);
+        setRecentClaims((recentClaimsResult.data as WinnerRow[]) ?? []);
+      } catch (error) {
+        console.error("Admin dashboard load error:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    run();
+  }, [router, supabase]);
+
+  if (loading) {
+    return (
+      <main className="min-h-screen bg-[#07111f] text-white">
+        <div className="mx-auto flex min-h-screen max-w-7xl items-center justify-center px-4">
+          <div className="rounded-3xl border border-white/10 bg-white/5 px-6 py-5 text-center shadow-2xl">
+            <p className="text-lg font-semibold">Loading admin dashboard...</p>
+            <p className="mt-2 text-sm text-slate-300">
+              Checking access and pulling payout data.
+            </p>
+          </div>
+        </div>
+      </main>
+    );
   }
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("id, first_name, email, is_admin, role, subscription_tier")
-    .eq("id", user.id)
-    .maybeSingle();
-
-  const isAdmin =
-    profile?.is_admin === true ||
-    String(profile?.role || "").toLowerCase() === "admin" ||
-    String(profile?.subscription_tier || "").toLowerCase() === "admin";
-
-  if (!isAdmin) {
-    redirect("/dashboard");
+  if (envError) {
+    return (
+      <main className="min-h-screen bg-[#07111f] text-white">
+        <div className="mx-auto flex min-h-screen max-w-3xl items-center justify-center px-4">
+          <div className="w-full rounded-3xl border border-red-400/20 bg-red-500/10 p-6">
+            <h1 className="text-2xl font-bold">Environment Variable Error</h1>
+            <p className="mt-3 text-sm text-red-100/90">{envError}</p>
+          </div>
+        </div>
+      </main>
+    );
   }
-
-  const monthKey = getMonthKey();
-
-  const [
-    winnersResult,
-    pendingClaimsResult,
-    paidClaimsResult,
-    payoutRowsResult,
-    recentClaimsResult,
-  ] = await Promise.all([
-    supabase
-      .from("monthly_winners")
-      .select("id", { count: "exact", head: true })
-      .eq("month_key", monthKey),
-
-    supabase
-      .from("monthly_winners")
-      .select("id", { count: "exact", head: true })
-      .eq("month_key", monthKey)
-      .in("claim_status", ["pending", "submitted"]),
-
-    supabase
-      .from("monthly_winners")
-      .select("id", { count: "exact", head: true })
-      .eq("month_key", monthKey)
-      .eq("claim_status", "paid"),
-
-    supabase
-      .from("monthly_winners")
-      .select("total_prize_amount, prize_amount, base_prize_amount")
-      .eq("month_key", monthKey),
-
-    supabase
-      .from("monthly_winners")
-      .select(
-        "id, rank_label, display_name, membership_tier, claim_status, total_prize_amount, prize_amount, created_at"
-      )
-      .eq("month_key", monthKey)
-      .order("created_at", { ascending: false })
-      .limit(8),
-  ]);
-
-  const totalWinners = winnersResult.count ?? 0;
-  const pendingClaims = pendingClaimsResult.count ?? 0;
-  const paidClaims = paidClaimsResult.count ?? 0;
-
-  const totalPayout =
-    payoutRowsResult.data?.reduce((sum, row) => {
-      const value =
-        Number(row.total_prize_amount) ||
-        Number(row.prize_amount) ||
-        Number(row.base_prize_amount) ||
-        0;
-      return sum + value;
-    }, 0) ?? 0;
-
-  const recentClaims = recentClaimsResult.data ?? [];
 
   return (
     <main className="min-h-screen bg-[#07111f] text-white">
@@ -116,8 +221,8 @@ export default async function AdminDashboardPage() {
                 <p className="mt-2 max-w-2xl text-sm text-slate-300 sm:text-base">
                   Welcome back
                   {profile?.first_name ? `, ${profile.first_name}` : ""}. Manage
-                  payouts, review prize claims, and keep your admin workflow in
-                  one place.
+                  payouts, review claims, and jump into admin tools from one
+                  place.
                 </p>
               </div>
 
@@ -148,7 +253,7 @@ export default async function AdminDashboardPage() {
                   </p>
                   <p className="mt-3 text-3xl font-bold">{totalWinners}</p>
                   <p className="mt-2 text-sm text-slate-300">
-                    Records found for {monthKey}
+                    Records found for {monthKey || "current month"}
                   </p>
                 </div>
 
@@ -188,13 +293,11 @@ export default async function AdminDashboardPage() {
 
             <section className="mt-8 grid grid-cols-1 gap-6 xl:grid-cols-[1.1fr_0.9fr]">
               <div className="rounded-[28px] border border-white/10 bg-white/5 p-5 sm:p-6">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <h2 className="text-xl font-semibold">Quick Actions</h2>
-                    <p className="mt-1 text-sm text-slate-300">
-                      Jump directly into the tools you will use most.
-                    </p>
-                  </div>
+                <div>
+                  <h2 className="text-xl font-semibold">Quick Actions</h2>
+                  <p className="mt-1 text-sm text-slate-300">
+                    Jump directly into the admin tools you will use most.
+                  </p>
                 </div>
 
                 <div className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -209,7 +312,7 @@ export default async function AdminDashboardPage() {
                         </p>
                         <p className="mt-2 text-sm text-slate-300">
                           Review prize claims, mark payouts as paid, and manage
-                          outgoing winner payments.
+                          outgoing payments.
                         </p>
                       </div>
                       <span className="rounded-full bg-cyan-300 px-3 py-1 text-xs font-bold text-slate-950">
@@ -228,8 +331,7 @@ export default async function AdminDashboardPage() {
                           Winners Page
                         </p>
                         <p className="mt-2 text-sm text-slate-300">
-                          View the public winners page exactly how your users
-                          will see it.
+                          See the public winners page the same way members do.
                         </p>
                       </div>
                       <span className="rounded-full border border-white/15 px-3 py-1 text-xs font-bold text-white">
@@ -248,8 +350,7 @@ export default async function AdminDashboardPage() {
                           Member Dashboard
                         </p>
                         <p className="mt-2 text-sm text-slate-300">
-                          Check the normal user experience without leaving the
-                          admin area completely.
+                          Jump back to the normal user dashboard when needed.
                         </p>
                       </div>
                       <span className="rounded-full border border-white/15 px-3 py-1 text-xs font-bold text-white">
@@ -263,8 +364,8 @@ export default async function AdminDashboardPage() {
                       Admin Notes
                     </p>
                     <p className="mt-2 text-sm text-slate-300">
-                      This page is designed to be your admin landing page and
-                      your main connection point into{" "}
+                      This page is your admin landing page and connects directly
+                      into{" "}
                       <span className="font-semibold text-cyan-300">
                         /admin/payouts
                       </span>
@@ -275,25 +376,24 @@ export default async function AdminDashboardPage() {
               </div>
 
               <div className="rounded-[28px] border border-white/10 bg-white/5 p-5 sm:p-6">
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <h2 className="text-xl font-semibold">Recent Winner Activity</h2>
-                    <p className="mt-1 text-sm text-slate-300">
-                      Latest monthly winner records for this cycle.
-                    </p>
-                  </div>
+                <div>
+                  <h2 className="text-xl font-semibold">Recent Winner Activity</h2>
+                  <p className="mt-1 text-sm text-slate-300">
+                    Latest winner records for the current month.
+                  </p>
                 </div>
 
                 <div className="mt-5 space-y-3">
                   {recentClaims.length === 0 ? (
                     <div className="rounded-3xl border border-white/10 bg-black/20 p-5 text-sm text-slate-300">
-                      No winner records found yet for {monthKey}.
+                      No winner records found yet for {monthKey || "this month"}.
                     </div>
                   ) : (
                     recentClaims.map((claim) => {
                       const amount =
                         Number(claim.total_prize_amount) ||
                         Number(claim.prize_amount) ||
+                        Number(claim.base_prize_amount) ||
                         0;
 
                       return (
