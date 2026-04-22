@@ -9,7 +9,11 @@ export default function PrizePage() {
     { place: "2nd Place", prize: "$50" },
     { place: "3rd Place", prize: "$20" },
   ];
-
+  const potentialPrizes = [
+    { place: "1st Place", prize: "$300" },
+    { place: "2nd Place", prize: "$150" },
+    { place: "3rd Place", prize: "$60" },
+  ];
   const randomWinners = Array.from({ length: 5 }, (_, i) => ({
     label: `Random Winner ${i + 1}`,
     prize: "$10",
@@ -171,6 +175,22 @@ export default function PrizePage() {
               {randomWinners.map((item) => (
                 <div key={item.label} style={styles.prizeRow} className="prize-row">
                   <span style={styles.prizeLabel}>{item.label}</span>
+                  <span style={styles.prizeAmount}>{item.prize}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+          
+          <div style={styles.infoCard} className="info-card">
+            <h3 style={styles.infoTitle}>Total Potential Prizes</h3>
+            <p style={styles.infoText}>
+              When you upgrade your membership tier you upgrade your prize tier as well. As explained below, club members get to double there prize rewaard
+              and VIP members get to triple their rewards. The highest possible prizes are below. Want to cash in on higher prizes? Upgrade your membership today!
+            </p>
+            <div style={styles.prizeList}>
+              {potentialPrizes.map((item) => (
+                <div key={item.place} style={styles.prizeRow} className="prize-row">
+                  <span style={styles.prizeLabel}>{item.place}</span>
                   <span style={styles.prizeAmount}>{item.prize}</span>
                 </div>
               ))}
