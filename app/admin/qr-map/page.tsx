@@ -44,6 +44,7 @@ type LocationRow = {
   venue_type: string | null;
   latitude: number | string | null;
   longitude: number | string | null;
+  status: string | null;
   qr_count: number | string | null;
   total_scans: number | string | null;
   total_signups: number | string | null;
@@ -129,7 +130,7 @@ function bandLabel(band: string | null | undefined) {
   return "Unknown";
 }
 
-function bandColor(band: string | null | undefined) {
+function getPerformanceColor(band: string | null | undefined) {
   const normalized = (band ?? "").trim().toLowerCase();
 
   if (normalized === "high_performer") return "#22c55e";
@@ -141,8 +142,17 @@ function bandColor(band: string | null | undefined) {
   return "#94a3b8";
 }
 
+function getMarkerColor(row: LocationRow) {
+  const status = (row.status ?? "").trim().toLowerCase();
+
+  if (status === "planned") return "#94a3b8";
+  if (status === "placed") return getPerformanceColor(row.performance_band);
+
+  return "#64748b";
+}
+
 function bandPillStyles(band: string | null | undefined) {
-  const color = bandColor(band);
+  const color = getPerformanceColor(band);
 
   return {
     color,
@@ -258,6 +268,7 @@ export default function AdminQrMapPage() {
 
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedBand, setSelectedBand] = useState<PerformanceBand>("all");
+  const [selectedCity, setSelectedCity] = useState("all");
 
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<any>(null);
@@ -317,11 +328,13 @@ export default function AdminQrMapPage() {
 
         setAdminEmail(profile?.email ?? user.email ?? "");
 
-        const [{ data: overviewData, error: overviewError }, { data: locationData, error: locationError }] =
-          await Promise.all([
-            supabase.rpc("admin_qr_overview_metrics"),
-            supabase.rpc("admin_qr_location_metrics"),
-          ]);
+        const [
+          { data: overviewData, error: overviewError },
+          { data: locationData, error: locationError },
+        ] = await Promise.all([
+          supabase.rpc("admin_qr_overview_metrics"),
+          supabase.rpc("admin_qr_location_metrics"),
+        ]);
 
         if (overviewError) {
           throw new Error(`Overview read failed: ${getErrorMessage(overviewError)}`);
@@ -350,6 +363,16 @@ export default function AdminQrMapPage() {
     router.replace("/login");
   }
 
+  const cityOptions = useMemo(() => {
+    return Array.from(
+      new Set(
+        locations
+          .map((row) => (row.city ?? "").trim())
+          .filter(Boolean)
+      )
+    ).sort((a, b) => a.localeCompare(b));
+  }, [locations]);
+
   const filteredLocations = useMemo(() => {
     const search = searchTerm.trim().toLowerCase();
 
@@ -358,7 +381,11 @@ export default function AdminQrMapPage() {
         selectedBand === "all" ||
         (row.performance_band ?? "").trim().toLowerCase() === selectedBand;
 
-      if (!bandMatches) return false;
+      const cityMatches =
+        selectedCity === "all" ||
+        (row.city ?? "").trim().toLowerCase() === selectedCity.toLowerCase();
+
+      if (!bandMatches || !cityMatches) return false;
       if (!search) return true;
 
       const haystack = [
@@ -377,7 +404,7 @@ export default function AdminQrMapPage() {
 
       return haystack.includes(search);
     });
-  }, [locations, searchTerm, selectedBand]);
+  }, [locations, searchTerm, selectedBand, selectedCity]);
 
   const topPerformers = useMemo(() => {
     return [...locations]
@@ -439,7 +466,7 @@ export default function AdminQrMapPage() {
       validRows.forEach((row) => {
         const lat = toNumber(row.latitude);
         const lng = toNumber(row.longitude);
-        const color = bandColor(row.performance_band);
+        const color = getMarkerColor(row);
 
         const marker = L.circleMarker([lat, lng], {
           radius: markerRadius(row),
@@ -460,6 +487,7 @@ export default function AdminQrMapPage() {
             </div>
 
             <div style="display: grid; gap: 6px; font-size: 13px;">
+              <div><strong>Status:</strong> ${row.status || "—"}</div>
               <div><strong>Scans:</strong> ${formatNumber(row.total_scans)}</div>
               <div><strong>Member Signups:</strong> ${formatNumber(row.total_signups)}</div>
               <div><strong>Subscriptions:</strong> ${formatNumber(row.total_subscriptions)}</div>
@@ -467,6 +495,7 @@ export default function AdminQrMapPage() {
               <div><strong>Signup → Subscription:</strong> ${formatPercent(row.signup_to_subscription_rate)}</div>
               <div><strong>QRs at Location:</strong> ${formatNumber(row.qr_count)}</div>
               <div><strong>Placed QRs:</strong> ${formatNumber(row.placed_qr_count)}</div>
+              <div><strong>Planned QRs:</strong> ${formatNumber(row.planned_qr_count)}</div>
               <div><strong>Campaign:</strong> ${row.campaign || "—"}</div>
               <div><strong>Status Band:</strong> ${bandLabel(row.performance_band)}</div>
             </div>
@@ -813,7 +842,7 @@ export default function AdminQrMapPage() {
             <div
               style={{
                 display: "grid",
-                gridTemplateColumns: "1.25fr 1fr",
+                gridTemplateColumns: "1.25fr 1fr 1fr",
                 gap: "14px",
                 marginBottom: "16px",
               }}
@@ -855,6 +884,28 @@ export default function AdminQrMapPage() {
                 <option value="getting_attention">Getting attention</option>
                 <option value="low_activity">Low activity</option>
                 <option value="stalled">Stalled</option>
+              </select>
+
+              <select
+                value={selectedCity}
+                onChange={(e) => setSelectedCity(e.target.value)}
+                style={{
+                  width: "100%",
+                  borderRadius: "14px",
+                  padding: "14px 16px",
+                  border: "1px solid rgba(255,255,255,0.12)",
+                  background: "#132238",
+                  color: "#ffffff",
+                  outline: "none",
+                  fontSize: "14px",
+                }}
+              >
+                <option value="all">All cities</option>
+                {cityOptions.map((city) => (
+                  <option key={city} value={city}>
+                    {city}
+                  </option>
+                ))}
               </select>
             </div>
 
@@ -952,11 +1003,12 @@ export default function AdminQrMapPage() {
                   marginBottom: "14px",
                 }}
               >
-                Performance Bands
+                Marker Guide
               </div>
 
               <div style={{ display: "grid", gap: "10px" }}>
                 {[
+                  { key: "planned", text: "Locations not yet physically placed" },
                   { key: "high_performer", text: "Best subscription-producing locations" },
                   { key: "strong_signup", text: "Good signup behavior, room to convert higher" },
                   { key: "getting_attention", text: "Getting scans, still early" },
@@ -981,7 +1033,10 @@ export default function AdminQrMapPage() {
                         height: "12px",
                         borderRadius: "999px",
                         marginTop: "4px",
-                        background: bandColor(item.key),
+                        background:
+                          item.key === "planned"
+                            ? "#94a3b8"
+                            : getPerformanceColor(item.key),
                         flexShrink: 0,
                       }}
                     />
@@ -992,7 +1047,9 @@ export default function AdminQrMapPage() {
                         lineHeight: 1.55,
                       }}
                     >
-                      <strong style={{ color: "#ffffff" }}>{bandLabel(item.key)}</strong>
+                      <strong style={{ color: "#ffffff" }}>
+                        {item.key === "planned" ? "Planned" : bandLabel(item.key)}
+                      </strong>
                       <br />
                       {item.text}
                     </div>
