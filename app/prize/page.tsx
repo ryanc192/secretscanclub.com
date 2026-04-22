@@ -313,27 +313,32 @@ export default function PrizePage() {
         </section>
 
         <section style={styles.faqSection} className="faq-section">
-          <h2 style={styles.faqHeading} className="faq-heading">Prize Growth Model</h2>
-          <p style={styles.growthIntroText}>
-            As the member base grows, the prize pool grows with it. Each listed prize
-            grows as the platform hits each member pool benchmark, creating an ecosystem
-            that becomes more exciting as monthly traffic and engagement increase.
-          </p>
-
-          <div style={styles.growthLegend}>
-            <div style={styles.growthLegendItem}>
-              <span style={styles.growthLegendDotBase} />
-              <span style={styles.growthLegendText}>Base Prize</span>
+          <div style={styles.growthHeaderRow}>
+            <div>
+              <h2 style={styles.faqHeading} className="faq-heading">Prize Growth Model</h2>
+              <p style={styles.growthIntroText}>
+                As the member base grows, the prize pool grows with it. Each listed prize
+                grows as the platform hits each member pool benchmark, creating an ecosystem
+                that becomes more exciting as monthly traffic and engagement increase.
+              </p>
             </div>
-            <div style={styles.growthLegendItem}>
-              <span style={styles.growthLegendDotVip} />
-              <span style={styles.growthLegendText}>Top VIP Prize</span>
+
+            <div style={styles.growthLegend}>
+              <div style={styles.growthLegendItem}>
+                <span style={styles.growthLegendDotBase} />
+                <span style={styles.growthLegendText}>Base Prize</span>
+              </div>
+              <div style={styles.growthLegendItem}>
+                <span style={styles.growthLegendDotVip} />
+                <span style={styles.growthLegendText}>Top VIP Prize</span>
+              </div>
             </div>
           </div>
 
           <div style={styles.growthGrid} className="growth-grid">
             {growthExamples.map((item) => (
               <div key={item.members} style={styles.growthCard} className="growth-card">
+                <div style={styles.growthCardGlow} />
                 <div style={styles.growthMembers}>{item.members}</div>
 
                 <div style={styles.growthPrizeList}>
@@ -343,11 +348,26 @@ export default function PrizePage() {
                       style={styles.growthPrizeRow}
                       className="growthPrizeRow"
                     >
-                      <div style={styles.growthPrizeTextBlock}>
+                      <div style={styles.growthPrizeTopRow}>
                         <div style={styles.growthPrizeLabel}>{prize.label}</div>
-                        <div style={styles.growthPrizeBase}>Base: {prize.base}</div>
                         {"vip" in prize && prize.vip ? (
-                          <div style={styles.growthPrizeVip}>Top VIP: {prize.vip}</div>
+                          <div style={styles.vipBadge}>VIP x3</div>
+                        ) : (
+                          <div style={styles.baseOnlyBadge}>Base Only</div>
+                        )}
+                      </div>
+
+                      <div style={styles.growthPrizeValues}>
+                        <div style={styles.growthPrizeBaseCard}>
+                          <div style={styles.growthValueLabel}>Base Prize</div>
+                          <div style={styles.growthPrizeBase}>{prize.base}</div>
+                        </div>
+
+                        {"vip" in prize && prize.vip ? (
+                          <div style={styles.growthPrizeVipCard}>
+                            <div style={styles.growthValueLabelVip}>Top VIP Prize</div>
+                            <div style={styles.growthPrizeVip}>{prize.vip}</div>
+                          </div>
                         ) : null}
                       </div>
                     </div>
@@ -384,6 +404,12 @@ export default function PrizePage() {
           .hero-grid,
           .info-grid,
           .multiplier-grid,
+          .growth-grid {
+            grid-template-columns: 1fr !important;
+          }
+        }
+
+        @media (max-width: 900px) {
           .growth-grid {
             grid-template-columns: 1fr !important;
           }
@@ -450,7 +476,7 @@ export default function PrizePage() {
           }
 
           .growthPrizeRow {
-            padding: 12px !important;
+            padding: 14px !important;
           }
 
           .bottom-cta-buttons {
@@ -464,6 +490,17 @@ export default function PrizePage() {
           }
         }
 
+        @media (max-width: 640px) {
+          .growthPrizeValues {
+            grid-template-columns: 1fr !important;
+          }
+
+          .growthPrizeTopRow {
+            flex-direction: column !important;
+            align-items: flex-start !important;
+          }
+        }
+
         @media (max-width: 520px) {
           .prize-shell {
             padding: 14px 12px 36px !important;
@@ -474,7 +511,7 @@ export default function PrizePage() {
           .info-card,
           .faq-section,
           .multiplier-card,
-          .growthCard,
+          .growth-card,
           .faq-item,
           .bottom-cta {
             padding: 18px !important;
@@ -815,8 +852,16 @@ const styles: Record<string, React.CSSProperties> = {
     lineHeight: 1.6,
     fontSize: 14,
   },
+  growthHeaderRow: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "flex-end",
+    gap: 20,
+    flexWrap: "wrap",
+    marginBottom: 10,
+  },
   growthIntroText: {
-    margin: "0 0 20px",
+    margin: "0 0 10px",
     maxWidth: 760,
     color: "rgba(255,255,255,0.78)",
     fontSize: 16,
@@ -828,7 +873,7 @@ const styles: Record<string, React.CSSProperties> = {
     alignItems: "center",
     gap: 18,
     flexWrap: "wrap",
-    marginBottom: 20,
+    marginBottom: 10,
   },
   growthLegendItem: {
     display: "flex",
@@ -857,54 +902,144 @@ const styles: Record<string, React.CSSProperties> = {
   growthGrid: {
     display: "grid",
     gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
-    gap: 16,
+    gap: 18,
     marginTop: 20,
   },
   growthCard: {
-    borderRadius: 20,
-    padding: 20,
-    background: "rgba(255,255,255,0.04)",
-    border: "1px solid rgba(255,255,255,0.07)",
+    position: "relative",
+    borderRadius: 24,
+    padding: 18,
+    background:
+      "linear-gradient(180deg, rgba(255,255,255,0.055) 0%, rgba(255,255,255,0.03) 100%)",
+    border: "1px solid rgba(255,255,255,0.09)",
+    boxShadow: "0 18px 40px rgba(0,0,0,0.22)",
     minWidth: 0,
     textAlign: "left",
+    overflow: "hidden",
+  },
+  growthCardGlow: {
+    position: "absolute",
+    top: -40,
+    right: -20,
+    width: 120,
+    height: 120,
+    borderRadius: "50%",
+    background: "rgba(53,214,255,0.08)",
+    filter: "blur(30px)",
+    pointerEvents: "none",
   },
   growthMembers: {
+    position: "relative",
+    zIndex: 1,
     fontSize: 16,
-    fontWeight: 800,
-    marginBottom: 14,
-    color: "#dfeaff",
+    fontWeight: 900,
+    marginBottom: 16,
+    color: "#ffffff",
     textAlign: "left",
+    lineHeight: 1.35,
   },
   growthPrizeList: {
     display: "grid",
-    gap: 10,
+    gap: 12,
+    position: "relative",
+    zIndex: 1,
   },
   growthPrizeRow: {
     display: "block",
-    padding: "12px 14px",
-    borderRadius: 14,
-    background: "rgba(255,255,255,0.04)",
-    border: "1px solid rgba(255,255,255,0.06)",
+    padding: "14px",
+    borderRadius: 18,
+    background: "linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.03))",
+    border: "1px solid rgba(255,255,255,0.07)",
+    boxShadow: "inset 0 1px 0 rgba(255,255,255,0.03)",
   },
-  growthPrizeTextBlock: {
-    display: "grid",
-    gap: 6,
+  growthPrizeTopRow: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 10,
+    marginBottom: 12,
   },
   growthPrizeLabel: {
-    fontSize: 14,
-    fontWeight: 800,
+    fontSize: 15,
+    fontWeight: 900,
     color: "#eef5ff",
-    marginBottom: 2,
+    lineHeight: 1.3,
+  },
+  vipBadge: {
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: "5px 10px",
+    borderRadius: 999,
+    fontSize: 11,
+    fontWeight: 800,
+    letterSpacing: 0.3,
+    textTransform: "uppercase",
+    color: "#06241d",
+    background: "linear-gradient(135deg, #7ef0d1 0%, #6fffd7 100%)",
+    boxShadow: "0 8px 20px rgba(126,240,209,0.18)",
+    whiteSpace: "nowrap",
+  },
+  baseOnlyBadge: {
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: "5px 10px",
+    borderRadius: 999,
+    fontSize: 11,
+    fontWeight: 800,
+    letterSpacing: 0.3,
+    textTransform: "uppercase",
+    color: "rgba(255,255,255,0.78)",
+    background: "rgba(255,255,255,0.08)",
+    border: "1px solid rgba(255,255,255,0.08)",
+    whiteSpace: "nowrap",
+  },
+  growthPrizeValues: {
+    display: "grid",
+    gridTemplateColumns: "1fr 1fr",
+    gap: 10,
+  },
+  growthPrizeBaseCard: {
+    padding: "10px 12px",
+    borderRadius: 14,
+    background: "rgba(255,255,255,0.045)",
+    border: "1px solid rgba(255,255,255,0.06)",
+  },
+  growthPrizeVipCard: {
+    padding: "10px 12px",
+    borderRadius: 14,
+    background: "linear-gradient(180deg, rgba(126,240,209,0.12), rgba(126,240,209,0.05))",
+    border: "1px solid rgba(126,240,209,0.16)",
+    boxShadow: "0 10px 24px rgba(126,240,209,0.06)",
+  },
+  growthValueLabel: {
+    fontSize: 11,
+    fontWeight: 800,
+    letterSpacing: 0.4,
+    textTransform: "uppercase",
+    color: "rgba(255,255,255,0.56)",
+    marginBottom: 6,
+  },
+  growthValueLabelVip: {
+    fontSize: 11,
+    fontWeight: 800,
+    letterSpacing: 0.4,
+    textTransform: "uppercase",
+    color: "rgba(126,240,209,0.88)",
+    marginBottom: 6,
   },
   growthPrizeBase: {
-    fontSize: 14,
-    fontWeight: 700,
+    fontSize: 20,
+    fontWeight: 900,
     color: "#ffffff",
+    lineHeight: 1.1,
   },
   growthPrizeVip: {
-    fontSize: 14,
+    fontSize: 20,
     fontWeight: 900,
     color: "#7ef0d1",
+    lineHeight: 1.1,
   },
   bottomCta: {
     textAlign: "center",
