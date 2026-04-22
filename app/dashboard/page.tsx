@@ -71,6 +71,17 @@ type PrizeSummaryItem = {
   isClaimable: boolean;
 };
 
+type ProfileRow = {
+  created_at: string | null;
+  subscription_tier: string | null;
+  current_streak: number | null;
+  longest_streak: number | null;
+  first_name: string | null;
+  last_name: string | null;
+  username: string | null;
+  is_admin: boolean | null;
+};
+
 const STRIPE_PRICE_IDS = {
   plus: {
     monthly: "price_1TH9ClJcQiUWXawe6KLbnBu5",
@@ -308,39 +319,6 @@ function isClaimableStatus(value: string | null | undefined) {
   return !normalized || normalized === "unclaimed";
 }
 
-function isRegisteredAdmin(user: {
-  app_metadata?: Record<string, unknown> | null;
-  user_metadata?: Record<string, unknown> | null;
-} | null) {
-  if (!user) return false;
-
-  const appMeta = user.app_metadata ?? {};
-  const userMeta = user.user_metadata ?? {};
-
-  const adminFlagCandidates = [
-    appMeta["is_admin"],
-    appMeta["admin"],
-    userMeta["is_admin"],
-    userMeta["admin"],
-  ];
-
-  if (adminFlagCandidates.some((value) => value === true)) {
-    return true;
-  }
-
-  const roleCandidates = [
-    appMeta["role"],
-    userMeta["role"],
-    appMeta["user_role"],
-    userMeta["user_role"],
-  ];
-
-  return roleCandidates.some((value) => {
-    const normalized = String(value ?? "").trim().toLowerCase();
-    return normalized === "admin" || normalized === "super_admin";
-  });
-}
-
 export default function DashboardPage() {
   const router = useRouter();
   const supabase = useMemo(() => createBrowserSupabaseClient(), []);
@@ -383,7 +361,6 @@ export default function DashboardPage() {
         }
 
         setUserEmail(user.email ?? "");
-        setIsAdminUser(isRegisteredAdmin(user));
 
         let joinedAt: string | null = user.created_at ?? null;
         let plan: DashboardPlan = "Free";
@@ -437,7 +414,7 @@ export default function DashboardPage() {
           supabase
             .from("profiles")
             .select(
-              "created_at, subscription_tier, current_streak, longest_streak, first_name, last_name, username"
+              "created_at, subscription_tier, current_streak, longest_streak, first_name, last_name, username, is_admin"
             )
             .eq("id", user.id)
             .maybeSingle(),
@@ -480,12 +457,15 @@ export default function DashboardPage() {
           }
           console.error("Profiles read failed:", profileError);
         } else if (profileData) {
-          joinedAt = profileData.created_at ?? joinedAt;
-          currentStreak = profileData.current_streak ?? 0;
-          longestStreak = profileData.longest_streak ?? 0;
+          const profile = profileData as ProfileRow;
 
-          const profileDisplayName = buildDisplayName(profileData);
-          const profileUsername = profileData.username?.trim() ?? "";
+          joinedAt = profile.created_at ?? joinedAt;
+          currentStreak = profile.current_streak ?? 0;
+          longestStreak = profile.longest_streak ?? 0;
+          setIsAdminUser(profile.is_admin === true);
+
+          const profileDisplayName = buildDisplayName(profile);
+          const profileUsername = profile.username?.trim() ?? "";
 
           setDisplayName(profileDisplayName || fallbackFullName);
           setUsername(profileUsername || fallbackUsername);
@@ -498,8 +478,10 @@ export default function DashboardPage() {
           console.error("Subscription read failed:", subscriptionError);
         }
 
+        const resolvedProfile = (profileData as ProfileRow | null) ?? null;
+
         plan = getPlanFromSubscription(
-          profileData?.subscription_tier,
+          resolvedProfile?.subscription_tier,
           userSubscription?.subscription_status,
           userSubscription?.stripe_price_id
         );
