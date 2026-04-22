@@ -3,10 +3,13 @@
 import { Suspense, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
+import Script from "next/script";
 import { createBrowserSupabaseClient } from "../../lib/supabase/client";
 
 const PASSWORD_RULE =
   /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z\d]).{8,}$/;
+
+const TURNSTILE_SITE_KEY = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY ?? "";
 
 function getPasswordChecks(password: string) {
   return {
@@ -107,6 +110,20 @@ function SignupForm() {
       return;
     }
 
+    if (!TURNSTILE_SITE_KEY) {
+      setMessage("Captcha site key is missing.");
+      return;
+    }
+
+    const captchaToken = (
+      document.querySelector('[name="cf-turnstile-response"]') as HTMLInputElement | null
+    )?.value;
+
+    if (!captchaToken) {
+      setMessage("Please complete the security check.");
+      return;
+    }
+
     setLoading(true);
     setMessage("");
 
@@ -133,6 +150,7 @@ function SignupForm() {
         email: cleanedEmail,
         password,
         options: {
+          captchaToken,
           data: {
             first_name: cleanedFirstName,
             last_name: cleanedLastName,
@@ -217,6 +235,12 @@ function SignupForm() {
       <p className="section-text-light">
         Save your progress, keep your streak, and make your daily puzzle history official.
       </p>
+
+      {!TURNSTILE_SITE_KEY ? (
+        <div className="share-box" style={{ marginTop: 20 }}>
+          Missing NEXT_PUBLIC_TURNSTILE_SITE_KEY.
+        </div>
+      ) : null}
 
       <form
         onSubmit={handleSignup}
@@ -395,7 +419,32 @@ function SignupForm() {
           onChange={(e) => setConfirmPassword(e.target.value)}
         />
 
-        <button type="submit" className="btn-dark" disabled={loading}>
+        <div style={{ marginTop: 6 }}>
+          <div
+            style={{
+              minHeight: 76,
+              padding: 12,
+              borderRadius: 14,
+              border: "1px solid rgba(15, 23, 42, 0.08)",
+              background: "rgba(255,255,255,0.72)",
+              overflowX: "auto",
+            }}
+          >
+            {TURNSTILE_SITE_KEY ? (
+              <div
+                className="cf-turnstile"
+                data-sitekey={TURNSTILE_SITE_KEY}
+                data-theme="light"
+              />
+            ) : null}
+          </div>
+        </div>
+
+        <button
+          type="submit"
+          className="btn-dark"
+          disabled={loading || !TURNSTILE_SITE_KEY}
+        >
           {loading ? "Creating account..." : "Create Account"}
         </button>
       </form>
@@ -455,6 +504,11 @@ export default function SignupPage() {
         marginTop: 0,
       }}
     >
+      <Script
+        src="https://challenges.cloudflare.com/turnstile/v0/api.js"
+        strategy="afterInteractive"
+      />
+
       <div
         className="scan-wrap"
         style={{
