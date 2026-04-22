@@ -54,24 +54,24 @@ export default function PrizePage() {
       monthly: "1st $400 • 2nd $200 • 3rd $80 • Random winners $40 each",
     },
     {
-      members: "9,000 monthly members",
-      monthly: "1st $800 • 2nd $400 • 3rd $160 • Random winners $80 each",
+      members: "10,000 monthly members",
+      monthly: "1st $600 • 2nd $300 • 3rd $120 • Random winners $60 each",
     },
         {
-      members: "12,000 monthly members",
-      monthly: "1st $1,600 • 2nd $800 • 3rd $320 • Random winners $160 each",
-    },
-            {
       members: "15,000 monthly members",
-      monthly: "1st $3,200 • 2nd $1,600 • 3rd $640 • Random winners $320 each",
+      monthly: "1st $800 • 2nd $400 • 3rd $160 • Random winners $80 each",
     },
             {
-      members: "18,000 monthly members",
-      monthly: "1st $6,400 • 2nd $3,200 • 3rd $1,280 • Random winners $640 each",
+      members: "20,000 monthly members",
+      monthly: "1st $1,000 • 2nd $500 • 3rd $200 • Random winners $100 each",
     },
             {
-      members: "21,000 monthly members",
-      monthly: "1st $12,800 • 2nd $6,400 • 3rd $2,560 • Random winners $1,280 each",
+      members: "30,000 monthly members",
+      monthly: "1st $1,400 • 2nd $600 • 3rd $240 • Random winners $120 each",
+    },
+            {
+      members: "40,000 monthly members",
+      monthly: "1st $1,600 • 2nd $700 • 3rd $280 • Random winners $140 each",
     },
   ];
 
@@ -176,15 +176,6 @@ export default function PrizePage() {
               ))}
             </div>
           </div>
-
-          <div style={styles.infoCard} className="info-card">
-            <h3 style={styles.infoTitle}>VIP Weekly Prize Access</h3>
-            <p style={styles.infoText}>
-              VIP members also qualify for weekly prize opportunities. These weekly rewards
-              are exclusive to VIP-level members and are designed to create stronger retention,
-              higher engagement, and more repeat visits throughout the month.
-            </p>
-          </div>
         </section>
 
         <section style={styles.faqSection} className="faq-section">
@@ -242,8 +233,8 @@ export default function PrizePage() {
         <section style={styles.faqSection} className="faq-section">
           <h2 style={styles.faqHeading} className="faq-heading">Prize Growth Model</h2>
           <p style={styles.bottomCtaText}>
-            As the member base grows, the prize pool grows with it. Each listed prize doubles
-            for every 3,000 new monthly members, creating a system that becomes more exciting
+            As the member base grows, the prize pool grows with it. Each listed prize grows as the platform
+            hits each member pool benchmark, creating an ecosystem that becomes more exciting
             as monthly traffic and engagement increase.
           </p>
 
@@ -260,9 +251,9 @@ export default function PrizePage() {
         <section style={styles.bottomCta} className="bottom-cta">
           <h2 style={styles.bottomCtaTitle} className="bottom-cta-title">More members means bigger prizes.</h2>
           <p style={styles.bottomCtaText}>
-            The structure is designed to reward repeat visits, strengthen competition, and
-            scale prize excitement as the audience grows. More engagement means a bigger
-            leaderboard, bigger incentives, and more reasons to come back daily.
+            Our structure is designed to reward repeat visits, strengthen competition, and
+            scale prize excitement as the member base grows. More engagement means a bigger
+            leaderboard, bigger incentives, and more rewards for you.
           </p>
 
           <div style={styles.bottomCtaButtons} className="bottom-cta-buttons">
