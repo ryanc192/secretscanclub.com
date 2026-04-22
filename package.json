@@ -23,5 +23,7 @@
   "dependencies": {
     "leaflet": "^1.9.4"
   }
-
+  "engines": {
+    "node": "20.x"
+  }
 }
