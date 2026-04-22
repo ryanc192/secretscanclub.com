@@ -3,18 +3,23 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { createClient } from "@supabase/supabase-js";
+import { createBrowserSupabaseClient } from "../../lib/supabase/client";
 
-type Profile = {
+type ProfileRow = {
   id: string;
-  first_name?: string | null;
-  email?: string | null;
-  is_admin?: boolean | null;
-  subscription_tier?: string | null;
+  first_name: string | null;
+  last_name: string | null;
+  username: string | null;
+  email: string | null;
+  is_admin: boolean | null;
+  subscription_tier: string | null;
+  created_at: string | null;
 };
 
 type WinnerRow = {
   id: string;
+  month_key: string | null;
+  winner_month?: string | null;
   rank_label?: string | null;
   display_name?: string | null;
   membership_tier?: string | null;
@@ -25,12 +30,38 @@ type WinnerRow = {
   created_at?: string | null;
 };
 
+function getErrorMessage(error: unknown) {
+  if (error && typeof error === "object") {
+    const maybeMessage = (error as { message?: unknown }).message;
+    if (typeof maybeMessage === "string" && maybeMessage.trim()) {
+      return maybeMessage;
+    }
+
+    const maybeDetails = (error as { details?: unknown }).details;
+    if (typeof maybeDetails === "string" && maybeDetails.trim()) {
+      return maybeDetails;
+    }
+
+    const maybeHint = (error as { hint?: unknown }).hint;
+    if (typeof maybeHint === "string" && maybeHint.trim()) {
+      return maybeHint;
+    }
+  }
+
+  return "Unknown error.";
+}
+
 function formatCurrency(value: number) {
   return new Intl.NumberFormat("en-US", {
     style: "currency",
     currency: "USD",
-    maximumFractionDigits: 0,
+    maximumFractionDigits: value % 1 === 0 ? 0 : 2,
   }).format(value || 0);
+}
+
+function normalizeMoney(value: number | string | null | undefined) {
+  const parsed = Number(value ?? 0);
+  return Number.isFinite(parsed) ? parsed : 0;
 }
 
 function getMonthKey() {
@@ -40,64 +71,211 @@ function getMonthKey() {
   return `${year}-${month}`;
 }
 
-function getClaimBadgeStyles(status?: string | null) {
-  const normalized = String(status || "").toLowerCase();
+function formatMonthLabel(monthKey: string | null | undefined) {
+  if (!monthKey) return "Current Month";
+  const parsed = new Date(`${monthKey}-01T00:00:00`);
+  if (Number.isNaN(parsed.getTime())) return monthKey;
+
+  return parsed.toLocaleDateString("en-US", {
+    month: "long",
+    year: "numeric",
+  });
+}
+
+function formatStatus(value: string | null | undefined) {
+  const normalized = (value ?? "").trim().toLowerCase();
+
+  if (!normalized) return "Unclaimed";
+  if (normalized === "unclaimed") return "Unclaimed";
+  if (normalized === "pending") return "Pending";
+  if (normalized === "submitted") return "Pending";
+  if (normalized === "processing") return "Processing";
+  if (normalized === "approved") return "Approved";
+  if (normalized === "paid") return "Paid";
+
+  return normalized.charAt(0).toUpperCase() + normalized.slice(1);
+}
+
+function getStatusStyles(status: string | null | undefined) {
+  const normalized = (status ?? "").trim().toLowerCase();
 
   if (normalized === "paid") {
-    return "bg-emerald-400/15 text-emerald-200 border border-emerald-300/20";
+    return {
+      background: "rgba(34,197,94,0.16)",
+      color: "#86efac",
+      border: "1px solid rgba(34,197,94,0.28)",
+    };
   }
 
   if (normalized === "pending" || normalized === "submitted") {
-    return "bg-amber-400/15 text-amber-200 border border-amber-300/20";
+    return {
+      background: "rgba(245,158,11,0.16)",
+      color: "#fcd34d",
+      border: "1px solid rgba(245,158,11,0.28)",
+    };
   }
 
-  if (normalized === "processing") {
-    return "bg-cyan-400/15 text-cyan-200 border border-cyan-300/20";
+  if (normalized === "processing" || normalized === "approved") {
+    return {
+      background: "rgba(59,130,246,0.16)",
+      color: "#93c5fd",
+      border: "1px solid rgba(59,130,246,0.28)",
+    };
   }
 
-  return "bg-white/10 text-slate-200 border border-white/10";
+  return {
+    background: "rgba(255,255,255,0.08)",
+    color: "rgba(255,255,255,0.86)",
+    border: "1px solid rgba(255,255,255,0.12)",
+  };
+}
+
+function getDisplayName(profile: {
+  first_name?: string | null;
+  last_name?: string | null;
+  username?: string | null;
+  email?: string | null;
+}) {
+  const first = profile.first_name?.trim() ?? "";
+  const last = profile.last_name?.trim() ?? "";
+  const full = `${first} ${last}`.trim();
+
+  if (full) return full;
+  if (profile.username?.trim()) return `@${profile.username.trim()}`;
+  if (profile.email?.trim()) return profile.email.trim();
+
+  return "Admin";
+}
+
+function buildRecentWinnerLabel(row: WinnerRow) {
+  if (row.rank_label?.trim()) return row.rank_label.trim();
+  return "Winner";
+}
+
+function getWinnerAmount(row: WinnerRow) {
+  return (
+    normalizeMoney(row.total_prize_amount) ||
+    normalizeMoney(row.prize_amount) ||
+    normalizeMoney(row.base_prize_amount) ||
+    0
+  );
+}
+
+function MetricCard({
+  label,
+  value,
+  subtext,
+}: {
+  label: string;
+  value: string;
+  subtext: string;
+}) {
+  return (
+    <div
+      style={{
+        background: "rgba(255,255,255,0.06)",
+        border: "1px solid rgba(255,255,255,0.10)",
+        borderRadius: "20px",
+        padding: "22px",
+        minWidth: 0,
+      }}
+    >
+      <div
+        style={{
+          fontSize: "13px",
+          color: "rgba(255,255,255,0.65)",
+          marginBottom: "10px",
+        }}
+      >
+        {label}
+      </div>
+      <div
+        style={{
+          fontSize: "30px",
+          fontWeight: 800,
+          lineHeight: 1,
+          wordBreak: "break-word",
+        }}
+      >
+        {value}
+      </div>
+      <div
+        style={{
+          marginTop: "10px",
+          color: "rgba(255,255,255,0.68)",
+          fontSize: "13px",
+          lineHeight: 1.5,
+        }}
+      >
+        {subtext}
+      </div>
+    </div>
+  );
+}
+
+function DashboardLink({
+  href,
+  label,
+  accent = false,
+}: {
+  href: string;
+  label: string;
+  accent?: boolean;
+}) {
+  return (
+    <Link
+      href={href}
+      style={{
+        display: "block",
+        textDecoration: "none",
+        color: accent ? "#07111f" : "#ffffff",
+        background: accent ? "#ffffff" : "rgba(255,255,255,0.045)",
+        border: accent
+          ? "1px solid rgba(255,255,255,0.9)"
+          : "1px solid rgba(255,255,255,0.08)",
+        padding: "14px 16px",
+        borderRadius: "14px",
+        fontWeight: 700,
+        wordBreak: "break-word",
+      }}
+    >
+      {label}
+    </Link>
+  );
 }
 
 export default function AdminDashboardPage() {
   const router = useRouter();
-
-  const supabase = useMemo(() => {
-    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-    if (!url || !anonKey) return null;
-    return createClient(url, anonKey);
-  }, []);
+  const supabase = useMemo(() => createBrowserSupabaseClient(), []);
 
   const [loading, setLoading] = useState(true);
-  const [envError, setEnvError] = useState("");
-  const [authUserId, setAuthUserId] = useState<string | null>(null);
-  const [profile, setProfile] = useState<Profile | null>(null);
-  const [profileError, setProfileError] = useState("");
-  const [isAdmin, setIsAdmin] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
+  const [error, setError] = useState("");
 
   const [monthKey, setMonthKey] = useState("");
+  const [adminName, setAdminName] = useState("Admin");
+  const [adminEmail, setAdminEmail] = useState("");
+  const [authUserId, setAuthUserId] = useState("");
+  const [isAdminUser, setIsAdminUser] = useState(false);
+
   const [totalWinners, setTotalWinners] = useState(0);
   const [pendingClaims, setPendingClaims] = useState(0);
   const [paidClaims, setPaidClaims] = useState(0);
   const [unclaimedClaims, setUnclaimedClaims] = useState(0);
-  const [totalPayout, setTotalPayout] = useState(0);
-  const [pendingPayoutValue, setPendingPayoutValue] = useState(0);
-  const [paidPayoutValue, setPaidPayoutValue] = useState(0);
-  const [recentClaims, setRecentClaims] = useState<WinnerRow[]>([]);
-  const [topWinners, setTopWinners] = useState<WinnerRow[]>([]);
+
+  const [totalExposure, setTotalExposure] = useState(0);
+  const [pendingExposure, setPendingExposure] = useState(0);
+  const [paidExposure, setPaidExposure] = useState(0);
+
+  const [recentWinners, setRecentWinners] = useState<WinnerRow[]>([]);
+  const [topPayouts, setTopPayouts] = useState<WinnerRow[]>([]);
 
   useEffect(() => {
-    const run = async () => {
-      try {
-        if (!supabase) {
-          setEnvError(
-            "Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY."
-          );
-          setLoading(false);
-          return;
-        }
+    async function loadAdminDashboard() {
+      setLoading(true);
+      setError("");
 
+      try {
         const activeMonthKey = getMonthKey();
         setMonthKey(activeMonthKey);
 
@@ -111,711 +289,1025 @@ export default function AdminDashboardPage() {
           return;
         }
 
+        setAdminEmail(user.email ?? "");
         setAuthUserId(user.id);
 
-        const { data: profileData, error } = await supabase
-          .from("profiles")
-          .select("id, first_name, email, is_admin, subscription_tier")
-          .eq("id", user.id)
-          .maybeSingle();
+        const fallbackAdminName =
+          (user.user_metadata?.full_name as string | undefined)?.trim() ||
+          `${(user.user_metadata?.first_name as string | undefined)?.trim() ?? ""} ${
+            (user.user_metadata?.last_name as string | undefined)?.trim() ?? ""
+          }`.trim() ||
+          "Admin";
 
-        if (error) {
-          setProfileError(error.message || "Unable to read profile row.");
+        setAdminName(fallbackAdminName);
+
+        const [
+          { data: profileData, error: profileError },
+          { data: winnersData, error: winnersError },
+        ] = await Promise.all([
+          supabase
+            .from("profiles")
+            .select(
+              "id, first_name, last_name, username, email, is_admin, subscription_tier, created_at"
+            )
+            .eq("id", user.id)
+            .maybeSingle(),
+
+          supabase
+            .from("monthly_winners")
+            .select(
+              "id, month_key, winner_month, rank_label, display_name, membership_tier, claim_status, total_prize_amount, prize_amount, base_prize_amount, created_at"
+            )
+            .eq("month_key", activeMonthKey)
+            .order("created_at", { ascending: false }),
+        ]);
+
+        if (profileError) {
+          throw new Error(`Profile read failed: ${getErrorMessage(profileError)}`);
         }
 
-        setProfile(profileData ?? null);
-
-        const adminCheck = profileData?.is_admin === true;
-        setIsAdmin(adminCheck);
+        const profile = profileData as ProfileRow | null;
+        const adminCheck = profile?.is_admin === true;
+        setIsAdminUser(adminCheck);
 
         if (!adminCheck) {
-          setLoading(false);
+          router.replace("/dashboard");
           return;
         }
 
-        const {
-          data: monthlyWinnerRows,
-          error: winnerRowsError,
-        } = await supabase
-          .from("monthly_winners")
-          .select(
-            "id, rank_label, display_name, membership_tier, claim_status, total_prize_amount, prize_amount, base_prize_amount, created_at"
-          )
-          .eq("month_key", activeMonthKey)
-          .order("created_at", { ascending: false });
-
-        if (winnerRowsError) {
-          console.error("Error loading monthly winners:", winnerRowsError);
+        if (profile) {
+          setAdminName(getDisplayName(profile));
+          setAdminEmail(profile.email ?? user.email ?? "");
         }
 
-        const allRows = (monthlyWinnerRows as WinnerRow[]) ?? [];
+        if (winnersError) {
+          throw new Error(`Winner read failed: ${getErrorMessage(winnersError)}`);
+        }
 
-        const total = allRows.reduce((sum, row) => {
-          const amount =
-            Number(row.total_prize_amount) ||
-            Number(row.prize_amount) ||
-            Number(row.base_prize_amount) ||
-            0;
-          return sum + amount;
-        }, 0);
+        const winnerRows = (winnersData as WinnerRow[]) ?? [];
 
-        const pendingRows = allRows.filter((row) => {
-          const status = String(row.claim_status || "").toLowerCase();
+        const pendingRows = winnerRows.filter((row) => {
+          const status = (row.claim_status ?? "").trim().toLowerCase();
           return status === "pending" || status === "submitted" || status === "processing";
         });
 
-        const paidRows = allRows.filter(
-          (row) => String(row.claim_status || "").toLowerCase() === "paid"
-        );
+        const paidRows = winnerRows.filter((row) => {
+          const status = (row.claim_status ?? "").trim().toLowerCase();
+          return status === "paid";
+        });
 
-        const unclaimedRows = allRows.filter((row) => {
-          const status = String(row.claim_status || "").toLowerCase();
+        const unclaimedRows = winnerRows.filter((row) => {
+          const status = (row.claim_status ?? "").trim().toLowerCase();
           return !status || status === "unclaimed";
         });
 
-        const pendingValue = pendingRows.reduce((sum, row) => {
-          const amount =
-            Number(row.total_prize_amount) ||
-            Number(row.prize_amount) ||
-            Number(row.base_prize_amount) ||
-            0;
-          return sum + amount;
-        }, 0);
+        const totalValue = winnerRows.reduce((sum, row) => sum + getWinnerAmount(row), 0);
+        const pendingValue = pendingRows.reduce((sum, row) => sum + getWinnerAmount(row), 0);
+        const paidValue = paidRows.reduce((sum, row) => sum + getWinnerAmount(row), 0);
 
-        const paidValue = paidRows.reduce((sum, row) => {
-          const amount =
-            Number(row.total_prize_amount) ||
-            Number(row.prize_amount) ||
-            Number(row.base_prize_amount) ||
-            0;
-          return sum + amount;
-        }, 0);
+        const highestPayoutRows = [...winnerRows]
+          .sort((a, b) => getWinnerAmount(b) - getWinnerAmount(a))
+          .slice(0, 5);
 
-        const sortedTopWinners = [...allRows]
-          .sort((a, b) => {
-            const aLabel = String(a.rank_label || "").toLowerCase();
-            const bLabel = String(b.rank_label || "").toLowerCase();
-
-            const orderValue = (label: string) => {
-              if (label.includes("1")) return 1;
-              if (label.includes("2")) return 2;
-              if (label.includes("3")) return 3;
-              return 99;
-            };
-
-            return orderValue(aLabel) - orderValue(bLabel);
-          })
-          .slice(0, 3);
-
-        setTotalWinners(allRows.length);
+        setTotalWinners(winnerRows.length);
         setPendingClaims(pendingRows.length);
         setPaidClaims(paidRows.length);
         setUnclaimedClaims(unclaimedRows.length);
-        setTotalPayout(total);
-        setPendingPayoutValue(pendingValue);
-        setPaidPayoutValue(paidValue);
-        setRecentClaims(allRows.slice(0, 8));
-        setTopWinners(sortedTopWinners);
-      } catch (error) {
-        console.error("Admin dashboard load error:", error);
-        setProfileError(error instanceof Error ? error.message : "Unknown error");
+
+        setTotalExposure(totalValue);
+        setPendingExposure(pendingValue);
+        setPaidExposure(paidValue);
+
+        setRecentWinners(winnerRows.slice(0, 8));
+        setTopPayouts(highestPayoutRows);
+      } catch (err) {
+        console.error("Admin dashboard load failed:", err);
+        setError(`Something went wrong loading the admin dashboard. ${getErrorMessage(err)}`);
       } finally {
         setLoading(false);
       }
-    };
+    }
 
-    run();
+    loadAdminDashboard();
   }, [router, supabase]);
+
+  async function handleSignOut() {
+    setSigningOut(true);
+    await supabase.auth.signOut();
+    router.replace("/login");
+  }
+
+  const completionRate =
+    totalWinners > 0 ? `${Math.round((paidClaims / totalWinners) * 100)}%` : "0%";
 
   if (loading) {
     return (
-      <main className="min-h-screen bg-[#07111f] text-white">
-        <div className="mx-auto flex min-h-screen max-w-7xl items-center justify-center px-4">
-          <div className="w-full max-w-md rounded-[28px] border border-white/10 bg-white/5 p-8 text-center shadow-2xl backdrop-blur">
-            <div className="mx-auto mb-4 h-12 w-12 animate-pulse rounded-full bg-cyan-400/20" />
-            <p className="text-xl font-semibold">Loading admin dashboard...</p>
-            <p className="mt-2 text-sm text-slate-300">
-              Checking admin access and pulling payout data.
-            </p>
+      <main
+        style={{
+          minHeight: "100vh",
+          background:
+            "linear-gradient(180deg, #07111f 0%, #0b1728 55%, #101d31 100%)",
+          color: "#ffffff",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          padding: "24px",
+        }}
+      >
+        <div
+          style={{
+            width: "100%",
+            maxWidth: "460px",
+            textAlign: "center",
+          }}
+        >
+          <div
+            style={{
+              width: "82px",
+              height: "82px",
+              margin: "0 auto 18px",
+              borderRadius: "999px",
+              border: "1px solid rgba(255,255,255,0.14)",
+              background: "rgba(255,255,255,0.05)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              boxShadow: "0 10px 30px rgba(0,0,0,0.25)",
+            }}
+          >
+            <div
+              style={{
+                width: "32px",
+                height: "32px",
+                borderRadius: "999px",
+                border: "3px solid rgba(255,255,255,0.22)",
+                borderTopColor: "#ffffff",
+                animation: "sscSpin 0.9s linear infinite",
+              }}
+            />
           </div>
-        </div>
-      </main>
-    );
-  }
 
-  if (envError) {
-    return (
-      <main className="min-h-screen bg-[#07111f] text-white">
-        <div className="mx-auto flex min-h-screen max-w-3xl items-center justify-center px-4">
-          <div className="w-full rounded-[28px] border border-red-400/20 bg-red-500/10 p-6 shadow-2xl">
-            <h1 className="text-2xl font-bold">Environment Variable Error</h1>
-            <p className="mt-3 text-sm text-red-100/90">{envError}</p>
+          <div style={{ fontSize: "28px", fontWeight: 800, marginBottom: "10px" }}>
+            Loading admin dashboard...
           </div>
-        </div>
-      </main>
-    );
-  }
 
-  if (!isAdmin) {
-    return (
-      <main className="min-h-screen bg-[#07111f] text-white">
-        <div className="mx-auto max-w-4xl px-4 py-10">
-          <div className="rounded-[28px] border border-amber-400/20 bg-amber-400/10 p-6 shadow-2xl">
-            <p className="text-sm uppercase tracking-[0.2em] text-amber-200/90">
-              Admin Access Check
-            </p>
-            <h1 className="mt-2 text-3xl font-bold">
-              This user is not passing the admin check
-            </h1>
-            <p className="mt-3 text-sm text-amber-100/90">
-              The page loaded, but this profile is not marked as admin yet.
-            </p>
-
-            <div className="mt-6 grid gap-4 md:grid-cols-2">
-              <div className="rounded-3xl border border-white/10 bg-black/20 p-4">
-                <p className="text-xs uppercase tracking-[0.18em] text-slate-400">
-                  Auth User ID
-                </p>
-                <p className="mt-2 break-all text-sm text-white">
-                  {authUserId || "Not found"}
-                </p>
-              </div>
-
-              <div className="rounded-3xl border border-white/10 bg-black/20 p-4">
-                <p className="text-xs uppercase tracking-[0.18em] text-slate-400">
-                  Profile Query Error
-                </p>
-                <p className="mt-2 break-all text-sm text-white">
-                  {profileError || "No query error returned"}
-                </p>
-              </div>
-
-              <div className="rounded-3xl border border-white/10 bg-black/20 p-4">
-                <p className="text-xs uppercase tracking-[0.18em] text-slate-400">
-                  first_name
-                </p>
-                <p className="mt-2 text-sm text-white">
-                  {profile?.first_name ?? "null"}
-                </p>
-              </div>
-
-              <div className="rounded-3xl border border-white/10 bg-black/20 p-4">
-                <p className="text-xs uppercase tracking-[0.18em] text-slate-400">
-                  email
-                </p>
-                <p className="mt-2 text-sm text-white">
-                  {profile?.email ?? "null"}
-                </p>
-              </div>
-
-              <div className="rounded-3xl border border-white/10 bg-black/20 p-4 md:col-span-2">
-                <p className="text-xs uppercase tracking-[0.18em] text-slate-400">
-                  is_admin
-                </p>
-                <p className="mt-2 text-sm text-white">
-                  {String(profile?.is_admin ?? null)}
-                </p>
-              </div>
-            </div>
-
-            <div className="mt-6 flex flex-wrap gap-3">
-              <Link
-                href="/dashboard"
-                className="inline-flex items-center justify-center rounded-full border border-white/15 bg-white/5 px-5 py-3 text-sm font-semibold text-white transition hover:bg-white/10"
-              >
-                Back to Dashboard
-              </Link>
-            </div>
+          <div
+            style={{
+              fontSize: "15px",
+              color: "rgba(255,255,255,0.75)",
+              lineHeight: 1.6,
+            }}
+          >
+            Pulling winner activity, payout totals, and current month admin data.
           </div>
+
+          <style jsx>{`
+            @keyframes sscSpin {
+              from {
+                transform: rotate(0deg);
+              }
+              to {
+                transform: rotate(360deg);
+              }
+            }
+          `}</style>
         </div>
       </main>
     );
   }
 
   return (
-    <main className="min-h-screen bg-[#07111f] text-white">
-      <div className="pointer-events-none absolute inset-0 overflow-hidden">
-        <div className="absolute left-[-10%] top-[-5%] h-[280px] w-[280px] rounded-full bg-cyan-500/10 blur-3xl" />
-        <div className="absolute right-[-8%] top-[10%] h-[320px] w-[320px] rounded-full bg-blue-500/10 blur-3xl" />
-        <div className="absolute bottom-[-8%] left-[25%] h-[280px] w-[280px] rounded-full bg-indigo-500/10 blur-3xl" />
-      </div>
+    <main
+      style={{
+        minHeight: "100vh",
+        background:
+          "linear-gradient(180deg, #07111f 0%, #0b1728 55%, #101d31 100%)",
+        color: "#ffffff",
+        padding: "32px 20px 60px",
+        overflowX: "hidden",
+      }}
+    >
+      <div
+        style={{
+          maxWidth: "1200px",
+          margin: "0 auto",
+        }}
+      >
+        <div
+          className="dashboard-header"
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            gap: "16px",
+            flexWrap: "wrap",
+            marginBottom: "28px",
+          }}
+        >
+          <div style={{ minWidth: 0 }}>
+            <div
+              style={{
+                fontSize: "14px",
+                letterSpacing: "0.08em",
+                textTransform: "uppercase",
+                color: "#8fb7ff",
+                marginBottom: "8px",
+              }}
+            >
+              Secret Scan Club
+            </div>
+            <h1
+              className="dashboard-title"
+              style={{
+                fontSize: "34px",
+                lineHeight: 1.1,
+                margin: 0,
+                fontWeight: 800,
+              }}
+            >
+              Admin Dashboard
+            </h1>
+            <p
+              style={{
+                marginTop: "10px",
+                marginBottom: 0,
+                color: "rgba(255,255,255,0.78)",
+                fontSize: "15px",
+                wordBreak: "break-word",
+              }}
+            >
+              Welcome back, {adminName}. Monitor claims, payout exposure, and winner
+              activity from one place.
+            </p>
+          </div>
 
-      <div className="relative mx-auto max-w-7xl px-4 py-5 sm:px-6 lg:px-8">
-        <div className="grid grid-cols-1 gap-6 xl:grid-cols-[280px_minmax(0,1fr)]">
-          <aside className="h-fit rounded-[30px] border border-white/10 bg-white/5 p-4 shadow-2xl backdrop-blur">
-            <div className="rounded-[24px] border border-cyan-400/15 bg-gradient-to-br from-cyan-400/10 to-blue-500/10 p-5">
-              <p className="text-xs uppercase tracking-[0.25em] text-cyan-200/80">
-                Secret Scan Club
-              </p>
-              <h1 className="mt-2 text-2xl font-bold tracking-tight">
-                Admin Panel
-              </h1>
-              <p className="mt-2 text-sm text-slate-300">
-                {profile?.first_name
-                  ? `Welcome back, ${profile.first_name}.`
-                  : "Welcome back."}
-              </p>
+          <div
+            className="hero-actions"
+            style={{
+              display: "flex",
+              gap: "12px",
+              flexWrap: "wrap",
+            }}
+          >
+            <Link
+              href="/admin/payouts"
+              className="hero-action-link"
+              style={{
+                display: "inline-block",
+                background: "#ffffff",
+                color: "#07111f",
+                textDecoration: "none",
+                padding: "14px 20px",
+                borderRadius: "14px",
+                fontWeight: 800,
+                fontSize: "15px",
+              }}
+            >
+              Open Payout Center
+            </Link>
+
+            <button
+              className="signout-button"
+              onClick={handleSignOut}
+              disabled={signingOut}
+              style={{
+                background: "transparent",
+                color: "#ffffff",
+                border: "1px solid rgba(255,255,255,0.2)",
+                borderRadius: "12px",
+                padding: "12px 18px",
+                fontSize: "14px",
+                fontWeight: 600,
+                cursor: signingOut ? "not-allowed" : "pointer",
+                opacity: signingOut ? 0.7 : 1,
+              }}
+            >
+              {signingOut ? "Signing out..." : "Sign Out"}
+            </button>
+          </div>
+        </div>
+
+        {error ? (
+          <div
+            style={{
+              background: "rgba(255, 87, 87, 0.12)",
+              border: "1px solid rgba(255, 87, 87, 0.35)",
+              color: "#ffd5d5",
+              borderRadius: "14px",
+              padding: "14px 16px",
+              marginBottom: "20px",
+              whiteSpace: "pre-wrap",
+            }}
+          >
+            {error}
+          </div>
+        ) : null}
+
+        <section
+          className="dashboard-top-grid"
+          style={{
+            display: "grid",
+            gridTemplateColumns: "1.6fr 1fr",
+            gap: "20px",
+            marginBottom: "20px",
+          }}
+        >
+          <div
+            className="card-large"
+            style={{
+              background: "rgba(255,255,255,0.06)",
+              border: "1px solid rgba(255,255,255,0.10)",
+              borderRadius: "22px",
+              padding: "28px",
+              backdropFilter: "blur(8px)",
+              minWidth: 0,
+            }}
+          >
+            <div
+              style={{
+                fontSize: "13px",
+                letterSpacing: "0.08em",
+                textTransform: "uppercase",
+                color: "#9bbcff",
+                marginBottom: "12px",
+              }}
+            >
+              Admin Overview
             </div>
 
-            <div className="mt-4 space-y-3">
+            <h2
+              className="hero-title"
+              style={{
+                fontSize: "30px",
+                margin: "0 0 12px",
+                lineHeight: 1.15,
+              }}
+            >
+              Keep payouts moving and winners monitored.
+            </h2>
+
+            <p
+              style={{
+                fontSize: "16px",
+                lineHeight: 1.6,
+                color: "rgba(255,255,255,0.8)",
+                maxWidth: "700px",
+                marginBottom: "24px",
+              }}
+            >
+              This month’s control center gives you a fast snapshot of pending prize
+              claims, total payout exposure, recent winner activity, and a direct path
+              into the payout workflow.
+            </p>
+
+            <div
+              className="hero-actions"
+              style={{
+                display: "flex",
+                gap: "12px",
+                flexWrap: "wrap",
+              }}
+            >
               <Link
                 href="/admin/payouts"
-                className="flex items-center justify-between rounded-2xl border border-cyan-400/20 bg-cyan-400/10 px-4 py-3 text-sm font-semibold text-cyan-200 transition hover:bg-cyan-400/15"
+                className="hero-action-link"
+                style={{
+                  display: "inline-block",
+                  background: "#ffffff",
+                  color: "#07111f",
+                  textDecoration: "none",
+                  padding: "14px 20px",
+                  borderRadius: "14px",
+                  fontWeight: 800,
+                  fontSize: "15px",
+                }}
               >
-                <span>Payout Center</span>
-                <span>→</span>
+                Go to Payout Workflow
               </Link>
 
               <Link
                 href="/winners"
-                className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10"
+                className="hero-action-link"
+                style={{
+                  display: "inline-block",
+                  background: "transparent",
+                  color: "#ffffff",
+                  textDecoration: "none",
+                  padding: "14px 20px",
+                  borderRadius: "14px",
+                  fontWeight: 700,
+                  fontSize: "15px",
+                  border: "1px solid rgba(255,255,255,0.18)",
+                }}
               >
-                <span>Public Winners Page</span>
-                <span>→</span>
+                View Public Winners Page
               </Link>
+            </div>
+          </div>
 
-              <Link
-                href="/dashboard"
-                className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10"
+          <div
+            className="card-standard"
+            style={{
+              background: "rgba(255,255,255,0.06)",
+              border: "1px solid rgba(255,255,255,0.10)",
+              borderRadius: "22px",
+              padding: "24px",
+              backdropFilter: "blur(8px)",
+              minWidth: 0,
+            }}
+          >
+            <div
+              style={{
+                fontSize: "13px",
+                letterSpacing: "0.08em",
+                textTransform: "uppercase",
+                color: "#9bbcff",
+                marginBottom: "14px",
+              }}
+            >
+              Admin Account
+            </div>
+
+            <div style={{ marginBottom: "14px" }}>
+              <div style={{ color: "rgba(255,255,255,0.65)", fontSize: "13px" }}>
+                Current Month
+              </div>
+              <div style={{ fontSize: "18px", fontWeight: 700 }}>
+                {formatMonthLabel(monthKey)}
+              </div>
+            </div>
+
+            <div style={{ marginBottom: "14px" }}>
+              <div style={{ color: "rgba(255,255,255,0.65)", fontSize: "13px" }}>
+                Admin Status
+              </div>
+              <div style={{ fontSize: "18px", fontWeight: 700 }}>
+                {isAdminUser ? "Active" : "Inactive"}
+              </div>
+            </div>
+
+            <div style={{ marginBottom: "14px" }}>
+              <div style={{ color: "rgba(255,255,255,0.65)", fontSize: "13px" }}>
+                Email
+              </div>
+              <div
+                style={{
+                  fontSize: "15px",
+                  color: "rgba(255,255,255,0.88)",
+                  wordBreak: "break-word",
+                  fontWeight: 600,
+                }}
               >
-                <span>Main Dashboard</span>
-                <span>→</span>
-              </Link>
-            </div>
-
-            <div className="mt-5 rounded-[24px] border border-white/10 bg-black/20 p-4">
-              <p className="text-xs uppercase tracking-[0.2em] text-slate-400">
-                Admin Snapshot
-              </p>
-              <div className="mt-3 space-y-3 text-sm">
-                <div className="flex items-center justify-between">
-                  <span className="text-slate-300">Month</span>
-                  <span className="font-semibold text-white">{monthKey}</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-slate-300">Admin Status</span>
-                  <span className="rounded-full bg-emerald-400/15 px-3 py-1 text-xs font-semibold text-emerald-200">
-                    Active
-                  </span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-slate-300">Profile ID</span>
-                  <span className="max-w-[120px] truncate font-semibold text-white">
-                    {profile?.id || authUserId || "—"}
-                  </span>
-                </div>
+                {adminEmail || "No email available"}
               </div>
             </div>
 
-            <div className="mt-5 rounded-[24px] border border-white/10 bg-white/5 p-4">
-              <p className="text-sm font-semibold text-white">Suggested workflow</p>
-              <ol className="mt-3 space-y-3 text-sm text-slate-300">
-                <li>1. Review pending claims</li>
-                <li>2. Open payout center</li>
-                <li>3. Send payments</li>
-                <li>4. Mark winners paid</li>
-              </ol>
+            <div style={{ marginBottom: "20px" }}>
+              <div style={{ color: "rgba(255,255,255,0.65)", fontSize: "13px" }}>
+                User ID
+              </div>
+              <div
+                style={{
+                  fontSize: "13px",
+                  color: "rgba(255,255,255,0.72)",
+                  wordBreak: "break-all",
+                  fontWeight: 600,
+                }}
+              >
+                {authUserId || "Unavailable"}
+              </div>
             </div>
-          </aside>
 
-          <section className="space-y-6">
-            <div className="overflow-hidden rounded-[30px] border border-white/10 bg-gradient-to-br from-[#0f1b2d] via-[#0b1525] to-[#08111f] shadow-2xl">
-              <div className="border-b border-white/10 px-5 py-5 sm:px-7">
-                <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                  <div>
-                    <p className="text-xs uppercase tracking-[0.28em] text-cyan-300/80">
-                      Operations Command
-                    </p>
-                    <h2 className="mt-2 text-3xl font-bold tracking-tight sm:text-4xl">
-                      Admin Dashboard
-                    </h2>
-                    <p className="mt-2 max-w-3xl text-sm text-slate-300 sm:text-base">
-                      Monitor winners, track payout progress, review claim
-                      statuses, and jump into the payout workflow from one place.
-                    </p>
-                  </div>
+            <Link
+              href="/admin/payouts"
+              style={{
+                display: "inline-block",
+                width: "100%",
+                textAlign: "center",
+                background: "#1c4ed8",
+                color: "#ffffff",
+                textDecoration: "none",
+                padding: "14px 18px",
+                borderRadius: "14px",
+                fontWeight: 800,
+                fontSize: "15px",
+              }}
+            >
+              Open Payout Center
+            </Link>
+          </div>
+        </section>
 
-                  <div className="flex flex-wrap gap-3">
-                    <Link
-                      href="/admin/payouts"
-                      className="inline-flex items-center justify-center rounded-full bg-cyan-400 px-5 py-3 text-sm font-semibold text-slate-950 transition hover:bg-cyan-300"
+        <section
+          className="stats-grid"
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(5, 1fr)",
+            gap: "16px",
+            marginBottom: "20px",
+          }}
+        >
+          <MetricCard
+            label="Total Winners"
+            value={totalWinners.toString()}
+            subtext="Winner records for this month"
+          />
+          <MetricCard
+            label="Pending Claims"
+            value={pendingClaims.toString()}
+            subtext="Need review or payment"
+          />
+          <MetricCard
+            label="Paid Claims"
+            value={paidClaims.toString()}
+            subtext="Already completed"
+          />
+          <MetricCard
+            label="Unclaimed"
+            value={unclaimedClaims.toString()}
+            subtext="Winners who have not submitted yet"
+          />
+          <MetricCard
+            label="Total Exposure"
+            value={formatCurrency(totalExposure)}
+            subtext="Combined payout value this month"
+          />
+        </section>
+
+        <section
+          className="stats-grid-secondary"
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(3, 1fr)",
+            gap: "16px",
+            marginBottom: "20px",
+          }}
+        >
+          <MetricCard
+            label="Pending Exposure"
+            value={formatCurrency(pendingExposure)}
+            subtext="Still in queue"
+          />
+          <MetricCard
+            label="Paid Exposure"
+            value={formatCurrency(paidExposure)}
+            subtext="Already sent out"
+          />
+          <MetricCard
+            label="Completion Rate"
+            value={completionRate}
+            subtext="Paid claims versus all winner records"
+          />
+        </section>
+
+        <section
+          className="dashboard-bottom-grid"
+          style={{
+            display: "grid",
+            gridTemplateColumns: "1.4fr 1fr",
+            gap: "20px",
+            marginBottom: "20px",
+          }}
+        >
+          <div
+            className="card-standard"
+            style={{
+              background: "rgba(255,255,255,0.06)",
+              border: "1px solid rgba(255,255,255,0.10)",
+              borderRadius: "22px",
+              padding: "24px",
+              minWidth: 0,
+            }}
+          >
+            <div
+              style={{
+                fontSize: "13px",
+                letterSpacing: "0.08em",
+                textTransform: "uppercase",
+                color: "#9bbcff",
+                marginBottom: "14px",
+              }}
+            >
+              Recent Winner Activity
+            </div>
+
+            {recentWinners.length === 0 ? (
+              <div
+                style={{
+                  color: "rgba(255,255,255,0.72)",
+                  fontSize: "15px",
+                  lineHeight: 1.6,
+                }}
+              >
+                No winner records found yet for this month.
+              </div>
+            ) : (
+              <div style={{ display: "grid", gap: "12px" }}>
+                {recentWinners.map((winner) => {
+                  const displayAmount = getWinnerAmount(winner);
+                  const statusStyles = getStatusStyles(winner.claim_status);
+
+                  return (
+                    <div
+                      className="recent-attempt-row"
+                      key={winner.id}
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                        gap: "16px",
+                        padding: "14px 16px",
+                        borderRadius: "16px",
+                        background: "rgba(255,255,255,0.045)",
+                        border: "1px solid rgba(255,255,255,0.08)",
+                      }}
                     >
-                      Open Payout Center
-                    </Link>
-
-                    <Link
-                      href="/winners"
-                      className="inline-flex items-center justify-center rounded-full border border-white/15 bg-white/5 px-5 py-3 text-sm font-semibold text-white transition hover:bg-white/10"
-                    >
-                      View Winners Page
-                    </Link>
-                  </div>
-                </div>
-              </div>
-
-              <div className="px-5 py-6 sm:px-7">
-                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 2xl:grid-cols-5">
-                  <div className="rounded-[24px] border border-cyan-400/20 bg-cyan-400/10 p-5">
-                    <p className="text-xs uppercase tracking-[0.2em] text-cyan-200/85">
-                      Winners
-                    </p>
-                    <p className="mt-3 text-3xl font-bold">{totalWinners}</p>
-                    <p className="mt-2 text-sm text-cyan-100/80">
-                      Total winner records this month
-                    </p>
-                  </div>
-
-                  <div className="rounded-[24px] border border-amber-400/20 bg-amber-400/10 p-5">
-                    <p className="text-xs uppercase tracking-[0.2em] text-amber-200/85">
-                      Pending Claims
-                    </p>
-                    <p className="mt-3 text-3xl font-bold">{pendingClaims}</p>
-                    <p className="mt-2 text-sm text-amber-100/80">
-                      Need review or payment
-                    </p>
-                  </div>
-
-                  <div className="rounded-[24px] border border-emerald-400/20 bg-emerald-400/10 p-5">
-                    <p className="text-xs uppercase tracking-[0.2em] text-emerald-200/85">
-                      Paid Claims
-                    </p>
-                    <p className="mt-3 text-3xl font-bold">{paidClaims}</p>
-                    <p className="mt-2 text-sm text-emerald-100/80">
-                      Already completed
-                    </p>
-                  </div>
-
-                  <div className="rounded-[24px] border border-white/10 bg-white/5 p-5">
-                    <p className="text-xs uppercase tracking-[0.2em] text-slate-300">
-                      Unclaimed
-                    </p>
-                    <p className="mt-3 text-3xl font-bold">{unclaimedClaims}</p>
-                    <p className="mt-2 text-sm text-slate-300">
-                      Winners who have not submitted yet
-                    </p>
-                  </div>
-
-                  <div className="rounded-[24px] border border-blue-400/20 bg-blue-400/10 p-5">
-                    <p className="text-xs uppercase tracking-[0.2em] text-blue-200/85">
-                      Total Exposure
-                    </p>
-                    <p className="mt-3 text-3xl font-bold">
-                      {formatCurrency(totalPayout)}
-                    </p>
-                    <p className="mt-2 text-sm text-blue-100/80">
-                      All winner payouts combined
-                    </p>
-                  </div>
-                </div>
-
-                <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-3">
-                  <div className="rounded-[24px] border border-white/10 bg-black/20 p-5">
-                    <p className="text-xs uppercase tracking-[0.2em] text-slate-400">
-                      Pending Value
-                    </p>
-                    <p className="mt-3 text-2xl font-bold text-amber-200">
-                      {formatCurrency(pendingPayoutValue)}
-                    </p>
-                    <p className="mt-2 text-sm text-slate-300">
-                      Dollar amount still sitting in the queue
-                    </p>
-                  </div>
-
-                  <div className="rounded-[24px] border border-white/10 bg-black/20 p-5">
-                    <p className="text-xs uppercase tracking-[0.2em] text-slate-400">
-                      Paid Value
-                    </p>
-                    <p className="mt-3 text-2xl font-bold text-emerald-200">
-                      {formatCurrency(paidPayoutValue)}
-                    </p>
-                    <p className="mt-2 text-sm text-slate-300">
-                      Dollar amount already sent out
-                    </p>
-                  </div>
-
-                  <div className="rounded-[24px] border border-white/10 bg-black/20 p-5">
-                    <p className="text-xs uppercase tracking-[0.2em] text-slate-400">
-                      Completion Rate
-                    </p>
-                    <p className="mt-3 text-2xl font-bold text-cyan-200">
-                      {totalWinners > 0
-                        ? `${Math.round((paidClaims / totalWinners) * 100)}%`
-                        : "0%"}
-                    </p>
-                    <p className="mt-2 text-sm text-slate-300">
-                      Paid claims versus all winner records
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 gap-6 2xl:grid-cols-[1.1fr_0.9fr]">
-              <div className="rounded-[30px] border border-white/10 bg-white/5 p-5 shadow-2xl backdrop-blur sm:p-6">
-                <div className="flex items-center justify-between gap-4">
-                  <div>
-                    <h3 className="text-xl font-semibold">Quick Actions</h3>
-                    <p className="mt-1 text-sm text-slate-300">
-                      The fastest routes for admin work.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="mt-5 grid grid-cols-1 gap-4 md:grid-cols-2">
-                  <Link
-                    href="/admin/payouts"
-                    className="group rounded-[24px] border border-cyan-400/20 bg-cyan-400/10 p-5 transition hover:border-cyan-300/40 hover:bg-cyan-400/15"
-                  >
-                    <div className="flex items-start justify-between gap-4">
-                      <div>
-                        <p className="text-lg font-semibold text-white">
-                          Manage Payouts
-                        </p>
-                        <p className="mt-2 text-sm text-slate-300">
-                          Review claims, process payments, and mark winners paid.
-                        </p>
-                      </div>
-                      <span className="rounded-full bg-cyan-300 px-3 py-1 text-xs font-bold text-slate-950">
-                        Open
-                      </span>
-                    </div>
-                  </Link>
-
-                  <Link
-                    href="/winners"
-                    className="group rounded-[24px] border border-white/10 bg-white/5 p-5 transition hover:bg-white/10"
-                  >
-                    <div className="flex items-start justify-between gap-4">
-                      <div>
-                        <p className="text-lg font-semibold text-white">
-                          Review Winners Page
-                        </p>
-                        <p className="mt-2 text-sm text-slate-300">
-                          Confirm the public winner display looks correct.
-                        </p>
-                      </div>
-                      <span className="rounded-full border border-white/15 px-3 py-1 text-xs font-bold text-white">
-                        View
-                      </span>
-                    </div>
-                  </Link>
-
-                  <Link
-                    href="/dashboard"
-                    className="group rounded-[24px] border border-white/10 bg-white/5 p-5 transition hover:bg-white/10"
-                  >
-                    <div className="flex items-start justify-between gap-4">
-                      <div>
-                        <p className="text-lg font-semibold text-white">
-                          Open Main Dashboard
-                        </p>
-                        <p className="mt-2 text-sm text-slate-300">
-                          Check the normal member experience when needed.
-                        </p>
-                      </div>
-                      <span className="rounded-full border border-white/15 px-3 py-1 text-xs font-bold text-white">
-                        Go
-                      </span>
-                    </div>
-                  </Link>
-
-                  <div className="rounded-[24px] border border-dashed border-white/15 bg-white/[0.03] p-5">
-                    <p className="text-lg font-semibold text-white">
-                      Admin Priority
-                    </p>
-                    <p className="mt-2 text-sm text-slate-300">
-                      Your biggest operational bottleneck is likely the pending
-                      claims queue. Use the payout page as your primary control
-                      center.
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="rounded-[30px] border border-white/10 bg-white/5 p-5 shadow-2xl backdrop-blur sm:p-6">
-                <div className="flex items-center justify-between gap-4">
-                  <div>
-                    <h3 className="text-xl font-semibold">Top Winner Snapshot</h3>
-                    <p className="mt-1 text-sm text-slate-300">
-                      Fast view of the current top placements.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="mt-5 space-y-3">
-                  {topWinners.length === 0 ? (
-                    <div className="rounded-[24px] border border-white/10 bg-black/20 p-5 text-sm text-slate-300">
-                      No top winners found yet for {monthKey}.
-                    </div>
-                  ) : (
-                    topWinners.map((winner, index) => {
-                      const amount =
-                        Number(winner.total_prize_amount) ||
-                        Number(winner.prize_amount) ||
-                        Number(winner.base_prize_amount) ||
-                        0;
-
-                      return (
+                      <div style={{ minWidth: 0 }}>
                         <div
-                          key={winner.id}
-                          className="rounded-[24px] border border-white/10 bg-black/20 p-4"
+                          style={{
+                            fontWeight: 700,
+                            fontSize: "15px",
+                            marginBottom: "4px",
+                            wordBreak: "break-word",
+                          }}
                         >
-                          <div className="flex items-center justify-between gap-4">
-                            <div className="flex items-center gap-4">
-                              <div className="flex h-11 w-11 items-center justify-center rounded-full bg-cyan-400/15 text-sm font-bold text-cyan-200">
-                                #{index + 1}
-                              </div>
-                              <div>
-                                <p className="font-semibold text-white">
-                                  {winner.display_name || "Unnamed Winner"}
-                                </p>
-                                <p className="mt-1 text-sm text-slate-300">
-                                  {winner.rank_label || "Winner"} •{" "}
-                                  {winner.membership_tier || "Free"}
-                                </p>
-                              </div>
-                            </div>
-
-                            <div className="text-right">
-                              <p className="font-semibold text-cyan-300">
-                                {formatCurrency(amount)}
-                              </p>
-                              <span
-                                className={`mt-1 inline-flex rounded-full px-3 py-1 text-xs font-semibold ${getClaimBadgeStyles(
-                                  winner.claim_status
-                                )}`}
-                              >
-                                {winner.claim_status || "unclaimed"}
-                              </span>
-                            </div>
-                          </div>
+                          {winner.display_name || "Unnamed Winner"}
                         </div>
-                      );
-                    })
-                  )}
-                </div>
+
+                        <div
+                          style={{
+                            fontSize: "13px",
+                            color: "rgba(255,255,255,0.68)",
+                            wordBreak: "break-word",
+                          }}
+                        >
+                          {buildRecentWinnerLabel(winner)} •{" "}
+                          {winner.membership_tier || "Free"}
+                        </div>
+
+                        <div
+                          style={{
+                            fontSize: "13px",
+                            color: "rgba(255,255,255,0.68)",
+                            wordBreak: "break-word",
+                            marginTop: "4px",
+                          }}
+                        >
+                          {winner.created_at
+                            ? new Date(winner.created_at).toLocaleString("en-US")
+                            : "No timestamp"}
+                        </div>
+                      </div>
+
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "10px",
+                          flexWrap: "wrap",
+                          justifyContent: "flex-end",
+                        }}
+                      >
+                        <div
+                          style={{
+                            fontSize: "15px",
+                            fontWeight: 800,
+                            color: "#ffffff",
+                            whiteSpace: "nowrap",
+                          }}
+                        >
+                          {formatCurrency(displayAmount)}
+                        </div>
+
+                        <div
+                          style={{
+                            padding: "8px 12px",
+                            borderRadius: "999px",
+                            fontSize: "13px",
+                            fontWeight: 700,
+                            whiteSpace: "nowrap",
+                            ...statusStyles,
+                          }}
+                        >
+                          {formatStatus(winner.claim_status)}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
+            )}
+          </div>
+
+          <div
+            className="card-standard"
+            style={{
+              background: "rgba(255,255,255,0.06)",
+              border: "1px solid rgba(255,255,255,0.10)",
+              borderRadius: "22px",
+              padding: "24px",
+              minWidth: 0,
+            }}
+          >
+            <div
+              style={{
+                fontSize: "13px",
+                letterSpacing: "0.08em",
+                textTransform: "uppercase",
+                color: "#9bbcff",
+                marginBottom: "14px",
+              }}
+            >
+              Quick Actions
             </div>
 
-            <div className="rounded-[30px] border border-white/10 bg-white/5 p-5 shadow-2xl backdrop-blur sm:p-6">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-                <div>
-                  <h3 className="text-xl font-semibold">Recent Winner Activity</h3>
-                  <p className="mt-1 text-sm text-slate-300">
-                    Latest winner and claim records for the current month.
-                  </p>
-                </div>
+            <div style={{ display: "grid", gap: "12px" }}>
+              <DashboardLink href="/admin/payouts" label="Manage Payouts" accent />
+              <DashboardLink href="/winners" label="Review Public Winners Page" />
+              <DashboardLink href="/dashboard" label="Open Main User Dashboard" />
+              <DashboardLink href="/leaderboard" label="Check Leaderboard" />
+            </div>
+          </div>
+        </section>
 
-                <Link
-                  href="/admin/payouts"
-                  className="inline-flex items-center justify-center rounded-full border border-cyan-400/30 bg-cyan-400/10 px-4 py-2 text-sm font-semibold text-cyan-200 transition hover:bg-cyan-400/15"
+        <section
+          className="dashboard-bottom-grid"
+          style={{
+            display: "grid",
+            gridTemplateColumns: "1fr 1fr",
+            gap: "20px",
+            marginBottom: "20px",
+          }}
+        >
+          <div
+            className="card-standard"
+            style={{
+              background: "rgba(255,255,255,0.06)",
+              border: "1px solid rgba(255,255,255,0.10)",
+              borderRadius: "22px",
+              padding: "24px",
+              minWidth: 0,
+            }}
+          >
+            <div
+              style={{
+                fontSize: "13px",
+                letterSpacing: "0.08em",
+                textTransform: "uppercase",
+                color: "#9bbcff",
+                marginBottom: "14px",
+              }}
+            >
+              Highest Payouts This Month
+            </div>
+
+            {topPayouts.length === 0 ? (
+              <div
+                style={{
+                  color: "rgba(255,255,255,0.72)",
+                  fontSize: "15px",
+                  lineHeight: 1.6,
+                }}
+              >
+                No payout records found yet for this month.
+              </div>
+            ) : (
+              <div style={{ display: "grid", gap: "12px" }}>
+                {topPayouts.map((winner, index) => {
+                  const statusStyles = getStatusStyles(winner.claim_status);
+
+                  return (
+                    <div
+                      key={winner.id}
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                        gap: "16px",
+                        padding: "14px 16px",
+                        borderRadius: "16px",
+                        background: "rgba(255,255,255,0.045)",
+                        border: "1px solid rgba(255,255,255,0.08)",
+                      }}
+                    >
+                      <div style={{ minWidth: 0 }}>
+                        <div
+                          style={{
+                            fontWeight: 700,
+                            fontSize: "15px",
+                            marginBottom: "4px",
+                            wordBreak: "break-word",
+                          }}
+                        >
+                          #{index + 1} {winner.display_name || "Unnamed Winner"}
+                        </div>
+                        <div
+                          style={{
+                            fontSize: "13px",
+                            color: "rgba(255,255,255,0.68)",
+                            wordBreak: "break-word",
+                          }}
+                        >
+                          {buildRecentWinnerLabel(winner)}
+                        </div>
+                      </div>
+
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "10px",
+                          flexWrap: "wrap",
+                          justifyContent: "flex-end",
+                        }}
+                      >
+                        <div
+                          style={{
+                            fontSize: "15px",
+                            fontWeight: 800,
+                            color: "#ffffff",
+                            whiteSpace: "nowrap",
+                          }}
+                        >
+                          {formatCurrency(getWinnerAmount(winner))}
+                        </div>
+
+                        <div
+                          style={{
+                            padding: "8px 12px",
+                            borderRadius: "999px",
+                            fontSize: "13px",
+                            fontWeight: 700,
+                            whiteSpace: "nowrap",
+                            ...statusStyles,
+                          }}
+                        >
+                          {formatStatus(winner.claim_status)}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          <div
+            className="card-standard"
+            style={{
+              background: "rgba(255,255,255,0.06)",
+              border: "1px solid rgba(255,255,255,0.10)",
+              borderRadius: "22px",
+              padding: "24px",
+              minWidth: 0,
+            }}
+          >
+            <div
+              style={{
+                fontSize: "13px",
+                letterSpacing: "0.08em",
+                textTransform: "uppercase",
+                color: "#9bbcff",
+                marginBottom: "14px",
+              }}
+            >
+              Suggested Admin Workflow
+            </div>
+
+            <div style={{ display: "grid", gap: "12px" }}>
+              {[
+                "Start with pending claims and pending exposure.",
+                "Open the payout center and review submitted winners.",
+                "Send payment through your chosen payout method.",
+                "Mark claims paid after completion.",
+                "Check the public winners page for accuracy.",
+              ].map((item, index) => (
+                <div
+                  key={item}
+                  style={{
+                    display: "flex",
+                    gap: "12px",
+                    alignItems: "flex-start",
+                    padding: "12px 14px",
+                    borderRadius: "14px",
+                    background: "rgba(255,255,255,0.045)",
+                    border: "1px solid rgba(255,255,255,0.08)",
+                  }}
                 >
-                  Open Full Payout Workflow
-                </Link>
-              </div>
-
-              <div className="mt-5 overflow-hidden rounded-[24px] border border-white/10 bg-black/20">
-                <div className="hidden grid-cols-[1.2fr_1fr_1fr_1fr] gap-4 border-b border-white/10 px-5 py-4 text-xs uppercase tracking-[0.18em] text-slate-400 md:grid">
-                  <div>Winner</div>
-                  <div>Placement / Tier</div>
-                  <div>Amount</div>
-                  <div>Status</div>
+                  <div
+                    style={{
+                      width: "26px",
+                      height: "26px",
+                      minWidth: "26px",
+                      borderRadius: "999px",
+                      background: "rgba(255,255,255,0.12)",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      fontSize: "12px",
+                      fontWeight: 800,
+                    }}
+                  >
+                    {index + 1}
+                  </div>
+                  <div
+                    style={{
+                      fontSize: "14px",
+                      color: "rgba(255,255,255,0.82)",
+                      lineHeight: 1.55,
+                    }}
+                  >
+                    {item}
+                  </div>
                 </div>
-
-                <div className="divide-y divide-white/10">
-                  {recentClaims.length === 0 ? (
-                    <div className="px-5 py-8 text-sm text-slate-300">
-                      No winner activity found yet for {monthKey}.
-                    </div>
-                  ) : (
-                    recentClaims.map((claim) => {
-                      const amount =
-                        Number(claim.total_prize_amount) ||
-                        Number(claim.prize_amount) ||
-                        Number(claim.base_prize_amount) ||
-                        0;
-
-                      return (
-                        <div
-                          key={claim.id}
-                          className="px-5 py-4"
-                        >
-                          <div className="grid grid-cols-1 gap-3 md:grid-cols-[1.2fr_1fr_1fr_1fr] md:items-center md:gap-4">
-                            <div>
-                              <p className="font-semibold text-white">
-                                {claim.display_name || "Unnamed Winner"}
-                              </p>
-                              <p className="mt-1 text-xs text-slate-400">
-                                {claim.created_at
-                                  ? new Date(claim.created_at).toLocaleString()
-                                  : "No timestamp"}
-                              </p>
-                            </div>
-
-                            <div>
-                              <p className="text-sm text-white">
-                                {claim.rank_label || "Winner"}
-                              </p>
-                              <p className="mt-1 text-xs text-slate-400">
-                                {claim.membership_tier || "Free"}
-                              </p>
-                            </div>
-
-                            <div>
-                              <p className="text-sm font-semibold text-cyan-300">
-                                {formatCurrency(amount)}
-                              </p>
-                            </div>
-
-                            <div>
-                              <span
-                                className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${getClaimBadgeStyles(
-                                  claim.claim_status
-                                )}`}
-                              >
-                                {claim.claim_status || "unclaimed"}
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })
-                  )}
-                </div>
-              </div>
+              ))}
             </div>
-
-            <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-              <div className="rounded-[30px] border border-white/10 bg-white/5 p-5 shadow-2xl backdrop-blur">
-                <h3 className="text-lg font-semibold">Admin Notes</h3>
-                <p className="mt-2 text-sm text-slate-300">
-                  This dashboard is meant to be your overview page. The payout
-                  page should remain your primary action page for handling claims.
-                </p>
-              </div>
-
-              <div className="rounded-[30px] border border-white/10 bg-white/5 p-5 shadow-2xl backdrop-blur">
-                <h3 className="text-lg font-semibold">Recommended next step</h3>
-                <p className="mt-2 text-sm text-slate-300">
-                  Start each session by checking pending claims and pending payout
-                  value. That gives you the fastest picture of what still needs
-                  attention.
-                </p>
-              </div>
-
-              <div className="rounded-[30px] border border-white/10 bg-white/5 p-5 shadow-2xl backdrop-blur">
-                <h3 className="text-lg font-semibold">Current admin account</h3>
-                <p className="mt-2 text-sm text-slate-300">
-                  {profile?.email || "No profile email available"}
-                </p>
-                <p className="mt-2 text-xs text-slate-500 break-all">
-                  {authUserId}
-                </p>
-              </div>
-            </div>
-          </section>
-        </div>
+          </div>
+        </section>
       </div>
+
+      <style jsx>{`
+        @media (max-width: 1180px) {
+          .stats-grid {
+            grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+          }
+
+          .stats-grid-secondary {
+            grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+          }
+        }
+
+        @media (max-width: 980px) {
+          .dashboard-top-grid,
+          .dashboard-bottom-grid {
+            grid-template-columns: 1fr !important;
+          }
+
+          .stats-grid,
+          .stats-grid-secondary {
+            grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+          }
+        }
+
+        @media (max-width: 700px) {
+          main {
+            padding: 24px 14px 44px !important;
+          }
+
+          .dashboard-title {
+            font-size: 28px !important;
+          }
+
+          .hero-title {
+            font-size: 24px !important;
+          }
+
+          .dashboard-header {
+            align-items: stretch !important;
+          }
+
+          .signout-button {
+            width: 100%;
+          }
+
+          .card-large,
+          .card-standard {
+            padding: 20px !important;
+          }
+
+          .hero-actions {
+            flex-direction: column;
+          }
+
+          .hero-action-link {
+            width: 100%;
+            box-sizing: border-box;
+            text-align: center;
+          }
+
+          .recent-attempt-row {
+            flex-direction: column;
+            align-items: flex-start !important;
+          }
+        }
+
+        @media (max-width: 520px) {
+          .stats-grid,
+          .stats-grid-secondary {
+            grid-template-columns: 1fr !important;
+          }
+
+          .dashboard-title {
+            font-size: 24px !important;
+          }
+
+          .card-large,
+          .card-standard {
+            padding: 18px !important;
+            border-radius: 18px !important;
+          }
+        }
+      `}</style>
     </main>
   );
 }
