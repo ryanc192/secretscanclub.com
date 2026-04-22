@@ -155,6 +155,10 @@ export default function PrizePage() {
         <section style={styles.infoGrid} className="info-grid">
           <div style={styles.infoCard} className="info-card">
             <h3 style={styles.infoTitle}>Monthly Placement Prizes</h3>
+            <p style={styles.infoText}>
+              These are base prizes each winner will recieve. They will continue to increase as we hit our membership level goals. 
+              Want more prize money? Refer a friend! The more people that join means more money you can win!
+            </p>
             <div style={styles.prizeList}>
               {monthlyPrizes.map((item) => (
                 <div key={item.place} style={styles.prizeRow} className="prize-row">
@@ -184,8 +188,8 @@ export default function PrizePage() {
           <div style={styles.infoCard} className="info-card">
             <h3 style={styles.infoTitle}>Total Potential Prizes</h3>
             <p style={styles.infoText}>
-              When you upgrade your membership tier you upgrade your prize tier as well. As explained below, club members get to double there prize rewaard
-              and VIP members get to triple their rewards. The highest possible prizes are below. Want to cash in on higher prizes? Upgrade your membership today!
+              When you upgrade your membership tier you upgrade your prize tier as well. As explained below, club members get to double there prize reward
+              and VIP members get to triple their prizes. The highest possible prizes are below. Want to cash in on higher prizes? Upgrade your membership today!
             </p>
             <div style={styles.prizeList}>
               {potentialPrizes.map((item) => (
