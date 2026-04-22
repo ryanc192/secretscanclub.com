@@ -478,7 +478,7 @@ export default function AdminPayoutsPage() {
           </div>
 
           <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-            <Link href="/dashboard" style={styles.secondaryLink}>
+            <Link href="/admin" style={styles.secondaryLink}>
               Back to Dashboard
             </Link>
           </div>
