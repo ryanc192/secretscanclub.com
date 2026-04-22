@@ -18,8 +18,7 @@ type ProfileRow = {
 
 type WinnerRow = {
   id: string;
-  month_key: string | null;
-  winner_month?: string | null;
+  winner_month: string | null;
   rank_label?: string | null;
   display_name?: string | null;
   membership_tier?: string | null;
@@ -64,22 +63,26 @@ function normalizeMoney(value: number | string | null | undefined) {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
-function getMonthKey() {
+function getMonthRange() {
   const now = new Date();
-  const year = now.getFullYear();
-  const month = `${now.getMonth() + 1}`.padStart(2, "0");
-  return `${year}-${month}`;
-}
+  const start = new Date(now.getFullYear(), now.getMonth(), 1);
+  const next = new Date(now.getFullYear(), now.getMonth() + 1, 1);
 
-function formatMonthLabel(monthKey: string | null | undefined) {
-  if (!monthKey) return "Current Month";
-  const parsed = new Date(`${monthKey}-01T00:00:00`);
-  if (Number.isNaN(parsed.getTime())) return monthKey;
+  const toDateString = (date: Date) => {
+    const year = date.getFullYear();
+    const month = `${date.getMonth() + 1}`.padStart(2, "0");
+    const day = `${date.getDate()}`.padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  };
 
-  return parsed.toLocaleDateString("en-US", {
-    month: "long",
-    year: "numeric",
-  });
+  return {
+    monthStart: toDateString(start),
+    nextMonthStart: toDateString(next),
+    label: start.toLocaleDateString("en-US", {
+      month: "long",
+      year: "numeric",
+    }),
+  };
 }
 
 function formatStatus(value: string | null | undefined) {
@@ -252,7 +255,7 @@ export default function AdminDashboardPage() {
   const [signingOut, setSigningOut] = useState(false);
   const [error, setError] = useState("");
 
-  const [monthKey, setMonthKey] = useState("");
+  const [monthLabel, setMonthLabel] = useState("");
   const [adminName, setAdminName] = useState("Admin");
   const [adminEmail, setAdminEmail] = useState("");
   const [authUserId, setAuthUserId] = useState("");
@@ -276,8 +279,8 @@ export default function AdminDashboardPage() {
       setError("");
 
       try {
-        const activeMonthKey = getMonthKey();
-        setMonthKey(activeMonthKey);
+        const { monthStart, nextMonthStart, label } = getMonthRange();
+        setMonthLabel(label);
 
         const {
           data: { user },
@@ -316,9 +319,10 @@ export default function AdminDashboardPage() {
           supabase
             .from("monthly_winners")
             .select(
-              "id, month_key, winner_month, rank_label, display_name, membership_tier, claim_status, total_prize_amount, prize_amount, base_prize_amount, created_at"
+              "id, winner_month, rank_label, display_name, membership_tier, claim_status, total_prize_amount, prize_amount, base_prize_amount, created_at"
             )
-            .eq("month_key", activeMonthKey)
+            .gte("winner_month", monthStart)
+            .lt("winner_month", nextMonthStart)
             .order("created_at", { ascending: false }),
         ]);
 
@@ -733,7 +737,7 @@ export default function AdminDashboardPage() {
                 Current Month
               </div>
               <div style={{ fontSize: "18px", fontWeight: 700 }}>
-                {formatMonthLabel(monthKey)}
+                {monthLabel}
               </div>
             </div>
 
