@@ -31,10 +31,13 @@ export default function ManagePage() {
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [username, setUsername] = useState("");
+  const [originalUsername, setOriginalUsername] = useState("");
   const [phone, setPhone] = useState("");
   const [emailNotifications, setEmailNotifications] = useState(true);
 
   const [profileMessage, setProfileMessage] = useState("");
+  const [usernameChecking, setUsernameChecking] = useState(false);
+  const [usernameError, setUsernameError] = useState("");
 
   useEffect(() => {
     let mounted = true;
@@ -69,6 +72,7 @@ export default function ManagePage() {
         setFirstName(profile.first_name ?? "");
         setLastName(profile.last_name ?? "");
         setUsername(profile.username ?? "");
+        setOriginalUsername(profile.username ?? "");
         setPhone(profile.phone ?? "");
         setEmailNotifications(profile.email_notifications ?? true);
 
@@ -88,24 +92,106 @@ export default function ManagePage() {
     };
   }, [router, supabase]);
 
+  useEffect(() => {
+    if (!userId) return;
+
+    const trimmedUsername = username.trim();
+    const trimmedOriginalUsername = originalUsername.trim();
+
+    if (!trimmedUsername) {
+      setUsernameError("");
+      setUsernameChecking(false);
+      return;
+    }
+
+    if (trimmedUsername.toLowerCase() === trimmedOriginalUsername.toLowerCase()) {
+      setUsernameError("");
+      setUsernameChecking(false);
+      return;
+    }
+
+    const timeout = setTimeout(async () => {
+      setUsernameChecking(true);
+
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("id")
+        .eq("username", trimmedUsername)
+        .neq("id", userId)
+        .limit(1);
+
+      if (error) {
+        setUsernameError("");
+      } else if (data && data.length > 0) {
+        setUsernameError("Username is not available. Please pick a different username.");
+      } else {
+        setUsernameError("");
+      }
+
+      setUsernameChecking(false);
+    }, 400);
+
+    return () => clearTimeout(timeout);
+  }, [username, originalUsername, userId, supabase]);
+
   async function handleProfileSave(e: React.FormEvent) {
     e.preventDefault();
-    setSavingProfile(true);
+
+    const trimmedUsername = username.trim();
+
     setProfileMessage("");
+
+    if (usernameChecking) {
+      setProfileMessage("Checking username availability...");
+      return;
+    }
+
+    if (usernameError) {
+      setProfileMessage("Username is not available. Please pick a different username.");
+      return;
+    }
+
+    if (trimmedUsername && trimmedUsername.toLowerCase() !== originalUsername.trim().toLowerCase()) {
+      const { data: existingUsers, error: usernameLookupError } = await supabase
+        .from("profiles")
+        .select("id")
+        .eq("username", trimmedUsername)
+        .neq("id", userId)
+        .limit(1);
+
+      if (!usernameLookupError && existingUsers && existingUsers.length > 0) {
+        setUsernameError("Username is not available. Please pick a different username.");
+        setProfileMessage("Username is not available. Please pick a different username.");
+        return;
+      }
+    }
+
+    setSavingProfile(true);
 
     const { error } = await supabase.from("profiles").upsert({
       id: userId,
       first_name: firstName,
       last_name: lastName,
-      username,
+      username: trimmedUsername,
       phone,
       email_notifications: emailNotifications,
       updated_at: new Date().toISOString(),
     });
 
     if (error) {
-      setProfileMessage(error.message);
+      const isUsernameTaken =
+        error.message?.includes("profiles_username_unique_idx") ||
+        error.message?.toLowerCase().includes("duplicate key value violates unique constraint");
+
+      if (isUsernameTaken) {
+        setUsernameError("Username is not available. Please pick a different username.");
+        setProfileMessage("Username is not available. Please pick a different username.");
+      } else {
+        setProfileMessage(error.message);
+      }
     } else {
+      setOriginalUsername(trimmedUsername);
+      setUsernameError("");
       setProfileMessage("Profile updated successfully.");
     }
 
@@ -117,6 +203,9 @@ export default function ManagePage() {
     await supabase.auth.signOut();
     router.replace("/login");
   }
+
+  const saveDisabled =
+    savingProfile || usernameChecking || Boolean(usernameError);
 
   if (loading) {
     return (
@@ -256,10 +345,22 @@ export default function ManagePage() {
                 <label style={styles.label}>Username</label>
                 <input
                   value={username}
-                  onChange={(e) => setUsername(e.target.value)}
+                  onChange={(e) => {
+                    setUsername(e.target.value);
+                    setProfileMessage("");
+                  }}
                   placeholder="Username"
-                  style={styles.input}
+                  style={{
+                    ...styles.input,
+                    ...(usernameError ? styles.inputError : {}),
+                  }}
                 />
+                {usernameChecking ? (
+                  <div style={styles.helperText}>Checking username availability...</div>
+                ) : null}
+                {usernameError ? (
+                  <div style={styles.errorText}>{usernameError}</div>
+                ) : null}
               </div>
 
               <div style={styles.fieldWrap}>
@@ -272,18 +373,33 @@ export default function ManagePage() {
                 />
               </div>
 
-              {profileMessage ? <div style={styles.messageBox}>{profileMessage}</div> : null}
+              {profileMessage ? (
+                <div
+                  style={{
+                    ...styles.messageBox,
+                    ...(profileMessage.toLowerCase().includes("not available")
+                      ? styles.messageBoxError
+                      : {}),
+                  }}
+                >
+                  {profileMessage}
+                </div>
+              ) : null}
 
               <button
                 type="submit"
-                disabled={savingProfile}
+                disabled={saveDisabled}
                 style={{
                   ...styles.primaryButton,
-                  ...(savingProfile ? styles.disabledButton : {}),
+                  ...(saveDisabled ? styles.disabledButton : {}),
                 }}
                 className="full-width-mobile"
               >
-                {savingProfile ? "Saving..." : "Save Profile Changes"}
+                {savingProfile
+                  ? "Saving..."
+                  : usernameChecking
+                  ? "Checking Username..."
+                  : "Save Profile Changes"}
               </button>
             </form>
           </div>
@@ -683,6 +799,22 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 15,
     boxSizing: "border-box",
   },
+  inputError: {
+    border: "1px solid rgba(255, 120, 120, 0.75)",
+    boxShadow: "0 0 0 1px rgba(255, 120, 120, 0.15)",
+  },
+  helperText: {
+    fontSize: 13,
+    color: "rgba(255,255,255,0.65)",
+    lineHeight: 1.4,
+    fontWeight: 600,
+  },
+  errorText: {
+    fontSize: 13,
+    color: "#ff9d9d",
+    lineHeight: 1.4,
+    fontWeight: 700,
+  },
   messageBox: {
     padding: "14px 16px",
     borderRadius: 16,
@@ -692,6 +824,11 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: 14,
     fontWeight: 600,
     lineHeight: 1.5,
+  },
+  messageBoxError: {
+    background: "rgba(255, 90, 90, 0.10)",
+    border: "1px solid rgba(255, 120, 120, 0.35)",
+    color: "#ffd3d3",
   },
   summaryList: {
     display: "grid",
