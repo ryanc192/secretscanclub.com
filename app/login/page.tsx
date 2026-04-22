@@ -3,7 +3,10 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import Script from "next/script";
 import { createBrowserSupabaseClient } from "../../lib/supabase/client";
+
+const TURNSTILE_SITE_KEY = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY ?? "";
 
 function getGuestToken(): string {
   if (typeof window === "undefined") return "";
@@ -37,6 +40,20 @@ export default function LoginPage() {
       return;
     }
 
+    if (!TURNSTILE_SITE_KEY) {
+      setMessage("Captcha site key is missing.");
+      return;
+    }
+
+    const captchaToken = (
+      document.querySelector('[name="cf-turnstile-response"]') as HTMLInputElement | null
+    )?.value;
+
+    if (!captchaToken) {
+      setMessage("Please complete the security check.");
+      return;
+    }
+
     setLoading(true);
     setMessage("");
 
@@ -46,6 +63,9 @@ export default function LoginPage() {
       const { data, error } = await supabase.auth.signInWithPassword({
         email: cleanedEmail,
         password: cleanedPassword,
+        options: {
+          captchaToken,
+        },
       });
 
       if (error) {
@@ -101,6 +121,11 @@ export default function LoginPage() {
         marginTop: 0,
       }}
     >
+      <Script
+        src="https://challenges.cloudflare.com/turnstile/v0/api.js"
+        strategy="afterInteractive"
+      />
+
       <div
         className="scan-wrap"
         style={{
@@ -121,6 +146,12 @@ export default function LoginPage() {
           <p className="section-text-light">
             Pick up your streak, keep your progress, and continue where you left off.
           </p>
+
+          {!TURNSTILE_SITE_KEY ? (
+            <div className="share-box" style={{ marginTop: 20 }}>
+              Missing NEXT_PUBLIC_TURNSTILE_SITE_KEY.
+            </div>
+          ) : null}
 
           <form
             onSubmit={handleLogin}
@@ -160,7 +191,32 @@ export default function LoginPage() {
               required
             />
 
-            <button type="submit" className="btn-dark" disabled={loading}>
+            <div style={{ marginTop: 6 }}>
+              <div
+                style={{
+                  minHeight: 76,
+                  padding: 12,
+                  borderRadius: 14,
+                  border: "1px solid rgba(15, 23, 42, 0.08)",
+                  background: "rgba(255,255,255,0.72)",
+                  overflowX: "auto",
+                }}
+              >
+                {TURNSTILE_SITE_KEY ? (
+                  <div
+                    className="cf-turnstile"
+                    data-sitekey={TURNSTILE_SITE_KEY}
+                    data-theme="light"
+                  />
+                ) : null}
+              </div>
+            </div>
+
+            <button
+              type="submit"
+              className="btn-dark"
+              disabled={loading || !TURNSTILE_SITE_KEY}
+            >
               {loading ? "Logging in..." : "Log In"}
             </button>
           </form>
