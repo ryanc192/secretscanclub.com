@@ -35,7 +35,6 @@ export default function PrizePage() {
       multiplier: "3x",
       detail: "Your prize weighting is tripled and unlocks weekly VIP prize opportunities.",
     },
-    
   ];
 
   const leaderboardFactors = [
@@ -61,19 +60,19 @@ export default function PrizePage() {
       members: "10,000 monthly members",
       monthly: "1st $600 • 2nd $300 • 3rd $120 • Random winners $60 each",
     },
-        {
+    {
       members: "15,000 monthly members",
       monthly: "1st $800 • 2nd $400 • 3rd $160 • Random winners $80 each",
     },
-            {
+    {
       members: "20,000 monthly members",
       monthly: "1st $1,000 • 2nd $500 • 3rd $200 • Random winners $100 each",
     },
-            {
+    {
       members: "30,000 monthly members",
       monthly: "1st $1,400 • 2nd $600 • 3rd $240 • Random winners $120 each",
     },
-            {
+    {
       members: "40,000 monthly members",
       monthly: "1st $1,600 • 2nd $700 • 3rd $280 • Random winners $140 each",
     },
@@ -156,7 +155,7 @@ export default function PrizePage() {
           <div style={styles.infoCard} className="info-card">
             <h3 style={styles.infoTitle}>Monthly Placement Prizes</h3>
             <p style={styles.infoText}>
-              These are base prizes each winner will recieve. They will continue to increase as we hit our membership level goals. 
+              These are base prizes each winner will recieve. They will continue to increase as we hit our membership level goals.
               Want more prize money? Refer a friend! The more people that join means more money you can win!
             </p>
             <div style={styles.prizeList}>
@@ -184,13 +183,21 @@ export default function PrizePage() {
               ))}
             </div>
           </div>
-          
+
           <div style={styles.infoCard} className="info-card">
             <h3 style={styles.infoTitle}>Total Potential Prizes</h3>
             <p style={styles.infoText}>
-              When you upgrade your membership tier you upgrade your prize tier as well. As explained below, club members get to double there prize reward
-              and VIP members get to triple their prizes. The highest possible prizes are below. Want to cash in on higher prizes? Upgrade your membership today!
+              When you upgrade your membership tier you upgrade your prize tier as well. As explained below,
+              club members get to double their prize reward and VIP members get to triple their prizes.
+              The highest possible prizes are below.
             </p>
+
+            <div style={styles.inlineCtaWrap}>
+              <Link href="/subscribe" style={styles.inlineCtaPill}>
+                Upgrade Membership
+              </Link>
+            </div>
+
             <div style={styles.prizeList}>
               {potentialPrizes.map((item) => (
                 <div key={item.place} style={styles.prizeRow} className="prize-row">
@@ -614,6 +621,27 @@ const styles: Record<string, React.CSSProperties> = {
     color: "rgba(255,255,255,0.76)",
     lineHeight: 1.7,
     fontSize: 15,
+  },
+  inlineCtaWrap: {
+    display: "flex",
+    justifyContent: "flex-start",
+    marginTop: 16,
+    marginBottom: 18,
+  },
+  inlineCtaPill: {
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: "12px 18px",
+    borderRadius: 999,
+    textDecoration: "none",
+    fontWeight: 800,
+    fontSize: 14,
+    letterSpacing: 0.2,
+    color: "#06111d",
+    background: "linear-gradient(135deg, #7a8cff 0%, #35d6ff 100%)",
+    boxShadow: "0 14px 30px rgba(53,214,255,0.22)",
+    border: "1px solid rgba(255,255,255,0.14)",
   },
   prizeList: {
     display: "grid",
