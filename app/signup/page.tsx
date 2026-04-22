@@ -1,9 +1,22 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { createBrowserSupabaseClient } from "../../lib/supabase/client";
+
+const PASSWORD_RULE =
+  /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z\d]).{8,}$/;
+
+function getPasswordChecks(password: string) {
+  return {
+    length: password.length >= 8,
+    lowercase: /[a-z]/.test(password),
+    uppercase: /[A-Z]/.test(password),
+    number: /\d/.test(password),
+    symbol: /[^A-Za-z\d]/.test(password),
+  };
+}
 
 function getGuestToken(): string {
   if (typeof window === "undefined") return "";
@@ -53,6 +66,9 @@ function SignupForm() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
+  const [showPasswordInfo, setShowPasswordInfo] = useState(false);
+
+  const passwordChecks = useMemo(() => getPasswordChecks(password), [password]);
 
   async function handleSignup(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -79,8 +95,10 @@ function SignupForm() {
       return;
     }
 
-    if (password.length < 6) {
-      setMessage("Password must be at least 6 characters.");
+    if (!PASSWORD_RULE.test(password)) {
+      setMessage(
+        "Password must be at least 8 characters long and include an uppercase letter, lowercase letter, number, and symbol."
+      );
       return;
     }
 
@@ -246,13 +264,128 @@ function SignupForm() {
           onChange={(e) => setEmail(e.target.value)}
         />
 
-        <input
-          type="password"
-          className="email-input"
-          placeholder="Create password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-        />
+        <div style={{ position: "relative" }}>
+          <input
+            type="password"
+            className="email-input"
+            placeholder="Create password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            style={{ paddingRight: 48 }}
+          />
+
+          <div
+            style={{
+              position: "absolute",
+              right: 14,
+              top: "50%",
+              transform: "translateY(-50%)",
+            }}
+            onMouseEnter={() => setShowPasswordInfo(true)}
+            onMouseLeave={() => setShowPasswordInfo(false)}
+          >
+            <button
+              type="button"
+              aria-label="Password requirements"
+              onClick={() => setShowPasswordInfo((prev) => !prev)}
+              style={{
+                width: 24,
+                height: 24,
+                borderRadius: "999px",
+                border: "1px solid #cbd5e1",
+                background: "#ffffff",
+                color: "#334155",
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontSize: 13,
+                fontWeight: 700,
+                lineHeight: 1,
+                padding: 0,
+              }}
+            >
+              i
+            </button>
+
+            {showPasswordInfo ? (
+              <div
+                style={{
+                  position: "absolute",
+                  right: 0,
+                  top: 34,
+                  zIndex: 20,
+                  width: 280,
+                  background: "#ffffff",
+                  border: "1px solid #e2e8f0",
+                  borderRadius: 16,
+                  boxShadow: "0 18px 40px rgba(15, 23, 42, 0.14)",
+                  padding: 14,
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: 14,
+                    fontWeight: 800,
+                    color: "#0f172a",
+                    marginBottom: 8,
+                  }}
+                >
+                  Password requirements
+                </div>
+
+                <div style={{ display: "grid", gap: 6 }}>
+                  {[
+                    {
+                      ok: passwordChecks.length,
+                      label: "At least 8 characters",
+                    },
+                    {
+                      ok: passwordChecks.uppercase,
+                      label: "One uppercase letter",
+                    },
+                    {
+                      ok: passwordChecks.lowercase,
+                      label: "One lowercase letter",
+                    },
+                    {
+                      ok: passwordChecks.number,
+                      label: "One number",
+                    },
+                    {
+                      ok: passwordChecks.symbol,
+                      label: "One symbol",
+                    },
+                  ].map((item) => (
+                    <div
+                      key={item.label}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 8,
+                        fontSize: 13,
+                        color: item.ok ? "#15803d" : "#475569",
+                        fontWeight: item.ok ? 700 : 500,
+                      }}
+                    >
+                      <span
+                        style={{
+                          width: 18,
+                          display: "inline-flex",
+                          justifyContent: "center",
+                          flexShrink: 0,
+                        }}
+                      >
+                        {item.ok ? "✓" : "•"}
+                      </span>
+                      <span>{item.label}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+          </div>
+        </div>
 
         <input
           type="password"
