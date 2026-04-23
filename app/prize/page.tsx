@@ -112,7 +112,7 @@ export default function PrizePage() {
       ],
     },
     {
-      members: "40,000 monthly members",
+      members: "50,000 monthly members",
       prizes: [
         { label: "1st Place", base: "$1,600", vip: "$4,800" },
         { label: "2nd Place", base: "$700", vip: "$2,100" },
