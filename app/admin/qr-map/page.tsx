@@ -505,8 +505,39 @@ export default function AdminQrMapPage() {
         attribution: "&copy; OpenStreetMap contributors",
       }).addTo(map);
 
+      const worldBounds = [
+        [-90, -180],
+        [-90, 180],
+        [90, 180],
+        [90, -180],
+      ];
+
+      const ncPolygon = [
+        [NC_BOUNDS_SW[0], NC_BOUNDS_SW[1]],
+        [NC_BOUNDS_SW[0], NC_BOUNDS_NE[1]],
+        [NC_BOUNDS_NE[0], NC_BOUNDS_NE[1]],
+        [NC_BOUNDS_NE[0], NC_BOUNDS_SW[1]],
+      ];
+
+      const mask = L.polygon([worldBounds, ncPolygon], {
+        color: "#020617",
+        fillColor: "#020617",
+        fillOpacity: 0.78,
+        weight: 0,
+        interactive: false,
+      });
+
+      mask.addTo(map);
+
+      L.rectangle(ncBounds, {
+        color: "rgba(59,130,246,0.9)",
+        weight: 1.5,
+        fill: false,
+        interactive: false,
+      }).addTo(map);
+
       map.setMaxBounds(ncBounds);
-      map.setMinZoom(6);
+      map.setMinZoom(7);
       map.setMaxZoom(18);
 
       const clusterGroup = L.markerClusterGroup({
@@ -678,6 +709,10 @@ export default function AdminQrMapPage() {
         map.fitBounds(combinedBounds, { padding: [24, 24] });
       } else {
         map.setView(NC_CENTER, NC_DEFAULT_ZOOM);
+      }
+
+      if (!ncBounds.contains(map.getCenter())) {
+        map.panTo(ncBounds.getCenter(), { animate: false });
       }
 
       mapRef.current = map;
