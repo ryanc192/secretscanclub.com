@@ -67,6 +67,8 @@ type PerformanceBand =
   | "low_activity"
   | "stalled";
 
+type PlacementFilter = "all" | "placed" | "planned";
+
 const NC_CENTER: [number, number] = [35.5, -79.0];
 const NC_DEFAULT_ZOOM = 7;
 const NC_BOUNDS_SW: [number, number] = [33.8, -84.5];
@@ -310,6 +312,7 @@ export default function AdminQrMapPage() {
 
   const [selectedBand, setSelectedBand] = useState<PerformanceBand>("all");
   const [selectedCity, setSelectedCity] = useState("all");
+  const [selectedPlacement, setSelectedPlacement] = useState<PlacementFilter>("all");
 
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<any>(null);
@@ -440,17 +443,24 @@ export default function AdminQrMapPage() {
 
   const filteredLocations = useMemo(() => {
     return locations.filter((row) => {
+      const normalizedBand = (row.performance_band ?? "").trim().toLowerCase();
+      const normalizedCity = (row.city ?? "").trim().toLowerCase();
+      const normalizedStatus = (row.status ?? "").trim().toLowerCase();
+
       const bandMatches =
-        selectedBand === "all" ||
-        (row.performance_band ?? "").trim().toLowerCase() === selectedBand;
+        selectedBand === "all" || normalizedBand === selectedBand;
 
       const cityMatches =
-        selectedCity === "all" ||
-        (row.city ?? "").trim().toLowerCase() === selectedCity.toLowerCase();
+        selectedCity === "all" || normalizedCity === selectedCity.toLowerCase();
 
-      return bandMatches && cityMatches;
+      const placementMatches =
+        selectedPlacement === "all" ||
+        (selectedPlacement === "placed" && normalizedStatus === "placed") ||
+        (selectedPlacement === "planned" && normalizedStatus === "planned");
+
+      return bandMatches && cityMatches && placementMatches;
     });
-  }, [locations, selectedBand, selectedCity]);
+  }, [locations, selectedBand, selectedCity, selectedPlacement]);
 
   const topPerformers = useMemo(() => {
     return [...locations]
@@ -1045,12 +1055,31 @@ export default function AdminQrMapPage() {
             <div
               style={{
                 display: "grid",
-                gridTemplateColumns: "1fr 1fr",
+                gridTemplateColumns: "1fr 1fr 1fr",
                 gap: "14px",
                 marginBottom: "16px",
               }}
               className="filter-grid"
             >
+              <select
+                value={selectedPlacement}
+                onChange={(e) => setSelectedPlacement(e.target.value as PlacementFilter)}
+                style={{
+                  width: "100%",
+                  borderRadius: "14px",
+                  padding: "14px 16px",
+                  border: "1px solid rgba(255,255,255,0.12)",
+                  background: "#132238",
+                  color: "#ffffff",
+                  outline: "none",
+                  fontSize: "14px",
+                }}
+              >
+                <option value="all">All placement statuses</option>
+                <option value="placed">Physically placed only</option>
+                <option value="planned">Not yet placed only</option>
+              </select>
+
               <select
                 value={selectedBand}
                 onChange={(e) => setSelectedBand(e.target.value as PerformanceBand)}
@@ -1065,7 +1094,7 @@ export default function AdminQrMapPage() {
                   fontSize: "14px",
                 }}
               >
-                <option value="all">All locations</option>
+                <option value="all">All performance bands</option>
                 <option value="high_performer">High performer</option>
                 <option value="strong_signup">Strong signup</option>
                 <option value="getting_attention">Getting attention</option>
@@ -1167,8 +1196,8 @@ export default function AdminQrMapPage() {
                   lineHeight: 1.6,
                 }}
               >
-                Hover or click a map pin to see a quick popup. Use the popup link to expand
-                more detail for that location.
+                Use the placement filter to show only locations that have actually been
+                physically placed.
               </div>
             </div>
 
