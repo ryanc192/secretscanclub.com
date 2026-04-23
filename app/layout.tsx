@@ -2,6 +2,7 @@ import "./styles/scan.css";
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import QrPageViewTracker from "./components/QrPageViewTracker";
+import GoogleAnalytics from "./components/GoogleAnalytics";
 
 export const metadata: Metadata = {
   title: "Secret Scan Club",
@@ -20,6 +21,9 @@ export default function RootLayout({
         backgroundColor: "#000000", // 🔥 solid black
       }}
     >
+      <head>
+  <GoogleAnalytics />
+</head>
       <body
         style={{
           margin: 0,
