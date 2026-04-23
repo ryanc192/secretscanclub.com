@@ -173,31 +173,37 @@ function getFirstNumber(record: Record<string, unknown>, keys: string[]) {
 
 function buildTopPlayer(profile: ProfileRow): TopPlayerRow {
   const correct = getFirstNumber(profile, [
-    "monthly_correct_answers",
-    "correct_answers_monthly",
     "correct_answers",
     "total_correct_answers",
+    "lifetime_correct_answers",
+    "all_time_correct_answers",
+    "monthly_correct_answers",
+    "correct_answers_monthly",
   ]);
 
   const guesses = getFirstNumber(profile, [
-    "monthly_total_guesses",
-    "total_guesses_monthly",
     "total_guesses",
     "guess_count",
     "total_attempts",
+    "lifetime_total_guesses",
+    "all_time_total_guesses",
+    "monthly_total_guesses",
+    "total_guesses_monthly",
   ]);
 
   const streak = getFirstNumber(profile, [
-    "monthly_streak",
     "current_streak",
     "longest_streak",
     "streak",
+    "monthly_streak",
   ]);
 
   const storedAccuracy = getFirstNumber(profile, [
-    "monthly_accuracy_percent",
     "accuracy_percent",
     "accuracy",
+    "lifetime_accuracy_percent",
+    "all_time_accuracy_percent",
+    "monthly_accuracy_percent",
   ]);
 
   const accuracy =
@@ -466,38 +472,6 @@ export default function AdminDashboardPage() {
     return [];
   }
 
-  async function safeSumQuery(options: {
-    table: string;
-    amountColumns: string[];
-    from?: string;
-    to?: string;
-    dateColumnCandidates?: string[];
-    limit?: number;
-  }) {
-    const rows = await safeRowsQuery<Record<string, unknown>>({
-      table: options.table,
-      from: options.from,
-      to: options.to,
-      dateColumnCandidates: options.dateColumnCandidates,
-      limit: options.limit ?? 5000,
-    });
-
-    let total = 0;
-
-    for (const row of rows) {
-      for (const column of options.amountColumns) {
-        const raw = row[column];
-        const parsed = Number(raw);
-        if (Number.isFinite(parsed)) {
-          total += parsed;
-          break;
-        }
-      }
-    }
-
-    return total;
-  }
-
   useEffect(() => {
     async function loadAdminDashboard() {
       setLoading(true);
@@ -556,8 +530,6 @@ export default function AdminDashboardPage() {
         const [
           winnerRows,
           profileRows,
-          puzzleSessionRows,
-          submissionRows,
           qrPageViewRows,
           generalPageViewRows,
           revenueRowsA,
@@ -576,25 +548,7 @@ export default function AdminDashboardPage() {
           }),
           safeRowsQuery<ProfileRow>({
             table: "profiles",
-            limit: 1000,
-            orderBy: "created_at",
-            ascending: false,
-          }),
-          safeRowsQuery<Record<string, unknown>>({
-            table: "puzzle_sessions",
-            from: monthStart,
-            to: nextMonthStart,
-            dateColumnCandidates: ["created_at", "submitted_at", "answered_at"],
-            limit: 10000,
-            orderBy: "created_at",
-            ascending: false,
-          }),
-          safeRowsQuery<Record<string, unknown>>({
-            table: "submissions",
-            from: monthStart,
-            to: nextMonthStart,
-            dateColumnCandidates: ["created_at", "submitted_at", "answered_at"],
-            limit: 10000,
+            limit: 5000,
             orderBy: "created_at",
             ascending: false,
           }),
@@ -657,59 +611,50 @@ export default function AdminDashboardPage() {
         const allProfiles = profileRows ?? [];
         const allWinners = winnerRows ?? [];
 
-        const totalMembers = allProfiles.length;
-        const totalVipMembers = allProfiles.filter((row) => isTier(row.subscription_tier, "vip")).length;
-        const totalClubMembers = allProfiles.filter((row) => isTier(row.subscription_tier, "club")).length;
+        const signedUpProfiles = allProfiles.filter((row) => !!row.id);
+        const totalMembers = signedUpProfiles.length;
+        const totalVipMembers = signedUpProfiles.filter((row) =>
+          isTier(row.subscription_tier, "vip")
+        ).length;
+        const totalClubMembers = signedUpProfiles.filter((row) =>
+          isTier(row.subscription_tier, "club")
+        ).length;
         const totalFreeMembers = Math.max(
           0,
-          allProfiles.filter((row) => isTier(row.subscription_tier, "free")).length
+          signedUpProfiles.filter((row) => isTier(row.subscription_tier, "free")).length
         );
 
-        const puzzleRows = puzzleSessionRows ?? [];
-        const submissionRowsSafe = submissionRows ?? [];
-        const answerRows = puzzleRows.length > 0 ? puzzleRows : submissionRowsSafe;
+        let totalCorrectPlatformWide = 0;
+        let totalGuessesPlatformWide = 0;
 
-        let totalGuessesMonthly = answerRows.length;
-        let totalCorrectMonthly = 0;
+        for (const profileRow of signedUpProfiles) {
+          const correct = getFirstNumber(profileRow, [
+            "correct_answers",
+            "total_correct_answers",
+            "lifetime_correct_answers",
+            "all_time_correct_answers",
+            "monthly_correct_answers",
+            "correct_answers_monthly",
+          ]);
 
-        for (const row of answerRows) {
-          const isCorrectRaw =
-            row.is_correct ??
-            row.correct ??
-            row.was_correct ??
-            row.answer_correct ??
-            row.status;
+          const guesses = getFirstNumber(profileRow, [
+            "total_guesses",
+            "guess_count",
+            "total_attempts",
+            "lifetime_total_guesses",
+            "all_time_total_guesses",
+            "monthly_total_guesses",
+            "total_guesses_monthly",
+          ]);
 
-          if (typeof isCorrectRaw === "boolean") {
-            if (isCorrectRaw) totalCorrectMonthly += 1;
-            continue;
-          }
-
-          if (typeof isCorrectRaw === "string") {
-            const normalized = isCorrectRaw.trim().toLowerCase();
-            if (["correct", "success", "accepted", "true"].includes(normalized)) {
-              totalCorrectMonthly += 1;
-            }
-          }
+          totalCorrectPlatformWide += correct;
+          totalGuessesPlatformWide += guesses;
         }
 
-        if (totalGuessesMonthly === 0) {
-          totalGuessesMonthly =
-            (await safeCountQuery({
-              table: "puzzle_sessions",
-              from: monthStart,
-              to: nextMonthStart,
-              dateColumnCandidates: ["created_at", "submitted_at", "answered_at"],
-            })) ||
-            (await safeCountQuery({
-              table: "submissions",
-              from: monthStart,
-              to: nextMonthStart,
-              dateColumnCandidates: ["created_at", "submitted_at", "answered_at"],
-            }));
-        }
-
-        const totalIncorrectMonthly = Math.max(0, totalGuessesMonthly - totalCorrectMonthly);
+        const totalIncorrectPlatformWide = Math.max(
+          0,
+          totalGuessesPlatformWide - totalCorrectPlatformWide
+        );
 
         const totalScanPageViews = qrPageViewRows.length;
         const totalScans =
@@ -754,11 +699,12 @@ export default function AdminDashboardPage() {
               continue;
             }
 
-            const amount =
-              Number(row.amount ?? row.amount_paid ?? row.total_amount ?? row.net_amount ?? 0) / 100;
+            const amountCents = Number(
+              row.amount ?? row.amount_paid ?? row.total_amount ?? row.net_amount ?? 0
+            );
 
-            if (Number.isFinite(amount) && amount > 0) {
-              totalRevenueMonthly += amount;
+            if (Number.isFinite(amountCents) && amountCents > 0) {
+              totalRevenueMonthly += amountCents / 100;
               continue;
             }
 
@@ -814,7 +760,7 @@ export default function AdminDashboardPage() {
           totalClubMembers + totalVipMembers + canceledMemberships
         );
 
-        const topPlayersComputed = allProfiles
+        const topPlayersComputed = signedUpProfiles
           .map(buildTopPlayer)
           .filter((player) => player.correct > 0 || player.guesses > 0 || player.streak > 0)
           .sort((a, b) => b.score - a.score)
@@ -826,18 +772,18 @@ export default function AdminDashboardPage() {
         setGameMetrics([
           {
             label: "Total Correct Answers",
-            value: formatNumber(totalCorrectMonthly),
-            subtext: `Correct answers recorded in ${label}`,
+            value: formatNumber(totalCorrectPlatformWide),
+            subtext: "Platform-wide across all signed-up users",
           },
           {
             label: "Total Incorrect Answers",
-            value: formatNumber(totalIncorrectMonthly),
-            subtext: `Incorrect guesses recorded in ${label}`,
+            value: formatNumber(totalIncorrectPlatformWide),
+            subtext: "Platform-wide across all signed-up users",
           },
           {
             label: "Total Guesses",
-            value: formatNumber(totalGuessesMonthly),
-            subtext: `All answer attempts recorded this month`,
+            value: formatNumber(totalGuessesPlatformWide),
+            subtext: "Platform-wide across all signed-up users",
           },
         ]);
 
@@ -888,7 +834,7 @@ export default function AdminDashboardPage() {
           {
             label: "Total Scan Page Views",
             value: formatNumber(totalScanPageViews),
-            subtext: "Views recorded from QR landing activity",
+            subtext: "Views recorded from QR landing activity this month",
           },
           {
             label: "Total General Page Views",
@@ -989,7 +935,7 @@ export default function AdminDashboardPage() {
               lineHeight: 1.6,
             }}
           >
-            Pulling member, scan, revenue, payout, and leaderboard metrics.
+            Pulling platform-wide player stats plus monthly business metrics.
           </div>
 
           <style jsx>{`
@@ -1067,8 +1013,8 @@ export default function AdminDashboardPage() {
                 wordBreak: "break-word",
               }}
             >
-              Welcome back, {adminName}. This month’s dashboard is broken into gameplay,
-              membership, traffic, revenue, and top player sections for faster monitoring.
+              Welcome back, {adminName}. Player answer totals and leaderboard stats now pull
+              across all signed-up users on the platform.
             </p>
           </div>
 
@@ -1192,7 +1138,7 @@ export default function AdminDashboardPage() {
                 lineHeight: 1.15,
               }}
             >
-              Your monthly control center for growth, traffic, and payouts.
+              Your control center for platform performance and monthly business metrics.
             </h2>
 
             <p
@@ -1204,9 +1150,9 @@ export default function AdminDashboardPage() {
                 marginBottom: "24px",
               }}
             >
-              Use this page to monitor gameplay performance, membership movement, QR scan
-              activity, monthly revenue, prize exposure, profit, and the current top
-              players without jumping across multiple pages.
+              Gameplay totals and top-player stats pull platform-wide across signed-up users,
+              while scans, page views, revenue, payout, and profit stay focused on the
+              current month.
             </p>
 
             <div
@@ -1344,8 +1290,8 @@ export default function AdminDashboardPage() {
         >
           <SectionTitle
             eyebrow="Gameplay Performance"
-            title="Monthly answer and guess activity"
-            description="These are the core gameplay totals for the current month."
+            title="Platform-wide answer and guess activity"
+            description="These totals pull across all signed-up people on the platform, not just the current month."
           />
           <div
             className="stats-grid-three"
@@ -1486,8 +1432,8 @@ export default function AdminDashboardPage() {
           >
             <SectionTitle
               eyebrow="Top Players"
-              title="Current player leaders and stats"
-              description="Top players are ranked using available streak, correct answer, guess, and accuracy data."
+              title="Platform-wide player leaders and stats"
+              description="Top players are now built from signed-up user profile stats across the entire platform."
             />
 
             {topPlayers.length === 0 ? (
@@ -1700,7 +1646,7 @@ export default function AdminDashboardPage() {
 
             <div style={{ display: "grid", gap: "12px" }}>
               {[
-                "Check gameplay totals and top players to spot unusual activity.",
+                "Check platform-wide answer totals and top players for unusual behavior.",
                 "Review membership movement, conversions, and cancellations.",
                 "Open the QR Map to inspect placement performance and route strategy.",
                 "Review monthly revenue, payout burden, and profit.",
