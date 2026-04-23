@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import QrPageViewTracker from "./components/QrPageViewTracker";
 import GoogleAnalytics from "./components/GoogleAnalytics";
+import GoogleAdSense from "./components/GoogleAdSense";
 
 export const metadata: Metadata = {
   title: "Secret Scan Club",
@@ -23,6 +24,7 @@ export default function RootLayout({
     >
       <head>
   <GoogleAnalytics />
+  <GoogleAdSense />
 </head>
       <body
         style={{
