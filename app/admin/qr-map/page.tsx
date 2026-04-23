@@ -176,6 +176,10 @@ function markerRadius(row: LocationRow) {
   return 7;
 }
 
+function safePopupId(value: string) {
+  return value.replace(/[^a-zA-Z0-9_-]/g, "_");
+}
+
 function MetricPill({
   label,
   value,
@@ -266,7 +270,6 @@ export default function AdminQrMapPage() {
   const [overview, setOverview] = useState<OverviewRow | null>(null);
   const [locations, setLocations] = useState<LocationRow[]>([]);
 
-  const [searchTerm, setSearchTerm] = useState("");
   const [selectedBand, setSelectedBand] = useState<PerformanceBand>("all");
   const [selectedCity, setSelectedCity] = useState("all");
 
@@ -328,13 +331,15 @@ export default function AdminQrMapPage() {
 
         setAdminEmail(profile?.email ?? user.email ?? "");
 
+        const overviewRequest = supabase.rpc("admin_qr_overview_metrics");
+        const locationRequest = supabase
+          .rpc("admin_qr_location_metrics")
+          .range(0, 4999);
+
         const [
           { data: overviewData, error: overviewError },
           { data: locationData, error: locationError },
-        ] = await Promise.all([
-          supabase.rpc("admin_qr_overview_metrics"),
-          supabase.rpc("admin_qr_location_metrics"),
-        ]);
+        ] = await Promise.all([overviewRequest, locationRequest]);
 
         if (overviewError) {
           throw new Error(`Overview read failed: ${getErrorMessage(overviewError)}`);
@@ -374,8 +379,6 @@ export default function AdminQrMapPage() {
   }, [locations]);
 
   const filteredLocations = useMemo(() => {
-    const search = searchTerm.trim().toLowerCase();
-
     return locations.filter((row) => {
       const bandMatches =
         selectedBand === "all" ||
@@ -385,26 +388,9 @@ export default function AdminQrMapPage() {
         selectedCity === "all" ||
         (row.city ?? "").trim().toLowerCase() === selectedCity.toLowerCase();
 
-      if (!bandMatches || !cityMatches) return false;
-      if (!search) return true;
-
-      const haystack = [
-        row.business_name,
-        row.location_name,
-        row.address,
-        row.city,
-        row.state,
-        row.station_group_id,
-        row.location_key,
-        row.campaign,
-      ]
-        .filter(Boolean)
-        .join(" ")
-        .toLowerCase();
-
-      return haystack.includes(search);
+      return bandMatches && cityMatches;
     });
-  }, [locations, searchTerm, selectedBand, selectedCity]);
+  }, [locations, selectedBand, selectedCity]);
 
   const topPerformers = useMemo(() => {
     return [...locations]
@@ -467,6 +453,11 @@ export default function AdminQrMapPage() {
         const lat = toNumber(row.latitude);
         const lng = toNumber(row.longitude);
         const color = getMarkerColor(row);
+        const popupKey = safePopupId(
+          row.location_key || row.station_group_id || `${lat}-${lng}`
+        );
+        const detailsId = `ssc-popup-details-${popupKey}`;
+        const linkId = `ssc-popup-link-${popupKey}`;
 
         const marker = L.circleMarker([lat, lng], {
           radius: markerRadius(row),
@@ -477,27 +468,58 @@ export default function AdminQrMapPage() {
         });
 
         const popupHtml = `
-          <div style="min-width: 260px; color: #0f172a; font-family: Arial, sans-serif;">
-            <div style="font-size: 16px; font-weight: 800; margin-bottom: 6px;">
-              ${row.business_name || row.location_name || "QR Location"}
-            </div>
+          <div style="min-width: 250px; color: #0f172a; font-family: Arial, sans-serif;">
             <div style="font-size: 13px; color: #334155; margin-bottom: 12px; line-height: 1.5;">
-              ${row.address || "No address available"}<br/>
-              ${row.city || ""}${row.city && row.state ? ", " : ""}${row.state || ""}
+              ${row.address || "No address available"}
             </div>
 
-            <div style="display: grid; gap: 6px; font-size: 13px;">
-              <div><strong>Status:</strong> ${row.status || "—"}</div>
+            <div style="display: grid; gap: 6px; font-size: 13px; margin-bottom: 10px;">
               <div><strong>Scans:</strong> ${formatNumber(row.total_scans)}</div>
-              <div><strong>Member Signups:</strong> ${formatNumber(row.total_signups)}</div>
+              <div><strong>Signups:</strong> ${formatNumber(row.total_signups)}</div>
               <div><strong>Subscriptions:</strong> ${formatNumber(row.total_subscriptions)}</div>
-              <div><strong>Scan → Signup:</strong> ${formatPercent(row.scan_to_signup_rate)}</div>
-              <div><strong>Signup → Subscription:</strong> ${formatPercent(row.signup_to_subscription_rate)}</div>
-              <div><strong>QRs at Location:</strong> ${formatNumber(row.qr_count)}</div>
-              <div><strong>Placed QRs:</strong> ${formatNumber(row.placed_qr_count)}</div>
-              <div><strong>Planned QRs:</strong> ${formatNumber(row.planned_qr_count)}</div>
-              <div><strong>Campaign:</strong> ${row.campaign || "—"}</div>
-              <div><strong>Status Band:</strong> ${bandLabel(row.performance_band)}</div>
+            </div>
+
+            <a
+              href="#"
+              id="${linkId}"
+              onclick="
+                var details = document.getElementById('${detailsId}');
+                var link = document.getElementById('${linkId}');
+                if (details) details.style.display = 'block';
+                if (link) link.style.display = 'none';
+                return false;
+              "
+              style="
+                display: inline-block;
+                margin-bottom: 10px;
+                color: #1d4ed8;
+                font-weight: 700;
+                text-decoration: none;
+                cursor: pointer;
+              "
+            >
+              View more details
+            </a>
+
+            <div
+              id="${detailsId}"
+              style="display: none; border-top: 1px solid #e2e8f0; padding-top: 10px; font-size: 13px;"
+            >
+              <div style="display: grid; gap: 6px;">
+                <div><strong>Status:</strong> ${row.status || "—"}</div>
+                <div><strong>Business:</strong> ${row.business_name || row.location_name || "—"}</div>
+                <div><strong>City:</strong> ${row.city || "—"}</div>
+                <div><strong>State:</strong> ${row.state || "—"}</div>
+                <div><strong>Scan → Signup:</strong> ${formatPercent(row.scan_to_signup_rate)}</div>
+                <div><strong>Signup → Subscription:</strong> ${formatPercent(
+                  row.signup_to_subscription_rate
+                )}</div>
+                <div><strong>QRs at Location:</strong> ${formatNumber(row.qr_count)}</div>
+                <div><strong>Placed QRs:</strong> ${formatNumber(row.placed_qr_count)}</div>
+                <div><strong>Planned QRs:</strong> ${formatNumber(row.planned_qr_count)}</div>
+                <div><strong>Campaign:</strong> ${row.campaign || "—"}</div>
+                <div><strong>Status Band:</strong> ${bandLabel(row.performance_band)}</div>
+              </div>
             </div>
           </div>
         `;
@@ -505,7 +527,7 @@ export default function AdminQrMapPage() {
         marker.bindPopup(popupHtml, { maxWidth: 320 });
 
         marker.on("mouseover", () => marker.openPopup());
-        marker.on("mouseout", () => marker.closePopup());
+        marker.on("click", () => marker.openPopup());
 
         marker.addTo(map);
         bounds.extend([lat, lng]);
@@ -842,28 +864,12 @@ export default function AdminQrMapPage() {
             <div
               style={{
                 display: "grid",
-                gridTemplateColumns: "1.25fr 1fr 1fr",
+                gridTemplateColumns: "1fr 1fr",
                 gap: "14px",
                 marginBottom: "16px",
               }}
               className="filter-grid"
             >
-              <input
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="Search by business, address, city, campaign, or site..."
-                style={{
-                  width: "100%",
-                  borderRadius: "14px",
-                  padding: "14px 16px",
-                  border: "1px solid rgba(255,255,255,0.12)",
-                  background: "rgba(255,255,255,0.05)",
-                  color: "#ffffff",
-                  outline: "none",
-                  fontSize: "14px",
-                }}
-              />
-
               <select
                 value={selectedBand}
                 onChange={(e) => setSelectedBand(e.target.value as PerformanceBand)}
@@ -980,8 +986,8 @@ export default function AdminQrMapPage() {
                   lineHeight: 1.6,
                 }}
               >
-                Hover over any map pin to see a performance popup with scans, member
-                signups, subscriptions, conversion rates, and QR counts for that location.
+                Hover or click a map pin to see a quick popup. Use the popup link to expand
+                more detail for that location.
               </div>
             </div>
 
