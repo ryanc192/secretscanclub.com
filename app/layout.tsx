@@ -24,7 +24,11 @@ export default function RootLayout({
     >
       <head>
   <GoogleAnalytics />
-  <GoogleAdSense />
+   <script
+    async
+    src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-2210824027063504"
+    crossOrigin="anonymous"
+  ></script>
 </head>
       <body
         style={{
