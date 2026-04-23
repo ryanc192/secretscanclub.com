@@ -67,6 +67,11 @@ type PerformanceBand =
   | "low_activity"
   | "stalled";
 
+const NC_CENTER: [number, number] = [35.5, -79.0];
+const NC_DEFAULT_ZOOM = 7;
+const NC_BOUNDS_SW: [number, number] = [33.8, -84.5];
+const NC_BOUNDS_NE: [number, number] = [36.7, -75.3];
+
 function getErrorMessage(error: unknown) {
   if (error && typeof error === "object") {
     const maybeMessage = (error as { message?: unknown }).message;
@@ -180,6 +185,39 @@ function safePopupId(value: string) {
   return value.replace(/[^a-zA-Z0-9_-]/g, "_");
 }
 
+function escapeHtml(value: string | null | undefined) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function buildMarkerHtml(color: string, size: number) {
+  return `
+    <div
+      style="
+        width:${size * 2}px;
+        height:${size * 2}px;
+        display:flex;
+        align-items:center;
+        justify-content:center;
+      "
+    >
+      <div
+        style="
+          width:${size * 2 - 2}px;
+          height:${size * 2 - 2}px;
+          border-radius:999px;
+          background:${color};
+          border:2px solid rgba(255,255,255,0.95);
+          box-shadow:0 3px 12px rgba(2,8,23,0.35);
+        "
+      ></div>
+    </div>
+  `;
+}
+
 function MetricPill({
   label,
   value,
@@ -277,14 +315,36 @@ export default function AdminQrMapPage() {
   const mapRef = useRef<any>(null);
 
   useEffect(() => {
-    const existing = document.getElementById("ssc-leaflet-css");
-    if (existing) return;
+    const leafletCss = document.getElementById("ssc-leaflet-css");
+    if (!leafletCss) {
+      const link = document.createElement("link");
+      link.id = "ssc-leaflet-css";
+      link.rel = "stylesheet";
+      link.href = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
+      document.head.appendChild(link);
+    }
 
-    const link = document.createElement("link");
-    link.id = "ssc-leaflet-css";
-    link.rel = "stylesheet";
-    link.href = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
-    document.head.appendChild(link);
+    const markerClusterCss = document.getElementById("ssc-markercluster-css");
+    if (!markerClusterCss) {
+      const link = document.createElement("link");
+      link.id = "ssc-markercluster-css";
+      link.rel = "stylesheet";
+      link.href =
+        "https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css";
+      document.head.appendChild(link);
+    }
+
+    const markerClusterDefaultCss = document.getElementById(
+      "ssc-markercluster-default-css"
+    );
+    if (!markerClusterDefaultCss) {
+      const link = document.createElement("link");
+      link.id = "ssc-markercluster-default-css";
+      link.rel = "stylesheet";
+      link.href =
+        "https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css";
+      document.head.appendChild(link);
+    }
   }, []);
 
   useEffect(() => {
@@ -334,7 +394,7 @@ export default function AdminQrMapPage() {
         const overviewRequest = supabase.rpc("admin_qr_overview_metrics");
         const locationRequest = supabase
           .rpc("admin_qr_location_metrics")
-          .range(0, 4999);
+          .range(0, 9999);
 
         const [
           { data: overviewData, error: overviewError },
@@ -423,9 +483,10 @@ export default function AdminQrMapPage() {
       );
 
       const leafletModule = await import("leaflet");
+      await import("leaflet.markercluster");
       if (cancelled) return;
 
-      const L = leafletModule.default ?? leafletModule;
+      const L: any = (leafletModule as any).default ?? leafletModule;
 
       if (mapRef.current) {
         mapRef.current.remove();
@@ -435,19 +496,73 @@ export default function AdminQrMapPage() {
       const map = L.map(mapContainerRef.current, {
         zoomControl: true,
         scrollWheelZoom: true,
+        maxBoundsViscosity: 1.0,
       });
+
+      const ncBounds = L.latLngBounds(NC_BOUNDS_SW, NC_BOUNDS_NE);
 
       L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
         attribution: "&copy; OpenStreetMap contributors",
       }).addTo(map);
 
+      map.setMaxBounds(ncBounds);
+      map.setMinZoom(6);
+      map.setMaxZoom(18);
+
+      const clusterGroup = L.markerClusterGroup({
+        chunkedLoading: true,
+        spiderfyOnMaxZoom: true,
+        showCoverageOnHover: false,
+        removeOutsideVisibleBounds: true,
+        maxClusterRadius: 48,
+        iconCreateFunction: (cluster: any) => {
+          const count = cluster.getChildCount();
+          let size = 42;
+          let bg = "#1d4ed8";
+
+          if (count >= 100) {
+            size = 56;
+            bg = "#0f766e";
+          } else if (count >= 25) {
+            size = 50;
+            bg = "#2563eb";
+          }
+
+          return L.divIcon({
+            html: `
+              <div
+                style="
+                  width:${size}px;
+                  height:${size}px;
+                  border-radius:999px;
+                  background:${bg};
+                  border:3px solid rgba(255,255,255,0.92);
+                  color:#ffffff;
+                  display:flex;
+                  align-items:center;
+                  justify-content:center;
+                  font-weight:800;
+                  font-size:14px;
+                  box-shadow:0 10px 24px rgba(2,8,23,0.28);
+                "
+              >
+                ${count}
+              </div>
+            `,
+            className: "ssc-cluster-icon",
+            iconSize: [size, size],
+            iconAnchor: [size / 2, size / 2],
+          });
+        },
+      });
+
       if (validRows.length === 0) {
-        map.setView([35.7796, -78.6382], 7);
+        map.setView(NC_CENTER, NC_DEFAULT_ZOOM);
         mapRef.current = map;
         return;
       }
 
-      const bounds = L.latLngBounds([]);
+      const dataBounds = L.latLngBounds([]);
 
       validRows.forEach((row) => {
         const lat = toNumber(row.latitude);
@@ -458,19 +573,32 @@ export default function AdminQrMapPage() {
         );
         const detailsId = `ssc-popup-details-${popupKey}`;
         const linkId = `ssc-popup-link-${popupKey}`;
+        const radius = markerRadius(row);
+        const businessLabel = escapeHtml(
+          row.business_name || row.location_name || "—"
+        );
+        const addressLabel = escapeHtml(row.address || "No address available");
+        const cityLabel = escapeHtml(row.city || "—");
+        const stateLabel = escapeHtml(row.state || "—");
+        const statusLabel = escapeHtml(row.status || "—");
+        const campaignLabel = escapeHtml(row.campaign || "—");
+        const bandText = escapeHtml(bandLabel(row.performance_band));
 
-        const marker = L.circleMarker([lat, lng], {
-          radius: markerRadius(row),
-          color,
-          fillColor: color,
-          fillOpacity: 0.82,
-          weight: 2,
+        const marker = L.marker([lat, lng], {
+          icon: L.divIcon({
+            html: buildMarkerHtml(color, radius),
+            className: "ssc-pin-icon",
+            iconSize: [radius * 2, radius * 2],
+            iconAnchor: [radius, radius],
+            popupAnchor: [0, -radius],
+          }),
+          title: row.address || row.business_name || row.location_name || "QR Location",
         });
 
         const popupHtml = `
           <div style="min-width: 250px; color: #0f172a; font-family: Arial, sans-serif;">
             <div style="font-size: 13px; color: #334155; margin-bottom: 12px; line-height: 1.5;">
-              ${row.address || "No address available"}
+              ${addressLabel}
             </div>
 
             <div style="display: grid; gap: 6px; font-size: 13px; margin-bottom: 10px;">
@@ -506,10 +634,10 @@ export default function AdminQrMapPage() {
               style="display: none; border-top: 1px solid #e2e8f0; padding-top: 10px; font-size: 13px;"
             >
               <div style="display: grid; gap: 6px;">
-                <div><strong>Status:</strong> ${row.status || "—"}</div>
-                <div><strong>Business:</strong> ${row.business_name || row.location_name || "—"}</div>
-                <div><strong>City:</strong> ${row.city || "—"}</div>
-                <div><strong>State:</strong> ${row.state || "—"}</div>
+                <div><strong>Status:</strong> ${statusLabel}</div>
+                <div><strong>Business:</strong> ${businessLabel}</div>
+                <div><strong>City:</strong> ${cityLabel}</div>
+                <div><strong>State:</strong> ${stateLabel}</div>
                 <div><strong>Scan → Signup:</strong> ${formatPercent(row.scan_to_signup_rate)}</div>
                 <div><strong>Signup → Subscription:</strong> ${formatPercent(
                   row.signup_to_subscription_rate
@@ -517,23 +645,41 @@ export default function AdminQrMapPage() {
                 <div><strong>QRs at Location:</strong> ${formatNumber(row.qr_count)}</div>
                 <div><strong>Placed QRs:</strong> ${formatNumber(row.placed_qr_count)}</div>
                 <div><strong>Planned QRs:</strong> ${formatNumber(row.planned_qr_count)}</div>
-                <div><strong>Campaign:</strong> ${row.campaign || "—"}</div>
-                <div><strong>Status Band:</strong> ${bandLabel(row.performance_band)}</div>
+                <div><strong>Campaign:</strong> ${campaignLabel}</div>
+                <div><strong>Status Band:</strong> ${bandText}</div>
               </div>
             </div>
           </div>
         `;
 
         marker.bindPopup(popupHtml, { maxWidth: 320 });
-
         marker.on("mouseover", () => marker.openPopup());
         marker.on("click", () => marker.openPopup());
 
-        marker.addTo(map);
-        bounds.extend([lat, lng]);
+        clusterGroup.addLayer(marker);
+        dataBounds.extend([lat, lng]);
       });
 
-      map.fitBounds(bounds.pad(0.18));
+      map.addLayer(clusterGroup);
+
+      const boundedData = dataBounds.isValid() ? dataBounds.pad(0.12) : ncBounds;
+      const combinedBounds = L.latLngBounds(
+        [
+          Math.max(boundedData.getSouth(), ncBounds.getSouth()),
+          Math.max(boundedData.getWest(), ncBounds.getWest()),
+        ],
+        [
+          Math.min(boundedData.getNorth(), ncBounds.getNorth()),
+          Math.min(boundedData.getEast(), ncBounds.getEast()),
+        ]
+      );
+
+      if (combinedBounds.isValid()) {
+        map.fitBounds(combinedBounds, { padding: [24, 24] });
+      } else {
+        map.setView(NC_CENTER, NC_DEFAULT_ZOOM);
+      }
+
       mapRef.current = map;
     }
 
@@ -1309,6 +1455,16 @@ export default function AdminQrMapPage() {
 
         .leaflet-control-zoom a {
           color: #0f172a !important;
+        }
+
+        .ssc-pin-icon {
+          background: transparent !important;
+          border: 0 !important;
+        }
+
+        .ssc-cluster-icon {
+          background: transparent !important;
+          border: 0 !important;
         }
       `}</style>
 
