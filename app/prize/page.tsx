@@ -313,25 +313,21 @@ export default function PrizePage() {
         </section>
 
         <section style={styles.faqSection} className="faq-section">
-          <div style={styles.growthHeaderRow}>
-            <div>
-              <h2 style={styles.faqHeading} className="faq-heading">Prize Growth Model</h2>
-              <p style={styles.growthIntroText}>
-                As the member base grows, the prize pool grows with it. Each listed prize
-                grows as the platform hits each member pool benchmark, creating an ecosystem
-                that becomes more exciting as monthly traffic and engagement increase.
-              </p>
-            </div>
+          <h2 style={styles.faqHeading} className="faq-heading">Prize Growth Model</h2>
+          <p style={styles.growthIntroText}>
+            As the member base grows, the prize pool grows with it. Each listed prize
+            grows as the platform hits each member pool benchmark, creating an ecosystem
+            that becomes more exciting as monthly traffic and engagement increase.
+          </p>
 
-            <div style={styles.growthLegend}>
-              <div style={styles.growthLegendItem}>
-                <span style={styles.growthLegendDotBase} />
-                <span style={styles.growthLegendText}>Base Prize</span>
-              </div>
-              <div style={styles.growthLegendItem}>
-                <span style={styles.growthLegendDotVip} />
-                <span style={styles.growthLegendText}>Top VIP Prize</span>
-              </div>
+          <div style={styles.growthLegend}>
+            <div style={styles.growthLegendItem}>
+              <span style={styles.growthLegendDotBase} />
+              <span style={styles.growthLegendText}>Base Prize</span>
+            </div>
+            <div style={styles.growthLegendItem}>
+              <span style={styles.growthLegendDotVip} />
+              <span style={styles.growthLegendText}>Top VIP Prize</span>
             </div>
           </div>
 
@@ -340,33 +336,19 @@ export default function PrizePage() {
               <div key={item.members} style={styles.growthCard} className="growth-card">
                 <div style={styles.growthMembers}>{item.members}</div>
 
-                <div style={styles.growthList}>
+                <div style={styles.simpleGrowthList}>
                   {item.prizes.map((prize) => (
                     <div
                       key={`${item.members}-${prize.label}`}
-                      style={styles.growthListRow}
-                      className="growthListRow"
+                      style={styles.simpleGrowthRow}
+                      className="simpleGrowthRow"
                     >
-                      <div style={styles.growthListLabelWrap}>
-                        <div style={styles.growthListLabel}>{prize.label}</div>
-                        {"vip" in prize && prize.vip ? (
-                          <span style={styles.growthListBadgeVip}>VIP x3</span>
-                        ) : (
-                          <span style={styles.growthListBadgeBase}>Base only</span>
-                        )}
-                      </div>
+                      <div style={styles.simpleGrowthPlacement}>{prize.label}</div>
 
-                      <div style={styles.growthListValues} className="growthListValues">
-                        <div style={styles.growthBaseGroup}>
-                          <span style={styles.growthSmallLabel}>Base</span>
-                          <span style={styles.growthBaseValue}>{prize.base}</span>
-                        </div>
-
+                      <div style={styles.simpleGrowthValues} className="simpleGrowthValues">
+                        <span style={styles.simpleGrowthBase}>Base: {prize.base}</span>
                         {"vip" in prize && prize.vip ? (
-                          <div style={styles.growthVipGroup}>
-                            <span style={styles.growthSmallLabelVip}>Top VIP</span>
-                            <span style={styles.growthVipValue}>{prize.vip}</span>
-                          </div>
+                          <span style={styles.simpleGrowthVip}>Top: {prize.vip}</span>
                         ) : null}
                       </div>
                     </div>
@@ -474,12 +456,12 @@ export default function PrizePage() {
             align-items: flex-start !important;
           }
 
-          .growthListRow {
+          .simpleGrowthRow {
             flex-direction: column !important;
             align-items: flex-start !important;
           }
 
-          .growthListValues {
+          .simpleGrowthValues {
             width: 100% !important;
             justify-content: flex-start !important;
           }
@@ -518,10 +500,10 @@ export default function PrizePage() {
             font-size: 1.72rem !important;
           }
 
-          .growthListValues {
+          .simpleGrowthValues {
             flex-direction: column !important;
             align-items: flex-start !important;
-            gap: 8px !important;
+            gap: 4px !important;
           }
         }
       `}</style>
@@ -852,16 +834,8 @@ const styles: Record<string, React.CSSProperties> = {
     lineHeight: 1.6,
     fontSize: 14,
   },
-  growthHeaderRow: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "flex-end",
-    gap: 20,
-    flexWrap: "wrap",
-    marginBottom: 10,
-  },
   growthIntroText: {
-    margin: "0 0 10px",
+    margin: "0 0 18px",
     maxWidth: 760,
     color: "rgba(255,255,255,0.78)",
     fontSize: 16,
@@ -873,7 +847,7 @@ const styles: Record<string, React.CSSProperties> = {
     alignItems: "center",
     gap: 18,
     flexWrap: "wrap",
-    marginBottom: 10,
+    marginBottom: 18,
   },
   growthLegendItem: {
     display: "flex",
@@ -903,7 +877,6 @@ const styles: Record<string, React.CSSProperties> = {
     display: "grid",
     gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
     gap: 18,
-    marginTop: 20,
   },
   growthCard: {
     borderRadius: 22,
@@ -911,113 +884,47 @@ const styles: Record<string, React.CSSProperties> = {
     background: "rgba(255,255,255,0.04)",
     border: "1px solid rgba(255,255,255,0.08)",
     minWidth: 0,
-    textAlign: "left",
   },
   growthMembers: {
     fontSize: 16,
     fontWeight: 900,
     marginBottom: 14,
     color: "#ffffff",
-    textAlign: "left",
     lineHeight: 1.35,
   },
-  growthList: {
+  simpleGrowthList: {
     display: "grid",
     gap: 10,
   },
-  growthListRow: {
+  simpleGrowthRow: {
     display: "flex",
     justifyContent: "space-between",
     alignItems: "center",
-    gap: 14,
-    padding: "12px 14px",
-    borderRadius: 16,
-    background: "rgba(255,255,255,0.035)",
-    border: "1px solid rgba(255,255,255,0.06)",
+    gap: 16,
+    padding: "10px 0",
+    borderBottom: "1px solid rgba(255,255,255,0.08)",
   },
-  growthListLabelWrap: {
-    display: "grid",
-    gap: 6,
-    minWidth: 0,
-  },
-  growthListLabel: {
+  simpleGrowthPlacement: {
     fontSize: 15,
     fontWeight: 800,
     color: "#eef5ff",
-    lineHeight: 1.3,
   },
-  growthListBadgeVip: {
-    display: "inline-flex",
-    alignItems: "center",
-    justifyContent: "center",
-    width: "fit-content",
-    padding: "4px 9px",
-    borderRadius: 999,
-    fontSize: 11,
-    fontWeight: 800,
-    letterSpacing: 0.3,
-    textTransform: "uppercase",
-    color: "#06241d",
-    background: "linear-gradient(135deg, #7ef0d1 0%, #6fffd7 100%)",
-  },
-  growthListBadgeBase: {
-    display: "inline-flex",
-    alignItems: "center",
-    justifyContent: "center",
-    width: "fit-content",
-    padding: "4px 9px",
-    borderRadius: 999,
-    fontSize: 11,
-    fontWeight: 800,
-    letterSpacing: 0.3,
-    textTransform: "uppercase",
-    color: "rgba(255,255,255,0.78)",
-    background: "rgba(255,255,255,0.08)",
-    border: "1px solid rgba(255,255,255,0.08)",
-  },
-  growthListValues: {
+  simpleGrowthValues: {
     display: "flex",
     alignItems: "center",
     justifyContent: "flex-end",
     gap: 14,
     flexWrap: "wrap",
-    flexShrink: 0,
   },
-  growthBaseGroup: {
-    display: "grid",
-    gap: 3,
-    textAlign: "right",
-  },
-  growthVipGroup: {
-    display: "grid",
-    gap: 3,
-    textAlign: "right",
-  },
-  growthSmallLabel: {
-    fontSize: 11,
-    fontWeight: 800,
-    letterSpacing: 0.35,
-    textTransform: "uppercase",
-    color: "rgba(255,255,255,0.55)",
-  },
-  growthSmallLabelVip: {
-    fontSize: 11,
-    fontWeight: 800,
-    letterSpacing: 0.35,
-    textTransform: "uppercase",
-    color: "rgba(126,240,209,0.85)",
-  },
-  growthBaseValue: {
-    fontSize: 20,
-    fontWeight: 900,
+  simpleGrowthBase: {
+    fontSize: 15,
+    fontWeight: 700,
     color: "#ffffff",
-    lineHeight: 1.1,
   },
-  growthVipValue: {
-    fontSize: 20,
-    fontWeight: 900,
+  simpleGrowthVip: {
+    fontSize: 15,
+    fontWeight: 800,
     color: "#7ef0d1",
-    lineHeight: 1.1,
   },
   bottomCta: {
     textAlign: "center",
