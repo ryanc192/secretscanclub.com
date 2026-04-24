@@ -79,22 +79,34 @@ export default function GoogleLoginPopup() {
   return (
     <div style={styles.wrapper}>
       <div style={styles.card}>
-        <button onClick={closePopup} style={styles.closeButton}>
-          ×
-        </button>
+        {/* HEADER */}
+        <div style={styles.header}>
+          <div style={styles.headerLeft}>
+            <span style={styles.googleIcon}>G</span>
+            <span style={styles.headerText}>
+              Sign in to secretscanclub.com with google.com
+            </span>
+          </div>
 
-        <button
-          onClick={signInWithGoogle}
-          disabled={loading}
-          style={{
-            ...styles.googleButton,
-            opacity: loading ? 0.75 : 1,
-            cursor: loading ? "not-allowed" : "pointer",
-          }}
-        >
-          <span style={styles.googleIcon}>G</span>
-          {loading ? "Connecting..." : "Continue with Google"}
-        </button>
+          <button onClick={closePopup} style={styles.closeButton}>
+            ×
+          </button>
+        </div>
+
+        {/* BODY */}
+        <div style={styles.body}>
+          <button
+            onClick={signInWithGoogle}
+            disabled={loading}
+            style={{
+              ...styles.googleButton,
+              opacity: loading ? 0.75 : 1,
+              cursor: loading ? "not-allowed" : "pointer",
+            }}
+          >
+            {loading ? "Connecting..." : "Continue with Google"}
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -106,60 +118,73 @@ const styles: Record<string, React.CSSProperties> = {
     right: "16px",
     bottom: "calc(16px + env(safe-area-inset-bottom))",
     zIndex: 2147483647,
-    width: "min(92vw, 360px)",
+    width: "min(92vw, 400px)",
     fontFamily: "Arial, Helvetica, sans-serif",
     WebkitTransform: "translateZ(0)",
     transform: "translateZ(0)",
   },
 
   card: {
-    position: "relative",
     background: "#ffffff",
     border: "1px solid #dadce0",
-    borderRadius: "999px",
-    boxShadow: "0 8px 24px rgba(0,0,0,0.22)",
-    padding: "0",
-    overflow: "visible",
+    borderRadius: "6px",
+    boxShadow: "0 8px 24px rgba(0,0,0,0.25)",
+    overflow: "hidden",
   },
 
-  closeButton: {
-    position: "absolute",
-    top: "-13px",
-    right: "-9px",
-    width: "26px",
-    height: "26px",
-    borderRadius: "999px",
-    border: "1px solid #dadce0",
-    background: "#ffffff",
-    color: "#5f6368",
-    fontSize: "20px",
-    lineHeight: "20px",
-    cursor: "pointer",
-    zIndex: 2,
-  },
-
-  googleButton: {
-    width: "100%",
-    height: "54px",
-    borderRadius: "999px",
-    border: "none",
-    background: "#1a73e8",
-    color: "#ffffff",
-    fontSize: "18px",
-    fontWeight: 500,
+  header: {
+    height: "50px",
     display: "flex",
     alignItems: "center",
-    justifyContent: "center",
-    gap: "10px",
-    padding: "0 22px",
-    WebkitAppearance: "none",
-    appearance: "none",
+    justifyContent: "space-between",
+    padding: "0 12px",
+    borderBottom: "1px solid #dadce0",
+    background: "#ffffff",
+  },
+
+  headerLeft: {
+    display: "flex",
+    alignItems: "center",
+    gap: "8px",
+    overflow: "hidden",
   },
 
   googleIcon: {
     fontWeight: 700,
-    fontSize: "20px",
+    fontSize: "18px",
+    color: "#4285f4",
+  },
+
+  headerText: {
+    fontSize: "14px",
+    color: "#5f6368",
+    whiteSpace: "nowrap",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+  },
+
+  closeButton: {
+    border: "none",
+    background: "transparent",
+    fontSize: "22px",
+    color: "#5f6368",
+    cursor: "pointer",
+  },
+
+  body: {
+    padding: "16px",
+  },
+
+  googleButton: {
+    width: "100%",
+    height: "48px",
+    borderRadius: "999px",
+    border: "none",
+    background: "#1a73e8",
     color: "#ffffff",
-    lineHeight: 1,
+    fontSize: "16px",
+    fontWeight: 500,
+    WebkitAppearance: "none",
+    appearance: "none",
   },
 };
