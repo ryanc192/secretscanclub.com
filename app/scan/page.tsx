@@ -6,6 +6,7 @@ import EmailSignupForm from "../components/EmailSignupForm";
 import AuthStatus from "../components/AuthStatus";
 import ScanRedirect from "./ScanRedirect";
 import AnswerCheckForm from "../components/AnswerCheckForm";
+import GoogleLoginPopup from "./GoogleLoginPopup";
 
 export const dynamic = "force-dynamic";
 
@@ -68,7 +69,7 @@ export default function ScanPage() {
   return (
     <main className="scan-page">
       <ScanRedirect />
-
+      <GoogleLoginPopup />
       <div
         style={{
           position: "fixed",
