@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Image from "next/image";
 import { createClient } from "@supabase/supabase-js";
 
 const supabase = createClient(
@@ -13,17 +12,12 @@ const POPUP_COOKIE = "ssc_google_popup_seen";
 
 function getCookie(name: string) {
   if (typeof document === "undefined") return null;
-
-  const match = document.cookie.match(
-    new RegExp("(^| )" + name + "=([^;]+)")
-  );
-
+  const match = document.cookie.match(new RegExp("(^| )" + name + "=([^;]+)"));
   return match ? match[2] : null;
 }
 
 function setCookie(name: string, value: string, days: number) {
   const maxAge = days * 24 * 60 * 60;
-
   document.cookie = `${name}=${value}; path=/; max-age=${maxAge}; SameSite=Lax`;
 }
 
@@ -32,7 +26,6 @@ export default function GoogleLoginPopup() {
   const [loading, setLoading] = useState(false);
   const [checkedAuth, setCheckedAuth] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [hasInteracted, setHasInteracted] = useState(false);
 
   useEffect(() => {
     async function checkUser() {
@@ -48,46 +41,14 @@ export default function GoogleLoginPopup() {
   }, []);
 
   useEffect(() => {
-    function markInteraction() {
-      setHasInteracted(true);
-    }
-
-    window.addEventListener("click", markInteraction);
-    window.addEventListener("scroll", markInteraction);
-    window.addEventListener("touchstart", markInteraction);
-
-    return () => {
-      window.removeEventListener("click", markInteraction);
-      window.removeEventListener("scroll", markInteraction);
-      window.removeEventListener("touchstart", markInteraction);
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!checkedAuth) return;
-    if (isLoggedIn) return;
-    if (getCookie(POPUP_COOKIE)) return;
-
-    const timer = setTimeout(() => {
-      setHasInteracted(true);
-    }, 7000);
-
-    return () => clearTimeout(timer);
-  }, [checkedAuth, isLoggedIn]);
-
-  useEffect(() => {
-    if (!checkedAuth) return;
-    if (isLoggedIn) return;
-    if (!hasInteracted) return;
-    if (getCookie(POPUP_COOKIE)) return;
+    if (!checkedAuth || isLoggedIn || getCookie(POPUP_COOKIE)) return;
 
     const timer = setTimeout(() => {
       setOpen(true);
-      setCookie(POPUP_COOKIE, "true", 1);
-    }, 800);
+    }, 1500);
 
     return () => clearTimeout(timer);
-  }, [checkedAuth, isLoggedIn, hasInteracted]);
+  }, [checkedAuth, isLoggedIn]);
 
   async function signInWithGoogle() {
     try {
@@ -116,87 +77,167 @@ export default function GoogleLoginPopup() {
   if (!open || isLoggedIn) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 px-4 backdrop-blur-sm">
-      <div className="w-full max-w-md rounded-3xl border border-white/10 bg-[#0f172a] p-6 shadow-2xl animate-fadeIn">
-        <button
-          onClick={closePopup}
-          className="ml-auto block text-2xl text-white/50 hover:text-white"
-          aria-label="Close popup"
-        >
-          ×
-        </button>
-
-        <div className="flex flex-col items-center text-center">
-          <Image
-            src="/ssc-logo.png"
-            alt="Secret Scan Club"
-            width={95}
-            height={95}
-            className="mb-4"
-            priority
-          />
-
-          <div className="mb-3 rounded-full border border-yellow-400/30 bg-yellow-400/10 px-4 py-1 text-xs font-semibold uppercase tracking-wide text-yellow-300">
-            Your streak is not safe yet
+    <div style={styles.wrapper}>
+      <div style={styles.card}>
+        <div style={styles.header}>
+          <div style={styles.headerLeft}>
+            <span style={styles.googleIcon}>G</span>
+            <span style={styles.headerText}>
+              Sign in to Secret Scan Club with google.com
+            </span>
           </div>
 
-          <h2 className="text-2xl font-bold text-white">
-            Don’t lose your scan.
-          </h2>
+          <button onClick={closePopup} style={styles.closeButton}>
+            ×
+          </button>
+        </div>
 
-          <p className="mt-2 max-w-sm text-sm leading-6 text-white/65">
-            Sign in to save your answer, protect your streak, compete on the
-            leaderboard, and stay eligible for monthly prizes.
-          </p>
+        <div style={styles.body}>
+          <div style={styles.accountRow}>
+            <img
+              src="/ssc-logo.png"
+              alt="Secret Scan Club"
+              style={styles.avatar}
+            />
 
-          <div className="mt-5 w-full rounded-2xl border border-white/10 bg-white/5 p-4 text-left">
-            <p className="text-sm font-semibold text-white">
-              Without an account:
-            </p>
-
-            <ul className="mt-2 space-y-1 text-sm text-white/60">
-              <li>• Your progress may not save</li>
-              <li>• Your streak may reset</li>
-              <li>• You may miss prize eligibility</li>
-            </ul>
+            <div>
+              <div style={styles.accountName}>Secret Scan Club</div>
+              <div style={styles.accountEmail}>Save your streak & prizes</div>
+            </div>
           </div>
 
           <button
             onClick={signInWithGoogle}
             disabled={loading}
-            className="mt-6 flex w-full items-center justify-center gap-3 rounded-full bg-white px-5 py-3 font-semibold text-black transition hover:bg-gray-200 disabled:opacity-50"
+            style={{
+              ...styles.googleButton,
+              opacity: loading ? 0.7 : 1,
+              cursor: loading ? "not-allowed" : "pointer",
+            }}
           >
-            <span className="flex h-6 w-6 items-center justify-center rounded-full bg-white text-lg font-bold text-blue-600">
-              G
-            </span>
             {loading ? "Connecting..." : "Continue with Google"}
           </button>
 
-          <button
-            onClick={closePopup}
-            className="mt-4 text-sm font-medium text-white/40 hover:text-white"
-          >
-            I’ll risk my streak
-          </button>
+          <p style={styles.disclaimer}>
+            To continue, Google will share your name, email address, and profile
+            picture with this site. Sign in to save your streak, leaderboard
+            progress, and prize eligibility.
+          </p>
         </div>
       </div>
-
-      <style jsx>{`
-        .animate-fadeIn {
-          animation: fadeIn 0.25s ease-out;
-        }
-
-        @keyframes fadeIn {
-          from {
-            opacity: 0;
-            transform: scale(0.96);
-          }
-          to {
-            opacity: 1;
-            transform: scale(1);
-          }
-        }
-      `}</style>
     </div>
   );
 }
+
+const styles: Record<string, React.CSSProperties> = {
+  wrapper: {
+    position: "fixed",
+    right: "24px",
+    bottom: "24px",
+    zIndex: 9999,
+    width: "min(92vw, 430px)",
+    fontFamily:
+      'Arial, Helvetica, sans-serif',
+  },
+
+  card: {
+    background: "#ffffff",
+    border: "1px solid #dadce0",
+    borderRadius: "4px",
+    boxShadow: "0 8px 24px rgba(0,0,0,0.22)",
+    overflow: "hidden",
+    color: "#202124",
+  },
+
+  header: {
+    height: "54px",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    padding: "0 14px",
+    borderBottom: "1px solid #dadce0",
+    background: "#ffffff",
+  },
+
+  headerLeft: {
+    display: "flex",
+    alignItems: "center",
+    gap: "10px",
+    minWidth: 0,
+  },
+
+  googleIcon: {
+    fontWeight: 700,
+    fontSize: "20px",
+    color: "#4285f4",
+    lineHeight: 1,
+  },
+
+  headerText: {
+    fontSize: "17px",
+    color: "#5f6368",
+    whiteSpace: "nowrap",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+  },
+
+  closeButton: {
+    border: "none",
+    background: "transparent",
+    fontSize: "34px",
+    lineHeight: 1,
+    color: "#6f7275",
+    cursor: "pointer",
+    padding: "0 0 4px 10px",
+  },
+
+  body: {
+    padding: "24px 22px 22px",
+  },
+
+  accountRow: {
+    display: "flex",
+    alignItems: "center",
+    gap: "16px",
+    marginBottom: "24px",
+  },
+
+  avatar: {
+    width: "58px",
+    height: "58px",
+    borderRadius: "50%",
+    objectFit: "cover",
+  },
+
+  accountName: {
+    fontSize: "20px",
+    fontWeight: 600,
+    color: "#3c4043",
+  },
+
+  accountEmail: {
+    marginTop: "2px",
+    fontSize: "17px",
+    color: "#6f7275",
+  },
+
+  googleButton: {
+    width: "100%",
+    height: "58px",
+    borderRadius: "999px",
+    border: "none",
+    background: "#1a73e8",
+    color: "#ffffff",
+    fontSize: "18px",
+    fontWeight: 500,
+    marginBottom: "20px",
+  },
+
+  disclaimer: {
+    margin: 0,
+    textAlign: "center",
+    fontSize: "13px",
+    lineHeight: 1.35,
+    color: "#4f5357",
+  },
+};
