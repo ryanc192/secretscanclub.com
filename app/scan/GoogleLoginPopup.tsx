@@ -119,9 +119,7 @@ export default function GoogleLoginPopup() {
           </button>
 
           <p style={styles.disclaimer}>
-            To continue, Google will share your name, email address, and profile
-            picture with this site. Sign in to save your streak, leaderboard
-            progress, and prize eligibility.
+
           </p>
         </div>
       </div>
