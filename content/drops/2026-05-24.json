@@ -1,0 +1,12 @@
+{
+  "date": "2026-05-24",
+  "number": 21,
+  "title": "Riddle of the Day",
+  "free": {
+    "puzzle": "What has keys but can’t open locks?",
+    "sharePrompt": "I have keys but they aren't on a ring",
+    "answer": "keyboard",
+    "acceptedAnswers": ["keyboard", "a keyboard", "keyboards"],
+    "explanation": "A keyboard has keys, but they are typing keys, not lock keys."
+  }
+}
